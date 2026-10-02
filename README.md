@@ -1,0 +1,602 @@
+<div align="center">
+
+# Aplikasi Pencatatan Transaksi Kaspe
+
+*Aplikasi desktop Java Swing untuk mencatat pengiriman singkong per truk: menghitung berat bersih setelah potongan refraksi, menghitung jumlah uang yang harus dibayar, dan menyajikan laporan per periode. Dibuat untuk menggantikan pencatatan manual pada buku tulis mitra.*
+
+[Dibutuhkan](#yang-dibutuhkan) • [Mulai cepat](#mulai-cepat) • [Windows](#memasang-di-windows) • [Fitur](#fitur-utama) • [Perhitungan](#aturan-perhitungan) • [NetBeans](#membuka-di-netbeans)
+
+</div>
+
+---
+
+## Tampilan aplikasi
+
+![Input transaksi dengan perhitungan otomatis](preview/02-transaction-input.png)
+
+Semua gambar di folder [`preview/`](preview/) diambil dari aplikasi yang benar-benar dijalankan
+berikut datanya. Untuk melihat semuanya sekaligus, lihat bagian
+[Pratinjau di browser](#pratinjau-di-browser).
+
+---
+
+## Yang dibutuhkan
+
+| Kebutuhan | Keterangan |
+|-----------|------------|
+| JDK 8 | Target kompilasi `-source 1.8 -target 1.8` (bytecode major 52) |
+| NetBeans | Opsional, hanya untuk membuka dan mengubah kode — lihat [Membuka di NetBeans](#membuka-di-netbeans) |
+
+Database **tidak perlu dipasang**. Aplikasi membawa databasenya sendiri (H2), dan tabelnya
+dibuat otomatis saat pertama kali dijalankan.
+
+Tiga file jar sudah disertakan di folder `lib/`, tidak perlu diunduh lagi:
+
+- `h2-2.1.214.jar` — database bawaan aplikasi (MPL 2.0)
+- `flatlaf-3.7.2.jar` — tema tampilan (Apache License 2.0)
+- `flatlaf-fonts-inter-3.19.jar` — huruf Inter (SIL Open Font License 1.1)
+
+> [!NOTE]
+> Jar untuk MySQL **tidak** ikut disertakan. Connector/J dari Oracle berlisensi GPLv2, dan
+> pengecualian yang membolehkannya dibundel hanya berlaku untuk proyek berlisensi terbuka.
+> Kalau kamu perlu mode MySQL, unduh sendiri — caranya di
+> [Memakai MySQL](#memakai-mysql-opsional).
+
+> [!NOTE]
+> Huruf ikut dikirim bersama aplikasi supaya tampilannya **sama persis di semua komputer**.
+> Huruf itu hanya dipakai di Java 8 update **212 ke atas** — di versi yang lebih tua hurufnya
+> digambar kebesaran, jadi aplikasi memakai huruf sistem (Segoe UI di Windows, DejaVu di Linux)
+> dan lebar kolom bisa sedikit berbeda. Aplikasi tetap jalan di kedua keadaan.
+>
+> Kalau file huruf itu tidak ada sama sekali, aplikasi juga tetap jalan dengan huruf sistem.
+
+> [!IMPORTANT]
+> Aplikasi ini ditulis dan diuji di **Java 8**, jadi itu yang dipakai. Kalau di komputermu
+> terpasang JDK lain (misal JDK 21), arahkan `JAVA_HOME` ke folder JDK 8 sebelum menjalankan
+> perintah di bawah supaya sama dengan yang sudah diuji.
+>
+> Seluruh kode memakai API Java 8 atau lebih lama, tanpa satu pun API di atasnya, jadi versi
+> 8u berapa pun bisa dipakai. Yang dipakai saat pengujian: Temurin **8u504**.
+>
+> JDK yang lebih baru juga bisa mengompilasi dan menjalankan aplikasi ini, tetapi belum diuji
+> menyeluruh. `build.sh`, `test.sh`, dan `compile.bat` mematok hasil kompilasi ke bytecode
+> Java 8, jadi hasilnya tetap bisa dibuka di komputer ber-JDK 8.
+
+---
+
+## Mulai cepat
+
+### 1. Jalankan
+
+**Linux / macOS**
+
+```bash
+export JAVA_HOME=/path/ke/jdk1.8.0_171
+./build.sh
+./run.sh
+```
+
+**Windows** — klik dua kali `compile.bat`, lalu `run-app.bat`. Kedua berkas itu memakai
+`JAVA_HOME` yang sudah ada di Windows; kalau belum ada, keduanya berhenti sambil memberi tahu.
+
+Kalau ini pertama kalinya di komputermu, ikuti [Memasang di Windows](#memasang-di-windows) — di
+situ langkahnya lengkap, mulai dari memasang JDK 8-nya.
+
+Saat pertama kali dijalankan, aplikasi membuat sendiri database beserta seluruh tabelnya.
+Tidak ada langkah persiapan, dan tidak ada login — aplikasi langsung terbuka di halaman
+pembuka.
+
+### 2. Letak data dan cara mencadangkan
+
+Data disimpan sebagai satu file di folder pengguna:
+
+| Sistem | Letak file |
+|--------|------------|
+| Windows | `C:\Users\<nama kamu>\kaspe\db_kaspe.mv.db` |
+| Linux / macOS | `~/kaspe/db_kaspe.mv.db` |
+
+Untuk mencadangkan, cukup salin file itu ke flashdisk atau folder lain. Untuk memulihkan,
+salin kembali ke tempat semula.
+
+---
+
+## Memasang di Windows
+
+Aplikasi ini tidak punya program pemasang (installer). Cara memasangnya cukup **salin
+foldernya** ke komputer, lalu jalankan dua berkas `.bat` yang sudah tersedia. Yang benar-benar
+perlu dipasang hanya **JDK 8**.
+
+Bagian ini untuk pemasangan dari nol. Kalau JDK 8 sudah ada dan `compile.bat` sudah pernah
+berhasil, langsung ke langkah 4.
+
+> [!NOTE]
+> Kedua berkas `.bat` di bagian ini **belum pernah dijalankan di Windows** saat rilis ini
+> dibuat — pengembangannya berjalan di Linux. Isinya memakai pola perintah Windows yang lazim,
+> dan setiap kegagalan sudah diberi pesan yang jelas (lihat [Kalau gagal](#6-kalau-gagal)).
+> Kalau ada yang meleset di komputermu, laporkan pesan galatnya lewat Issues.
+
+### 1. Pasang JDK 8
+
+Aplikasi ini ditulis dan diuji di **JDK 8**, jadi itu yang perlu dipasang. JDK yang lebih baru
+(11, 17, 21, 25) juga bisa, tetapi belum diuji menyeluruh — JDK 8 tetap yang jadi acuan.
+
+1. Buka halaman unduhan Temurin 8:
+   <https://adoptium.net/temurin/releases/?version=8&os=windows>
+2. Pilih **Architecture: x64**, **Package Type: JDK**, lalu unduh berkas `.msi`-nya. Nama
+   berkasnya seperti `OpenJDK8U-jdk_x64_windows_hotspot_8u504b01.msi`, ukurannya sekitar 100 MB.
+3. Buka berkas `.msi` itu dan setujui lisensinya.
+4. Di layar **Custom Setup**, perhatikan dua hal:
+   - Biarkan **Add the installation to the PATH environment variable** tetap tercentang.
+   - Klik ikon di sebelah kiri pohon pilihannya untuk membuka pilihan tambahan, lalu centang
+     **Set JAVA_HOME variable**.
+5. Klik **Next**, lalu **Install**, lalu **Finish**.
+
+Bawaannya JDK terpasang di `C:\Program Files\Eclipse Adoptium\`, di dalam satu folder yang
+namanya memuat versi JDK-nya (misalnya `jdk-8.0.504.302-hotspot`). **Buka folder itu dan
+catat namanya** — dipakai di langkah 3.
+
+**Cara memeriksa pemasangannya benar.** Tekan `Win+R`, tulis `cmd`, tekan Enter, lalu tulis:
+
+```
+java -version
+```
+
+Yang benar keluar seperti ini — perhatikan angkanya diawali `1.8`:
+
+```
+openjdk version "1.8.0_504"
+OpenJDK Runtime Environment (Temurin)(build 1.8.0_504-b01)
+OpenJDK 64-Bit Server VM (Temurin)(build 25.504-b01, mixed mode)
+```
+
+> [!IMPORTANT]
+> Kalau yang keluar `'java' is not recognized`, JDK 8 belum terpasang — ulangi langkah 1.
+>
+> Kalau yang keluar versi lain (11/17/21), aplikasi kemungkinan besar tetap jalan, tetapi versi
+> itu belum diuji menyeluruh. Paling aman tetap pasang JDK 8.
+
+### 2. Taruh folder aplikasi
+
+Salin seluruh folder aplikasi ke komputer, misalnya ke `C:\kaspe-app` atau ke Desktop.
+
+> [!WARNING]
+> Jangan ditaruh di dalam `C:\Program Files`. Windows melindungi folder itu, sehingga
+> `compile.bat` akan gagal membuat folder `build` di situ.
+
+### 3. Pastikan JAVA_HOME sudah menunjuk ke JDK 8
+
+Kalau saat memasang tadi kamu mencentang **Set JAVA_HOME variable** (langkah 1), bagian ini
+biasanya **tidak perlu dikerjakan** — kedua berkas `.bat` memakai setelan itu apa adanya.
+
+Untuk memeriksanya, tekan `Win+R`, tulis `cmd`, tekan Enter, lalu tulis:
+
+```
+echo %JAVA_HOME%
+```
+
+Kalau yang keluar alamat folder JDK 8-mu, langsung ke langkah 4. Kalau yang keluar kosong atau
+alamat JDK lain, sunting kedua berkas `.bat`:
+
+1. Klik kanan `compile.bat` → **Edit**. (Kalau tidak ada menu itu, pilih **Open with** →
+   **Notepad**.)
+2. Cari baris `if not defined JAVA_HOME set JAVA_HOME=...` di bagian atas, lalu ganti alamatnya
+   dengan alamat JDK 8-mu — nama folder yang kamu catat di langkah 1:
+
+   ```
+   if not defined JAVA_HOME set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-8.0.504.302-hotspot
+   ```
+
+3. Simpan, lalu lakukan hal yang sama pada `run-app.bat`.
+
+Jangan memakai tanda kutip dan jangan mengakhiri alamat dengan garis miring (`\`). Baris itu
+hanya dipakai kalau `JAVA_HOME` belum ada, jadi setelan Windows-mu tidak akan tertimpa.
+
+### 4. Kompilasi
+
+Klik dua kali `compile.bat`. Jendela hitam akan terbuka, bekerja sebentar, lalu berhenti di
+salah satu dari dua tulisan ini:
+
+| Tulisan terakhir | Artinya |
+|---|---|
+| `Selesai. Class ada di build\` | Berhasil — folder `build/` sudah terbentuk |
+| `Kompilasi GAGAL.` | Ada yang salah; pesan galatnya ada di baris-baris di atasnya |
+
+Tekan tombol apa saja untuk menutup jendelanya.
+
+Kalau jendelanya menutup sebelum kamu sempat membaca pesannya, jalankan dari Command Prompt
+supaya pesannya tetap terlihat:
+
+```
+cd /d C:\kaspe-app
+compile.bat
+```
+
+### 5. Jalankan
+
+Klik dua kali `run-app.bat`. Jendela aplikasi akan terbuka di halaman pembuka.
+
+Langkah 4 **tidak perlu diulang setiap hari** — `compile.bat` hanya perlu dijalankan lagi kalau
+kodenya diubah. Untuk pemakaian sehari-hari, cukup klik `run-app.bat`.
+
+Cara mencadangkan data ada di [Letak data dan cara mencadangkan](#2-letak-data-dan-cara-mencadangkan).
+
+### 6. Kalau gagal
+
+| Yang terlihat | Sebabnya | Perbaikannya |
+|---|---|---|
+| `JAVA_HOME salah atau belum diisi: "..."` | Windows belum punya `JAVA_HOME`, atau isinya bukan JDK 8 | Ulangi langkah 3 |
+| `Kompilasi GAGAL.` | Kodenya gagal dikompilasi | Baca pesan galat di baris-baris atasnya |
+| `Aplikasi belum dikompilasi.` | `run-app.bat` diklik padahal `compile.bat` belum pernah berhasil | Jalankan `compile.bat` dulu — langkah 4 |
+| `Access is denied.` | Folder aplikasi ada di dalam `C:\Program Files` | Pindahkan ke folder lain — langkah 2 |
+| `UnsupportedClassVersionError: ... class file version 65.0` | Folder `build/` dibuat oleh JDK yang lebih baru, misalnya hasil salinan dari komputer lain | Hapus folder `build/`, lalu jalankan `compile.bat` lagi — langkah 4 |
+| Tulisan di aplikasi kebesaran | JDK 8-nya lebih tua dari update 212 | Pasang JDK 8 update 212 ke atas — 8u504 sudah aman |
+| "Aplikasi sepertinya sudah terbuka di jendela lain." | Aplikasi sedang terbuka di jendela lain | Tutup dulu jendela yang itu, lalu jalankan lagi |
+| "Aplikasi tidak bisa menulis file datanya di: ..." | Folder datanya tidak bisa ditulis | Ikuti pesan yang muncul, atau ubah `db.url` lewat berkas `kaspe.properties` |
+
+---
+
+## Memakai MySQL (opsional)
+
+Bawaan aplikasi sudah cukup untuk pemakaian satu komputer. MySQL diperlukan hanya kalau
+datanya mau dipakai bersama oleh beberapa komputer sekaligus — karena H2 menyimpan datanya
+sebagai file, dan satu file hanya bisa dibuka satu aplikasi.
+
+**Langkah tambahan: unduh Connector/J.** Berkasnya tidak ikut disertakan (lihat catatan di
+[Yang dibutuhkan](#yang-dibutuhkan)). Ambil dari <https://dev.mysql.com/downloads/connector/j/>,
+pilih **Platform Independent**, lalu taruh berkas `.jar`-nya di folder `lib/`. Aplikasi mencari
+driver itu berdasarkan nama saat dijalankan, jadi tidak ada yang perlu diubah lagi — kecuali
+kalau kamu memakai NetBeans, yang perlu diberi tahu lewat klik kanan proyek → **Properties** →
+**Libraries** → **Add JAR/Folder**.
+
+Nyalakan MySQL, lalu buat file bernama `kaspe.properties` **di folder yang sama dengan
+aplikasi**, berisi:
+
+```properties
+db.driver=com.mysql.cj.jdbc.Driver
+db.url=jdbc:mysql://localhost:3306/db_kaspe?serverTimezone=Asia/Jakarta
+db.user=root
+db.password=ISI_PASSWORD_MYSQL_KAMU
+```
+
+File itu akan dipakai menggantikan pengaturan bawaan, jadi aplikasi hasil build tidak perlu
+dibongkar atau dibangun ulang. Kalau kamu mengerjakan dari folder proyek, salin saja
+`src/kaspe.properties` lalu aktifkan bagian MySQL di dalamnya.
+
+Database dan tabelnya dibuat sendiri oleh aplikasi — tidak perlu menjalankan skrip apa pun,
+cukup nyalakan server MySQL-nya.
+
+---
+
+## Fitur utama
+
+- **Halaman pembuka** — empat kartu ringkasan: jumlah nota, total uang (beserta uang bulan
+  berjalan), total berat bersih, dan truk terdaftar.
+- **Input transaksi per nota** — satu nota bisa berisi banyak baris plat truk.
+- **Perhitungan otomatis** — berat bersih dan jumlah uang terhitung sambil kamu mengetik, tanpa
+  menekan tombol apa pun.
+- **Penyimpanan utuh** — semua baris tersimpan sekaligus atau dibatalkan sekaligus, jadi tidak
+  ada nota yang tersimpan separuh.
+- **Data master** — satu halaman berisi pemilik truk di kiri dan truk miliknya di kanan.
+  Pemiliknya tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang
+  yang salah. Truk yang salah pemilik dipindahkan lewat tombol Pindah Pemilik, tanpa perlu
+  dihapus dan dicatat ulang.
+- **Laporan** — filter rentang tanggal, tabel rinci per baris, total berat bersih dan total
+  uang, serta cetak.
+- **Pratinjau cetak** — laporan diperiksa di layar dulu sebelum kertas dipakai, jadi kelihatan
+  berapa halaman dan di mana halamannya terpotong.
+- **Pemantauan susut** — selisih bobot lapak dan bobot pabrik ditampilkan sebagai pengawasan.
+- **Tampilan seragam** — memakai tema FlatLaf, jadi bentuk jendela sama di Windows maupun Linux,
+  tidak ikut berganti mengikuti sistem operasi.
+
+---
+
+## Aturan perhitungan
+
+```
+berat_bersih = FLOOR((bobot_pabrik x (1 - refraksi/100)) / 5) x 5
+jumlah_uang  = berat_bersih x harga
+susut        = bobot_lapak - bobot_pabrik     (hanya untuk pemantauan)
+```
+
+Bobot lapak dicatat sebagai pembanding saja, tidak dipakai menghitung uang. Refraksi dan harga
+disimpan per baris karena nilainya berbeda-beda setiap transaksi.
+
+Contoh nyata dari buku mitra:
+
+```
+bobot_pabrik 7050 kg, refraksi 15%, harga Rp 1.150/kg
+  7050 x 0,85 = 5992,5  →  dibulatkan ke bawah ke kelipatan 5  →  5990 kg
+  5990 x 1150 = Rp 6.888.500
+```
+
+Rumus ini sudah dicocokkan dengan 4 baris buku asli, hasilnya sama semua.
+
+---
+
+## Membuka di NetBeans
+
+Folder ini sudah berupa proyek NetBeans (Java with Ant), jadi tidak perlu dibuat dari nol.
+
+> [!NOTE]
+> NetBeans di sini **hanya untuk membuka dan mengubah kode**. Untuk sekadar memakai aplikasinya,
+> NetBeans tidak perlu dipasang — cukup ikuti [Memasang di Windows](#memasang-di-windows).
+
+Yang wajib adalah **JDK 8**, bukan versi NetBeans-nya. NetBeans terbaru berjalan di atas JDK 17
+atau lebih baru, sedangkan kode ini dikompilasi dengan JDK 8; keduanya bisa dipakai bersamaan
+asalkan JDK 8 didaftarkan sebagai *Java Platform* di dalam NetBeans (langkah 3).
+
+> [!IMPORTANT]
+> **NetBeans 8.0.2 dari tahun 2014 sudah tidak punya sumber unduhan resmi.** Halaman arsip
+> Apache menyatakan versi sebelum Apache tidak lagi bisa diunduh dari mana pun, sehingga berkas
+> NetBeans 8.0.2 yang beredar hanya ada di situs tidak resmi — sebaiknya jangan diunduh.
+> Kalau kamu memang sudah punya NetBeans 8.0.2, langkah di bawah tetap sama.
+
+### 1. Pasang NetBeans
+
+Unduh dari <https://netbeans.apache.org/front/main/download/> lalu pasang seperti biasa.
+Bawaannya NetBeans meminta JDK 17 atau lebih baru saat dipasang — itu tidak masalah, JDK 8
+menyusul di langkah 3.
+
+Kalau komputermu hanya punya JDK 8 dan tidak bisa memasang JDK 17 (misalnya karena tidak punya
+hak admin), pakai NetBeans versi lama. Halaman resmi Apache menyatakan rilis **12.5** dan
+sebelumnya bisa dijalankan dengan JDK 8, sedangkan mulai 12.6 NetBeans mewajibkan JDK 11.
+Pemasang 12.5 masih tersimpan di arsip resmi Apache, sekitar 411 MB:
+
+<https://archive.apache.org/dist/netbeans/netbeans/12.5/Apache-NetBeans-12.5-bin-windows-x64.exe>
+
+NetBeans 11.3 juga jalan di JDK 8 dan unduhannya lebih kecil, sekitar 194 MB:
+<https://archive.apache.org/dist/netbeans/netbeans/11.3/Apache-NetBeans-11.3-bin-windows-x64.exe>
+
+### 2. Buka proyeknya
+
+**File → Open Project**, arahkan ke folder aplikasi ini, lalu klik **Open Project**. NetBeans
+mengenalinya sebagai proyek **Java with Ant**.
+
+### 3. Daftarkan JDK 8
+
+Proyek ini diatur memakai JDK 8, jadi JDK 8 perlu dikenalkan dulu ke NetBeans.
+
+1. **Tools → Java Platforms → Add Platform...**
+2. Pilih **Java Standard Edition**, klik **Next**.
+3. Isi **Platform Folder** dengan folder JDK 8-mu
+   (`C:\Program Files\Eclipse Adoptium\jdk-8.0.504.302-hotspot`), klik **Next**, lalu **Finish**.
+4. Klik kanan nama proyek di panel **Projects** → **Properties**:
+   - **Sources** → **Source/Binary Format**: pilih **JDK 8**
+   - **Libraries** → **Java Platform**: pilih JDK 8 yang baru didaftarkan
+
+Nama menunya bisa sedikit berbeda tergantung versi NetBeans. Kalau JDK 8 tidak muncul di daftar
+Java Platform, berarti langkah 3 di atas belum berhasil.
+
+### 4. Jalankan
+
+Tekan **F6** (Run Project). Kelas utamanya sudah diatur ke `kaspe.Main`, jadi tidak ada yang
+perlu diisi lagi.
+
+### 5. Buat berkas siap pakai
+
+Tekan **Shift+F11** (Clean and Build). Yang seharusnya dihasilkan:
+
+```
+dist/
+  KaspeApp.jar
+  lib/             jar pendukung
+```
+
+> [!WARNING]
+> **Langkah ini belum pernah dicoba di Windows**, dan ada satu bagian yang bisa meleset:
+> pembuatan folder `dist/lib/` diserahkan ke NetBeans, sedangkan catatan yang dibutuhkannya
+> (`libs.CopyLibs.classpath`) tidak ada di dalam folder `nbproject/` pada repo ini — biasanya
+> NetBeans membuatnya sendiri saat proyek dibuka. Kalau `dist/lib/` ternyata tidak terbentuk,
+> **salin saja folder `lib/` dari folder proyek** ke dalam `dist/`. Hasilnya sama.
+>
+> Kalau tidak mau menebak-nebak, pakai jalur `compile.bat` + `run-app.bat` saja — caranya ada di
+> [Memasang di Windows](#memasang-di-windows).
+
+`KaspeApp.jar` hanya bisa diklik dua kali kalau ada folder `lib/` di sebelahnya: di dalam jar-nya
+sudah tertulis bahwa pustakanya dicari di situ. Jadi kalau berkas ini mau dipindahkan ke komputer
+lain, **salin seluruh folder `dist/`**, bukan hanya jar-nya.
+
+> [!NOTE]
+> Kalau `nbproject/build-impl.xml` dianggap tidak cocok dengan versi NetBeans-mu, NetBeans akan
+> membuat ulang berkas itu sendiri — biarkan saja.
+
+---
+
+## Pratinjau di browser
+
+Folder [`preview/`](preview/) berisi halaman pratinjau statis — tidak butuh JDK, MySQL, maupun
+NetBeans untuk melihatnya. Semua gambar sudah disematkan ke dalam satu file, jadi:
+
+- **Buka langsung**: klik dua kali `preview/index.html`, atau
+- **Lewat server lokal** (kalau browser kamu tidak mengizinkan file lokal):
+
+```bash
+python3 -m http.server 8000 --directory preview
+```
+
+Lalu buka `http://localhost:8000` di browser.
+
+Halaman itu dibuat ulang dari file PNG di folder yang sama:
+
+```bash
+python3 preview/build-preview.py
+```
+
+Gambar PNG-nya sendiri dibuat dengan menyusun ulang tampilan aplikasi:
+
+```bash
+./build.sh
+javac -cp "build:lib/*" -d /tmp/tools tools/BuatPratinjau.java
+java -Djava.awt.headless=true -cp "build:lib/*:/tmp/tools" BuatPratinjau
+```
+
+Program itu memasang data contoh dari `docs/data-contoh.sql`, menyusun bilah samping, bilah nama
+halaman, dan halamannya memakai susunan yang sama dengan jendela aplikasi, lalu menggambar
+hasilnya ke `preview/*.png`. Jadi gambarnya sama dengan aplikasi yang dijalankan.
+
+> [!NOTE]
+> Pembuat pratinjau berjalan tanpa layar (`-Djava.awt.headless=true`), jadi bisa dijalankan
+> di server tanpa tampilan maupun tetikus.
+
+> [!NOTE]
+> Ini pratinjau statis, bukan aplikasi yang bisa diklik; untuk mencoba aplikasinya sendiri,
+> ikuti bagian [Mulai cepat](#mulai-cepat).
+
+---
+
+## Data contoh
+
+`docs/data-contoh.sql` berisi 23 nota (64 baris) dari Juli sampai September 2026 — dipakai untuk
+demo dan untuk membuat gambar pratinjau. Semua angkanya mengikuti rumus yang sama dengan aplikasi.
+
+**Memakainya.** Jalankan aplikasi sekali supaya tabelnya terbentuk (database H2 dibuat sendiri
+saat pertama dibuka), lalu tutup aplikasi dan jalankan:
+
+```bash
+java -cp lib/h2-2.1.214.jar org.h2.tools.RunScript \
+  -url "jdbc:h2:~/kaspe/db_kaspe;MODE=MySQL;DATABASE_TO_LOWER=TRUE" \
+  -user sa -password "" -script docs/data-contoh.sql
+```
+
+Buka aplikasi lagi — 23 nota itu sudah ada. Berkas ini **mengganti** seluruh isi database
+(diawali `DELETE`), jadi jangan dipakai pada database yang sudah berisi data penting.
+
+> [!NOTE]
+> Menu **Laporan** terbuka dengan filter yang sudah mencakup seluruh data, jadi datanya langsung
+> terlihat. Kalau mau menyaring sendiri, ubah tanggal **Dari** dan **Sampai** lalu tekan
+> **Tampilkan**.
+
+### Membuat ulang dan memeriksa
+
+Berkas data contoh dibuat oleh `tools/BuatDataContoh.java`, dan angkanya bisa diperiksa ulang
+dengan `tools/PeriksaDataContoh.java`. Keduanya memakai `Calculator` yang sama dengan aplikasi,
+jadi angkanya tidak bisa melenceng kalau aturan pembulatan berubah:
+
+```bash
+./build.sh
+
+# membuat ulang berkas data contoh
+javac -cp build -d /tmp/tools tools/BuatDataContoh.java
+java -cp "build:/tmp/tools" BuatDataContoh docs/data-contoh.sql
+
+# memeriksa angkanya terhadap rumus aplikasi
+javac -cp "build:lib/*" -d /tmp/tools tools/PeriksaDataContoh.java
+java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh
+```
+
+Hasil pemeriksaan yang benar:
+
+```
+nota            = 23
+baris diperiksa = 64
+selisih berat   = 0
+selisih uang    = 0
+HASIL: cocok dengan rumus aplikasi
+```
+
+Pemeriksa yang sama bisa dipakai untuk database yang sudah ada, dengan menyebutkan foldernya
+sebagai argumen kedua — berguna untuk memeriksa hasil render pratinjau (24 transaksi, 66 baris):
+
+```bash
+java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh "" /tmp/kaspe-pratinjau
+```
+
+---
+
+## Uji otomatis
+
+```bash
+export JAVA_HOME=/path/ke/jdk1.8.0_171
+./test.sh
+```
+
+Uji memakai database H2 di memori, jadi tidak menyentuh data asli milikmu dan tidak butuh
+pemasangan apa pun.
+
+| Berkas uji | Cakupan | Hasil |
+|------------|---------|-------|
+| `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
+| `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji) | 21 lulus |
+| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, simpan transaksi, rollback, laporan, rekap, hapus | 22 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 20 lulus |
+| **Total** | | **70 lulus, 0 gagal** |
+
+---
+
+## Struktur folder
+
+```
+kaspe-app/
+  src/kaspe/
+    Main.java              titik masuk aplikasi
+    Db.java                koneksi database
+    Schema.java            pembuat tabel otomatis (dari schema.sql di dalam aplikasi)
+    Calculator.java        mesin hitung (berat bersih, jumlah uang, susut)
+    model/                 kelas data (Rental, Truck, Transaction,
+                           TransactionDetail, ReportRow)
+    dao/                   akses database (MasterDao, TransactionDao)
+    ui/                    tampilan (MainFrame, NavBar, PagePanel, HeaderBar, Icons,
+                           PanelDashboard, PanelTransaction, PanelMaster,
+                           PanelReport, Theme)
+    util/                  bantu (Dates)
+    test/                  uji otomatis
+  src/kaspe.properties     pengaturan database (bawaan: H2, tanpa install)
+                           salinannya boleh ditaruh di sebelah KaspeApp.jar
+                           untuk mengganti pengaturan tanpa membongkar aplikasi
+  src/kaspe/schema.sql     skema database, dijalankan sendiri oleh aplikasi
+  docs/specification.md    spesifikasi sistem
+  docs/data-contoh.sql     data contoh (23 nota, 64 baris) untuk demo
+  tools/                   program bantu (lihat di bawah)
+  preview/                 halaman pratinjau + gambar
+  lib/                     file jar pendukung
+  nbproject/               file proyek NetBeans (jangan diubah manual)
+  build.xml                skrip build Ant untuk NetBeans
+  build.sh / run.sh / test.sh
+  compile.bat / run-app.bat
+```
+
+Isi `tools/` — bukan bagian dari aplikasi, hanya untuk keperluan demo:
+
+| Berkas | Gunanya |
+|---|---|
+| `BuatDataContoh.java` | membuat `docs/data-contoh.sql` (23 nota) memakai `Calculator` |
+| `PeriksaDataContoh.java` | menghitung ulang data contoh dan membandingkannya dengan rumus aplikasi |
+| `BuatPratinjau.java` | menjalankan aplikasi lalu menggambar jendelanya ke `preview/*.png` |
+
+Cara menjalankan ketiganya ada di [Data contoh](#data-contoh) dan
+[Pratinjau di browser](#pratinjau-di-browser).
+
+> [!NOTE]
+> Seluruh nama kelas, method, dan variabel memakai bahasa Inggris, sedangkan komentar, dokumen,
+> dan seluruh teks yang tampil ke pengguna memakai bahasa Indonesia. Nama tabel dan kolom di
+> database juga tetap bahasa Indonesia, karena mengikuti istilah yang dipakai mitra.
+
+---
+
+## Catatan
+
+- Bawaannya aplikasi memakai satu database lokal (H2, ikut di dalam aplikasi). Untuk dipakai
+  beberapa komputer sekaligus, arahkan ke MySQL — lihat bagian
+  [Memakai MySQL](#memakai-mysql-opsional).
+- Cetak laporan memakai fitur cetak bawaan Java, bukan JasperReports, supaya tidak perlu file jar
+  tambahan. Pratinjau cetaknya menggambar halaman cetak yang sebenarnya, jadi yang terlihat di
+  layar sama dengan yang keluar di kertas.
+- Nama tabel dan kolom memakai istilah Indonesia. Skema di `src/kaspe/schema.sql` ditulis dalam
+  bentuk yang dimengerti H2 maupun MySQL, jadi satu file itu dipakai untuk keduanya.
+
+---
+
+## Lisensi
+
+Proyek ini **bukan** proyek open source. Tidak ada lisensi yang diberikan, sehingga seluruh hak
+cipta dipertahankan pemiliknya: kodenya boleh dibaca, tetapi tidak boleh dipakai, diubah, atau
+disebarkan tanpa izin.
+
+Berkas jar pihak ketiga di `lib/` tidak terpengaruh dan tetap tunduk pada lisensinya
+masing-masing:
+
+| Berkas | Lisensi |
+|---|---|
+| `h2-2.1.214.jar` | MPL 2.0 |
+| `flatlaf-3.7.2.jar` | Apache License 2.0 |
+| `flatlaf-fonts-inter-3.19.jar` | SIL Open Font License 1.1 |

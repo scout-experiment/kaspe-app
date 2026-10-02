@@ -1,0 +1,8 @@
+# Hasil kompilasi — dibuat ulang oleh build.sh / compile.bat
+build/
+dist/
+sources.txt
+*.class
+
+# Connector/J (GPLv2) tidak ikut dipublikasikan — lihat README bagian "Memakai MySQL".
+lib/mysql-connector-j-9.1.0.jar

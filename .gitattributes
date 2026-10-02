@@ -1,0 +1,4 @@
+# .bat wajib berakhir CRLF; blok if multi-baris rusak kalau akhir barisnya LF.
+*.bat text eol=crlf
+# Skrip shell wajib LF.
+*.sh text eol=lf
