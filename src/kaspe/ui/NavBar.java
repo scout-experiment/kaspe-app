@@ -136,7 +136,7 @@ public class NavBar extends JPanel {
 
     /** Nomor versi di kaki bilah. */
     private static JLabel version() {
-        JLabel l = new JLabel("Versi 1.0");
+        JLabel l = new JLabel("Versi 1.0.1");
         l.setFont(Theme.semibold(11f));
         l.setForeground(Theme.INK_SOFT);
         l.setBorder(BorderFactory.createEmptyBorder(10, 22, 16, 16));

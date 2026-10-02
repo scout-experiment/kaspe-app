@@ -15,7 +15,9 @@ if not exist "%JAVA_HOME%\bin\javac.exe" (
 
 if exist build rmdir /s /q build
 mkdir build
-dir /s /b src\*.java > sources.txt
+REM Setiap jalur diberi tanda kutip: javac memecah berkas @argfile di spasi,
+REM jadi folder yang namanya mengandung spasi akan gagal kalau tidak dikutip.
+(for /r src %%f in (*.java) do @echo "%%f") > sources.txt
 REM -source/-target 1.8 dipatok supaya hasil kompilasi selalu bytecode Java 8 (major 52),
 REM apa pun JDK yang dipakai mengompilasi.
 "%JAVA_HOME%\bin\javac" -source 1.8 -target 1.8 -encoding UTF-8 -d build -cp "lib\*" @sources.txt

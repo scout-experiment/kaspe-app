@@ -6,3 +6,10 @@ sources.txt
 
 # Connector/J (GPLv2) tidak ikut dipublikasikan — lihat README bagian "Memakai MySQL".
 lib/mysql-connector-j-9.1.0.jar
+
+# Database pengguna — jangan sampai ikut ter-commit.
+db_kaspe*.mv.db
+db_kaspe*.trace.db
+
+# Setelan lokal NetBeans; berisi jalur absolut komputer masing-masing.
+nbproject/private/

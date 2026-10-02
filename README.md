@@ -12,7 +12,7 @@
 
 ## Tampilan aplikasi
 
-![Input transaksi dengan perhitungan otomatis](preview/02-transaction-input.png)
+![Beranda dengan ringkasan nota, total uang, dan total berat bersih](preview/01-dashboard.png)
 
 Semua gambar di folder [`preview/`](preview/) diambil dari aplikasi yang benar-benar dijalankan
 berikut datanya. Untuk melihat semuanya sekaligus, lihat bagian
