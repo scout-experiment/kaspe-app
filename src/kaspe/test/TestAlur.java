@@ -1,10 +1,13 @@
 package kaspe.test;
 
 import com.formdev.flatlaf.FlatClientProperties;
+import kaspe.Calculator;
 import kaspe.Db;
 import kaspe.Schema;
 import kaspe.dao.MasterDao;
+import kaspe.dao.TransactionDao;
 import kaspe.model.Rental;
+import kaspe.model.Transaction;
 import kaspe.model.TransactionDetail;
 import kaspe.model.Truck;
 import kaspe.ui.PagePanel;
@@ -13,11 +16,14 @@ import kaspe.ui.Theme;
 import kaspe.util.Dates;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
 import java.time.LocalDate;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -39,6 +45,13 @@ public class TestAlur {
     private static int failed = 0;
 
     public static void main(String[] args) throws Exception {
+        // Dipaksa tanpa layar sebelum AWT dipakai. Uji ini menyentuh tombol Simpan, dan
+        // jalur suksesnya menampilkan jendela pesan yang MODAL. Di komputer berlayar,
+        // jendela itu menunggu ditekan selamanya - uji yang dijalankan langsung tanpa
+        // tanda -Djava.awt.headless=true akan MENGGANTUNG, bukan gagal. Dipasang di sini,
+        // bukan hanya di test.sh, supaya menjalankannya dengan tangan pun tetap aman.
+        System.setProperty("java.awt.headless", "true");
+
         System.out.println("=== UJI ALUR LAYAR TRANSAKSI ===\n");
 
         Theme.install();
@@ -54,6 +67,10 @@ public class TestAlur {
         tanggalLunasDitolakKalauSalah();
         tanggalNotaDitolakKalauSalah();
         pindahMenuTidakMembuangPekerjaan();
+        kerjaBelumDisimpanTerdeteksi();
+        belumLunasTersimpan();
+        hapusTransaksiLewatDao();
+        simpanSuksesTidakDobel();
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
@@ -313,6 +330,149 @@ public class TestAlur {
         record("QQ 8888 QQ".equals(textPlat(p)),
                 "plat yang sedang diketik tetap tidak berubah setelah penyegaran");
         System.out.println();
+    }
+
+    /**
+     * adaKerjaBelumDisimpan: dipakai bilah menu sebelum pindah halaman dan jendela
+     * utama sebelum ditutup. Harus benar saat ada baris belum disimpan ATAU form
+     * masih terisi, dan salah saat bersih.
+     */
+    private static void kerjaBelumDisimpanTerdeteksi() throws Exception {
+        System.out.println("8. Pekerjaan belum disimpan terdeteksi ...");
+        PanelTransaction p = new PanelTransaction();
+        record(!p.adaKerjaBelumDisimpan(), "panel baru: tidak ada kerja belum disimpan");
+
+        ketikPlat(p, "ZZ 6100 ZZ");
+        ketikRental(p, "Rental Uji Kerja");
+        isiAngka(p);
+        setTanggal(p, "spPaid", "05-10-2026");
+        tambahBaris(p);
+        record(p.adaKerjaBelumDisimpan(), "ada baris: kerja belum disimpan terdeteksi");
+
+        klik(p, "newTransaction");
+        record(!p.adaKerjaBelumDisimpan(), "setelah transaksi baru: bersih kembali");
+
+        isi(p, "txtFieldWeight", "5000");
+        record(p.adaKerjaBelumDisimpan(), "form terisi (belum jadi baris) juga terdeteksi");
+        System.out.println();
+    }
+
+    /**
+     * Baris "belum dibayar" (centang tidak aktif) harus bisa dicatat dengan tanggal
+     * lunas kosong, dan benar-benar tersimpan kosong di database.
+     */
+    private static void belumLunasTersimpan() throws Exception {
+        System.out.println("9. Baris belum dibayar ...");
+        PanelTransaction p = new PanelTransaction();
+        ketikPlat(p, "ZZ 7200 ZZ");
+        ketikRental(p, "Rental Belum Lunas");
+        isiAngka(p);
+        ((JCheckBox) field(p, "chkPaid")).setSelected(false);
+        tambahBaris(p);
+        TransactionDetail d = satuSatuBaris(p);
+        record(d != null, "baris belum dibayar bisa ditambahkan");
+        record(d != null && d.getPaymentDate() == null, "tanggal lunasnya null di baris");
+        record(d != null && !((JSpinner) field(p, "spPaid")).isEnabled(),
+                "kotak tanggal lunas mati saat belum dibayar");
+
+        simpanTanpaLayar(p);
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi_detail d JOIN truk t ON t.id_truk = d.id_truk "
+                        + "WHERE t.plat = 'ZZ 7200 ZZ' AND d.tanggal_lunas IS NULL") == 1,
+                "tersimpan ke database dengan tanggal_lunas NULL");
+        System.out.println();
+    }
+
+    /** Hapus transaksi lewat DAO: headernya terhapus dan baris detailnya ikut (cascade). */
+    private static void hapusTransaksiLewatDao() throws Exception {
+        System.out.println("10. Hapus transaksi lewat DAO ...");
+        TransactionDetail d = barisUntukDao("ZZ 7300 ZZ", "Rental Uji Hapus");
+        Transaction nota = new Transaction();
+        nota.setDate(LocalDate.of(2026, 10, 5));
+        int id = new TransactionDao().save(nota, Collections.singletonList(d));
+        record(id > 0, "nota tersimpan dengan id " + id);
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi_detail WHERE id_transaksi = " + id) == 1,
+                "notanya punya satu baris detail");
+
+        new TransactionDao().deleteTransaction(id);
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi WHERE id_transaksi = " + id) == 0,
+                "header nota terhapus");
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi_detail WHERE id_transaksi = " + id) == 0,
+                "baris detail ikut terhapus (cascade)");
+        System.out.println();
+    }
+
+    /**
+     * Simpan sukses: daftar baris kosong, riwayat memuat notanya, dan menekan Simpan
+     * lagi tidak bisa membuat nota yang sama tercatat dua kali.
+     */
+    private static void simpanSuksesTidakDobel() throws Exception {
+        System.out.println("11. Simpan sukses: daftar kosong, riwayat terisi, tak dobel ...");
+        PanelTransaction p = new PanelTransaction();
+        ketikPlat(p, "ZZ 7400 ZZ");
+        ketikRental(p, "Rental Uji Simpan Sukses");
+        isiAngka(p);
+        setTanggal(p, "spPaid", "05-10-2026");
+        tambahBaris(p);
+        if (satuSatuBaris(p) == null) {
+            record(false, "baris prasyarat masuk daftar");
+            System.out.println();
+            return;
+        }
+        int notaSebelum = jumlahBaris("SELECT COUNT(*) FROM transaksi");
+
+        simpanTanpaLayar(p);
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi") == notaSebelum + 1,
+                "nota tercatat tepat satu kali");
+        record(((List<?>) field(p, "detailList")).isEmpty(),
+                "daftar baris kosong setelah simpan");
+        DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
+        String hariIni = Dates.format(LocalDate.now());
+        boolean ada = false;
+        for (int i = 0; i < riwayat.getRowCount(); i++) {
+            if (hariIni.equals(String.valueOf(riwayat.getValueAt(i, 0)))) {
+                ada = true;
+            }
+        }
+        record(ada, "riwayat memuat nota hari ini (" + hariIni + ")");
+        record(!p.adaKerjaBelumDisimpan(), "tidak ada lagi kerja belum disimpan");
+
+        // Menekan Simpan lagi (mis. karena dialog tadi gagal tampil) tidak boleh
+        // membuat notanya tercatat dua kali.
+        klik(p, "save");
+        record(jumlahBaris("SELECT COUNT(*) FROM transaksi") == notaSebelum + 1,
+                "menekan Simpan lagi tidak menambah nota");
+        System.out.println();
+    }
+
+    /**
+     * Tekan Simpan dari luar layar. Dialog "Tersimpan" tidak bisa tampil tanpa layar —
+     * itu bukan kegagalan simpan: urutan simpan sudah diatur supaya kegagalan dialog
+     * itu tidak meninggalkan pekerjaan setengah jadi.
+     */
+    private static void simpanTanpaLayar(PanelTransaction p) throws Exception {
+        try {
+            klik(p, "save");
+        } catch (Exception e) {
+            Throwable sebab = e.getCause() == null ? e : e.getCause();
+            record(sebab instanceof HeadlessException,
+                    "satu-satunya kegagalan yang boleh terjadi adalah dialog tanpa layar: " + sebab);
+        }
+    }
+
+    /** Satu baris detail siap simpan lewat DAO, dihitung dengan Calculator. */
+    private static TransactionDetail barisUntukDao(String plat, String rental) {
+        BigDecimal beratBersih = Calculator.netWeight(new BigDecimal("7050"), new BigDecimal("15"));
+        TransactionDetail d = new TransactionDetail();
+        d.setPlate(plat);
+        d.setRentalName(rental);
+        d.setFieldWeight(new BigDecimal("7200"));
+        d.setFactoryWeight(new BigDecimal("7050"));
+        d.setRefractionPercent(new BigDecimal("15"));
+        d.setNetWeight(beratBersih);
+        d.setPrice(new BigDecimal("1150"));
+        d.setTotalAmount(Calculator.totalAmount(beratBersih, new BigDecimal("1150")));
+        d.setPaymentDate(null);
+        return d;
     }
 
     // ================= alat uji =================

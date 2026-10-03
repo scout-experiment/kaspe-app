@@ -57,7 +57,8 @@ public class PagePanel extends JPanel {
     }
 
     /**
-     * Tampilkan satu halaman, sekaligus menuliskan namanya di bilah atas.
+     * Tampilkan satu halaman, sekaligus menuliskan namanya dan tanggal hari ini di
+     * bilah atas.
      *
      * <p>Yang ditulis di bilah atas adalah nama halaman, bukan nama aplikasi. Nama
      * aplikasi sudah tertulis di judul jendela dan di bilah samping, jadi menuliskannya
@@ -67,7 +68,7 @@ public class PagePanel extends JPanel {
      * @param keterangan satu baris penjelasan isi halaman
      */
     public void showPanel(JPanel panel, String pageName, String keterangan) {
-        header.setPage(pageName, keterangan);
+        header.refreshDate();
         if (nav != null) {
             nav.setActive(pageName);
         }

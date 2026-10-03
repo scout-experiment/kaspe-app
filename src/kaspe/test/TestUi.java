@@ -96,6 +96,14 @@ public class TestUi {
         check("nama rental yang diketik dipakai apa adanya", rentalDiketikBenar());
         // Seluruh kolom laporan harus utuh juga pada tabel TRANSAKSI, bukan hanya laporan.
         check("kolom tabel transaksi utuh", kolomTabelUtuh(new PanelTransaction()));
+        // Tabel baris yang sedang diketik harus benar-benar punya tinggi di jendela
+        // bawaan. Pernah terjadi sebaliknya tanpa satu pun tanda: tiga bagian halaman
+        // bertumpuk melebihi tinggi jendela, BorderLayout mengorbankan bagian tengah,
+        // dan tabel itu tinggal bernilai MINUS - tidak tergambar sama sekali. Total uang
+        // di bawahnya tetap benar, jadi layarnya terlihat wajar; yang hilang hanya
+        // tabelnya, dan barisnya tidak bisa dipilih untuk dihapus. Pemeriksaan lebar
+        // kolom dan hitungan piksel tidak menangkapnya, karena keduanya tetap lolos.
+        check("tabel baris punya tinggi di jendela bawaan", tabelBarisPunyaTinggi());
         // Angka bulan berjalan di halaman pembuka harus dihitung dari awal bulan, bukan
         // dari sekian hari ke belakang. Batas itu tidak kelihatan di layar - yang tampak
         // hanya hasilnya - sehingga salah batas berarti angka yang salah tanpa satu pun
@@ -110,6 +118,14 @@ public class TestUi {
         check("aturan versi huruf bawaan", aturanVersiHuruf());
         // Pratinjau cetak harus menghasilkan halaman berisi, bukan kertas putih kosong.
         check("pratinjau cetak menghasilkan halaman", pratinjauAdaIsinya());
+        // Kaki cetakan harus menuliskan periode yang benar-benar diterapkan ke tabel.
+        // Operator bisa mengubah tanggal lalu langsung menekan Cetak/Pratinjau tanpa
+        // menekan "Tampilkan" — kertasnya tidak boleh menulis periode baru padahal
+        // seluruh baris dan totalnya masih data periode lama.
+        check("periode kaki cetak mengikuti tabel", periodeKakiCetakIkutTabel());
+        // Tanggal di bilah atas harus ditulis ulang setiap kali halaman dibuka/dipindah,
+        // bukan hanya sekali saat aplikasi dijalankan.
+        check("tanggal bilah atas segar saat pindah halaman", tanggalHeaderSegarSaatPindah());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -159,6 +175,59 @@ public class TestUi {
                 && "Kamis, 31 Desember 2026".equals(
                         kaspe.util.Dates.longFormat(java.time.LocalDate.of(2026, 12, 31)))
                 && "".equals(kaspe.util.Dates.longFormat(null));
+    }
+
+    /**
+     * Tabel baris di halaman transaksi harus punya tinggi yang benar-benar terpakai
+     * pada ukuran jendela bawaan.
+     *
+     * <p>Bukan sekadar "tidak nol": tinggi di bawah satu baris berarti tabelnya tidak
+     * berguna walaupun ada. Diperiksa pada susunan jendela sungguhan, bukan panel
+     * sendirian, karena yang menjepitnya adalah pembagian ruang antar bagian halaman.
+     */
+    private static boolean tabelBarisPunyaTinggi() throws Exception {
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
+
+        layar.setSize(1320, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        PanelTransaction p = (PanelTransaction) cariDi(layar, PanelTransaction.class);
+        if (p == null) {
+            System.out.println("        halaman transaksi tidak tergambar");
+            return false;
+        }
+        JTable t = tabel(p);
+        int tinggi = t.getParent() == null ? 0 : t.getParent().getHeight();
+        if (tinggi < TINGGI_MIN_TABEL_BARIS) {
+            System.out.println("        tabel baris hanya " + tinggi + "px, butuh paling tidak "
+                    + TINGGI_MIN_TABEL_BARIS + "px - barisnya tidak akan terlihat");
+            return false;
+        }
+        return true;
+    }
+
+    /** Tinggi terkecil yang masih memperlihatkan beberapa baris tabel, bukan hanya headernya. */
+    private static final int TINGGI_MIN_TABEL_BARIS = 80;
+
+    /** Komponen pertama berjenis tertentu di dalam susunan, atau null. */
+    private static java.awt.Component cariDi(java.awt.Container c, Class<?> jenis) {
+        for (java.awt.Component k : c.getComponents()) {
+            if (jenis.isInstance(k)) {
+                return k;
+            }
+            if (k instanceof java.awt.Container) {
+                java.awt.Component hasil = cariDi((java.awt.Container) k, jenis);
+                if (hasil != null) {
+                    return hasil;
+                }
+            }
+        }
+        return null;
     }
 
     /**
@@ -1156,6 +1225,69 @@ public class TestUi {
         f.setAccessible(true);
         JSpinner sp = (JSpinner) f.get(target);
         sp.setValue(java.util.Date.from(date.atStartOfDay(java.time.ZoneId.systemDefault()).toInstant()));
+    }
+
+    /**
+     * Kaki cetakan harus menuliskan periode yang benar-benar diterapkan ke tabel,
+     * bukan yang sedang tertulis di kotak tanggal.
+     *
+     * <p>Operator bisa mengubah tanggal Dari/Sampai lalu langsung menekan Cetak atau
+     * Pratinjau tanpa menekan "Tampilkan". Kertas yang diberikan ke pemilik rental
+     * untuk mencocokkan uang tidak boleh menuliskan periode baru padahal seluruh
+     * baris dan totalnya masih data periode lama.
+     */
+    private static boolean periodeKakiCetakIkutTabel() throws Exception {
+        PanelReport panel = new PanelReport();
+        setSpinner(panel, "spFrom", java.time.LocalDate.of(2026, 7, 1));
+        setSpinner(panel, "spTo", java.time.LocalDate.of(2026, 9, 30));
+        klik(panel, "reload");
+
+        // (a) Setelah reload dengan rentang itu, kaki menuliskan rentang yang sama.
+        String setelahReload = kakiCetak(panel);
+        boolean sesuaiRentang = setelahReload.startsWith("01/07 – 30/09/2026");
+        if (!sesuaiRentang) {
+            System.out.println("        kaki cetak tertulis '" + setelahReload
+                    + "', seharusnya diawali '01/07 – 30/09/2026'");
+        }
+
+        // (b) Kotak tanggal diubah TANPA menekan "Tampilkan": kaki tidak boleh ikut
+        // berubah — ia mengikuti tabel, bukan kotak.
+        setSpinner(panel, "spFrom", java.time.LocalDate.of(2020, 1, 1));
+        setSpinner(panel, "spTo", java.time.LocalDate.of(2020, 1, 31));
+        String setelahUbahKotak = kakiCetak(panel);
+        boolean tidakIkutKotak = setelahUbahKotak.equals(setelahReload);
+        if (!tidakIkutKotak) {
+            System.out.println("        kaki cetak ikut berubah menjadi '" + setelahUbahKotak
+                    + "' padahal tabel belum dimuat ulang");
+        }
+        return sesuaiRentang && tidakIkutKotak;
+    }
+
+    /** Teks pola kaki cetakan laporan, diambil lewat pantulan. */
+    private static String kakiCetak(PanelReport panel) throws Exception {
+        java.lang.reflect.Method m = PanelReport.class.getDeclaredMethod("kakiCetak");
+        m.setAccessible(true);
+        return ((java.text.MessageFormat) m.invoke(panel)).toPattern();
+    }
+
+    /**
+     * Tanggal di bilah atas harus ditulis ulang setiap kali halaman dibuka atau
+     * dipindah. Aplikasi yang dibiarkan terbuka dari sore ke pagi masih menulis
+     * tanggal kemarin kalau tanggalnya hanya diisi sekali di konstruktor.
+     */
+    private static boolean tanggalHeaderSegarSaatPindah() throws Exception {
+        PagePanel halaman = new PagePanel();
+        HeaderBar bar = (HeaderBar) field(halaman, "header");
+        // Tulis tanggal basi, seperti aplikasi yang dibiarkan semalaman, lalu pindah halaman.
+        ((JLabel) field(bar, "lblDate")).setText("Senin, 01 Januari 2001");
+        halaman.showPanel(new JPanel(), "Laporan", "Rekap penjualan per periode.");
+        String seharusnya = kaspe.util.Dates.longFormat(java.time.LocalDate.now());
+        if (!seharusnya.equals(bar.dateText())) {
+            System.out.println("        tanggal tertulis '" + bar.dateText()
+                    + "', seharusnya '" + seharusnya + "'");
+            return false;
+        }
+        return true;
     }
 
     private static void render(JPanel panel, String name, Path out) {

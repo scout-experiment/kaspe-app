@@ -276,6 +276,14 @@ cukup nyalakan server MySQL-nya.
   menekan tombol apa pun.
 - **Penyimpanan utuh** — semua baris tersimpan sekaligus atau dibatalkan sekaligus, jadi tidak
   ada nota yang tersimpan separuh.
+- **Riwayat dan hapus nota** — daftar Transaksi Tersimpan di halaman transaksi menampilkan
+  nota yang sudah masuk (tanggal, jumlah baris, total uang) dan bisa menghapusnya dengan
+  konfirmasi yang menyebut tanggal dan totalnya.
+- **Belum dibayar** — centang "Sudah dibayar" dilepas membuat baris tercatat dengan tanggal
+  lunas kosong (belum dibayar), bukan dipaksa lunas hari itu.
+- **Pekerjaan dijaga** — pindah halaman atau menutup jendela saat masih ada baris yang belum
+  disimpan ditanya dulu; isian yang belum menjadi baris ditawarkan ikut tersimpan saat
+  menekan Simpan Transaksi, bukan dibuang diam-diam.
 - **Data master** — satu halaman berisi pemilik truk di kiri dan truk miliknya di kanan.
   Pemiliknya tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang
   yang salah. Truk yang salah pemilik dipindahkan lewat tombol Pindah Pemilik, tanpa perlu
@@ -503,6 +511,37 @@ java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh "" /tmp/kaspe-pratinjau
 
 ---
 
+## Memeriksa data sendiri
+
+`tools/PeriksaData.java` memeriksa database yang sedang kamu pakai dan melaporkan apakah ada
+tanda kerusakan: truk yang kehilangan pemiliknya, baris lama yang kehilangan plat truknya,
+catatan tanggal yang tidak berisi baris apa pun, dan nama rental yang tertulis dua kali dengan
+besar-kecil huruf berbeda.
+
+**Alat ini tidak mengubah apa pun.** Ia tidak menambah, mengubah, atau menghapus data, dan
+tidak membuat tabel. Kalau berkas databasenya belum ada, ia berhenti dan mengatakannya —
+tidak membuat database kosong.
+
+Jalankan dari folder aplikasi, setelah `./build.sh`:
+
+```bash
+javac -cp "build:lib/*" -d /tmp/tools tools/PeriksaData.java
+java -cp "build:lib/*:/tmp/tools" PeriksaData
+```
+
+Baris pertama keluarannya menyebut database mana yang diperiksa. Periksa dulu alamat itu
+sebelum mempercayai hasilnya — kalau alamatnya bukan database yang biasa kamu pakai, hasilnya
+tidak berarti apa-apa.
+
+Kalau aplikasinya sedang terbuka, tutup dulu: database H2 hanya boleh dibuka satu program
+sekaligus. Tanpa berkas `mysql-connector-j` di folder `lib/`, alat ini hanya bisa memeriksa
+mode H2 (bawaan).
+
+Bagian 1 dan 2 keluarannya adalah **catatan, bukan masalah**: pemilik atau truk yang baru
+didaftarkan dan memang belum pernah mengirim itu wajar, dan tidak perlu dihapus.
+
+---
+
 ## Uji otomatis
 
 ```bash
@@ -518,9 +557,9 @@ pemasangan apa pun.
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji) | 21 lulus |
 | `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus | 35 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 20 lulus |
-| `TestAlur` | menekan Tambah Baris tidak menulis data master, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, baris tidak hilang saat pindah halaman | 44 lulus |
-| **Total** | | **127 lulus, 0 gagal** |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi tabel baris, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 23 lulus |
+| `TestAlur` | menekan Tambah Baris tidak menulis data master, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, baris tidak hilang saat pindah halaman, pekerjaan belum disimpan terdeteksi, belum lunas tersimpan, hapus transaksi, simpan tidak tercatat dua kali | 63 lulus |
+| **Total** | | **149 lulus, 0 gagal** |
 
 ---
 

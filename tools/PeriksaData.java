@@ -1,17 +1,18 @@
 import kaspe.Calculator;
 import kaspe.Db;
-import kaspe.dao.MasterDao;
-import kaspe.dao.TransactionDao;
 import kaspe.model.Rental;
-import kaspe.model.ReportRow;
 import kaspe.model.Truck;
 import kaspe.util.Dates;
 
+import java.io.File;
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -22,22 +23,31 @@ import java.util.Set;
 /**
  * Pemeriksa kerusakan data KaspeApp (BACA-SAJA).
  *
- * Alat ini menjalankan sendiri di komputer operator untuk melihat apakah datanya
- * menunjukkan tanda rusak akibat bug yang sudah diketahui: rental atau truk hantu
- * (tercatat tetapi tidak pernah dipakai), truk tanpa pemilik, baris lama yang
- * kehilangan plat truknya, transaksi kosong tanpa baris, dan nama rental yang hanya
- * beda besar-kecil huruf (yang membuat rekap uang per pemilik terpecah).
+ * <p>Alat ini dijalankan sendiri oleh operator di komputernya untuk melihat apakah
+ * datanya menunjukkan tanda rusak: truk tanpa pemilik, baris lama yang kehilangan plat
+ * truknya, transaksi kosong tanpa baris, dan nama rental yang hanya beda besar-kecil
+ * huruf (yang membuat rekap uang per pemilik terpecah).
  *
- * Alat ini HANYA MEMBACA. Ia tidak menambah, mengubah, atau menghapus data apa pun,
- * dan tidak membuat berkas. Kalau ada masalah, alat ini hanya melaporkannya; perbaikan
- * tetap dilakukan lewat aplikasi seperti biasa.
+ * <p><b>Alat ini tidak mengubah apa pun.</b> Ia membuka koneksinya sendiri, TIDAK lewat
+ * {@link Db#get()} - jalur itu menjalankan pembuatan tabel, dan pemeriksaan yang
+ * seharusnya hanya membaca tidak boleh mengubah database yang sedang diperiksa. Kalau
+ * database H2-nya belum ada, alat ini berhenti dan mengatakannya, bukan membuat database
+ * kosong lalu melaporkan "aman" - jawaban menenangkan yang justru menyesatkan.
  *
- * Cara mengompilasi dan menjalankan (dari folder proyek, setelah ./build.sh):
- *   javac -cp build:lib/h2-2.1.214.jar -d /tmp/tools tools/PeriksaData.java
+ * <p>Nama database yang diperiksa selalu dicetak di awal, supaya jelas mana yang dibaca.
+ *
+ * <p>Cara mengompilasi dan menjalankan (dari folder proyek, setelah ./build.sh):
+ * <pre>
+ *   javac -cp "build:lib/*" -d /tmp/tools tools/PeriksaData.java
  *   java -cp "build:lib/*:/tmp/tools" PeriksaData
+ * </pre>
+ *
+ * <p>Tanpa berkas {@code mysql-connector-j} di folder {@code lib/}, alat ini hanya bisa
+ * memeriksa mode H2 (bawaan).
  */
 public class PeriksaData {
 
+    /** Dianggap "database kosong" kalau rental, truk, dan transaksi semuanya nol. */
     private int jumlahMasalah = 0;
 
     public static void main(String[] args) throws Exception {
@@ -46,62 +56,166 @@ public class PeriksaData {
 
     /** Jalankan semua pemeriksaan dan cetak hasilnya. Mengembalikan jumlah masalah. */
     public int periksa() throws SQLException {
-        MasterDao master = new MasterDao();
-        TransactionDao trx = new TransactionDao();
-
-        List<Rental> rentals = master.listRental();
-        List<Truck> trucks = master.listTrucks();
-        List<ReportRow> baris = trx.listReport(null, null);
-        Set<Integer> trukDipakai = idTrukDipakai();
-        Set<Integer> rentalDipakai = idRentalDipakai();
-
         System.out.println("=== Pemeriksa data KaspeApp ===");
-        System.out.println("Alat ini hanya membaca data; tidak ada yang diubah.");
+        System.out.println("Database yang diperiksa:");
+        System.out.println("  " + Db.infoUrl());
+        System.out.println();
+        System.out.println("Alat ini hanya membaca isi buku catatan. Ia tidak menambah, mengubah,");
+        System.out.println("atau menghapus data, dan tidak membuat tabel apa pun.");
 
-        // 1. Rental yang tidak dipakai transaksi mana pun
-        judul("1. Rental yang tidak dipakai satu pun transaksi");
-        List<Rental> rentalHantu = new ArrayList<>();
+        Connection c = bukaBacaSaja();
+        if (c == null) {
+            return 0;
+        }
+        try {
+            List<Rental> rentals = daftarRental(c);
+            List<Truck> trucks = daftarTruk(c);
+            Set<Integer> trukDipakai = idTrukDipakai(c);
+            Set<Integer> rentalDipakai = idRentalDipakai(c);
+            int jumlahTransaksi = hitung(c, "SELECT COUNT(*) FROM transaksi");
+            int jumlahBaris = hitung(c, "SELECT COUNT(*) FROM transaksi_detail");
+
+            if (rentals.isEmpty() && trucks.isEmpty() && jumlahTransaksi == 0) {
+                System.out.println();
+                System.out.println("!!! DATABASE INI KOSONG !!!");
+                System.out.println("Tidak ada satu pun rental, truk, atau transaksi di dalamnya.");
+                System.out.println("Kalau kamu sudah pernah mencatat pengiriman, berarti yang diperiksa");
+                System.out.println("BUKAN database yang biasa kamu pakai - periksa dulu alamat database");
+                System.out.println("di baris paling atas, dan berkas kaspe.properties kalau kamu memakai");
+                System.out.println("MySQL. Hasil di bawah ini tidak berarti apa-apa.");
+            }
+
+            catatanRentalTakDipakai(rentals, rentalDipakai);
+            catatanTrukTakDipakai(trucks, trukDipakai);
+            periksaTrukTanpaPemilik(trucks);
+            periksaBarisTanpaPlat(c);
+            periksaTransaksiKosong(c);
+            periksaNamaKembar(rentals);
+            ringkasan(rentals.size(), trucks.size(), jumlahTransaksi, jumlahBaris, c);
+        } finally {
+            c.close();
+        }
+
+        System.out.println();
+        if (jumlahMasalah == 0) {
+            System.out.println("=== HASIL: tidak ditemukan tanda kerusakan data ===");
+        } else {
+            System.out.println("=== HASIL: ditemukan " + jumlahMasalah
+                    + " masalah — rincian dan penjelasannya di atas ===");
+        }
+        return jumlahMasalah;
+    }
+
+    // ================= koneksi =================
+
+    /**
+     * Buka koneksi baca-saja TANPA menjalankan pembuatan tabel.
+     *
+     * <p>Mengembalikan {@code null} kalau database-nya tidak ada atau tidak bisa dibuka;
+     * alasannya sudah dicetak.
+     */
+    private Connection bukaBacaSaja() {
+        String url = Db.infoUrl();
+        boolean h2 = Db.isH2();
+        if (h2) {
+            // IFEXISTS=TRUE membuat H2 MENOLAK membuka database yang belum ada, alih-alih
+            // membuatnya. Tanpa ini, alat pemeriksa akan membuat berkas database kosong
+            // lalu melaporkan "tidak ada tanda kerusakan" untuk database yang salah.
+            url = url + (url.indexOf(';') >= 0 ? ";" : ";") + "IFEXISTS=TRUE";
+        }
+        try {
+            Class.forName("org.h2.Driver");
+            return DriverManager.getConnection(url, Db.infoUser(), Db.infoPass());
+        } catch (Exception e) {
+            System.out.println();
+            if (h2 && !berkasH2Ada(Db.infoUrl())) {
+                System.out.println("=== BERHENTI: database belum ada ===");
+                System.out.println("Berkas database yang dituju tidak ditemukan:");
+                System.out.println("  " + berkasH2(Db.infoUrl()));
+                System.out.println("Tidak ada yang diperiksa, dan tidak ada berkas yang dibuat.");
+                System.out.println("Jalankan aplikasinya dulu minimal sekali supaya databasenya terbentuk.");
+            } else {
+                System.out.println("=== BERHENTI: database tidak bisa dibuka ===");
+                System.out.println(e.getMessage());
+                System.out.println();
+                System.out.println("Kalau aplikasinya sedang terbuka, tutup dulu - database H2 hanya");
+                System.out.println("boleh dibuka satu program sekaligus. Kalau kamu memakai MySQL,");
+                System.out.println("pastikan servernya hidup dan isi kaspe.properties sudah benar.");
+            }
+            return null;
+        }
+    }
+
+    /** Jalur berkas H2 (.mv.db) menurut alamatnya, atau null untuk mem:/tcp:. */
+    private static String berkasH2(String url) {
+        String sisa = url.substring("jdbc:h2:".length());
+        int titikKoma = sisa.indexOf(';');
+        if (titikKoma >= 0) {
+            sisa = sisa.substring(0, titikKoma);
+        }
+        if (sisa.startsWith("mem:") || sisa.startsWith("tcp:") || sisa.isEmpty()) {
+            return null;
+        }
+        return sisa + ".mv.db";
+    }
+
+    private static boolean berkasH2Ada(String url) {
+        String jalur = berkasH2(url);
+        return jalur != null && new File(jalur).exists();
+    }
+
+    // ================= pemeriksaan =================
+
+    /**
+     * Rental yang belum dipakai transaksi mana pun — CATATAN, bukan masalah.
+     *
+     * <p>Pemilik yang baru didaftarkan dan memang belum ada pengirimannya akan masuk ke
+     * sini, dan itu wajar. Menghitungnya sebagai masalah lalu menyarankan penghapusan
+     * bisa membuat operator menghapus pemilik yang sah.
+     */
+    private void catatanRentalTakDipakai(List<Rental> rentals, Set<Integer> dipakai) {
+        judul("1. Rental yang belum punya pengiriman (catatan, bukan masalah)");
+        List<Rental> belum = new ArrayList<>();
         for (Rental r : rentals) {
-            if (!rentalDipakai.contains(r.getRentalId())) {
-                rentalHantu.add(r);
+            if (!dipakai.contains(r.getRentalId())) {
+                belum.add(r);
             }
         }
-        if (rentalHantu.isEmpty()) {
-            System.out.println("Aman: setiap rental pernah dipakai oleh baris transaksi.");
+        if (belum.isEmpty()) {
+            System.out.println("Setiap rental sudah punya pengiriman.");
         } else {
-            System.out.println("Ditemukan " + rentalHantu.size() + " kandidat rental hantu:");
-            for (Rental r : rentalHantu) {
+            System.out.println("Ada " + belum.size() + " rental yang belum punya pengiriman:");
+            for (Rental r : belum) {
                 System.out.println("  - \"" + r.getRentalName() + "\"");
             }
-            System.out.println("Artinya: nama ini tercatat sebagai pemilik, tetapi tidak satu pun");
-            System.out.println("truknya muncul di buku catatan. Biasanya sisa salah ketik nama yang");
-            System.out.println("lalu ditulis ulang dengan ejaan benar. Hitungan uang tidak terganggu,");
-            System.out.println("tetapi sebaiknya diperiksa dan dihapus lewat halaman Data Master.");
-            jumlahMasalah += rentalHantu.size();
+            System.out.println("Ini WAJAR kalau pemiliknya baru didaftarkan, atau truknya memang");
+            System.out.println("belum pernah mengirim. Tidak perlu dihapus. Baru patut dicurigai");
+            System.out.println("kalau namanya mirip pemilik lain - bandingkan dengan bagian 6.");
         }
+    }
 
-        // 2. Truk yang tidak dipakai transaksi mana pun
-        judul("2. Truk yang tidak dipakai satu pun transaksi");
-        List<Truck> trukHantu = new ArrayList<>();
+    /** Truk yang belum dipakai transaksi mana pun — CATATAN, bukan masalah. */
+    private void catatanTrukTakDipakai(List<Truck> trucks, Set<Integer> dipakai) {
+        judul("2. Truk yang belum punya pengiriman (catatan, bukan masalah)");
+        List<Truck> belum = new ArrayList<>();
         for (Truck t : trucks) {
-            if (!trukDipakai.contains(t.getTruckId())) {
-                trukHantu.add(t);
+            if (!dipakai.contains(t.getTruckId())) {
+                belum.add(t);
             }
         }
-        if (trukHantu.isEmpty()) {
-            System.out.println("Aman: setiap truk pernah dipakai oleh baris transaksi.");
+        if (belum.isEmpty()) {
+            System.out.println("Setiap truk sudah punya pengiriman.");
         } else {
-            System.out.println("Ditemukan " + trukHantu.size() + " kandidat truk hantu:");
-            for (Truck t : trukHantu) {
+            System.out.println("Ada " + belum.size() + " truk yang belum punya pengiriman:");
+            for (Truck t : belum) {
                 System.out.println("  - plat " + t.getPlate());
             }
-            System.out.println("Artinya: plat ini tercatat di daftar truk, tetapi tidak pernah muncul");
-            System.out.println("di buku catatan. Kalau truk ini memang tidak dikenal, kemungkinan sisa");
-            System.out.println("salah ketik plat; bisa diperiksa lalu dihapus lewat halaman Data Master.");
-            jumlahMasalah += trukHantu.size();
+            System.out.println("Ini WAJAR kalau truknya baru didaftarkan. Tidak perlu dihapus.");
+            System.out.println("Baru patut dicurigai kalau platnya mirip truk lain (salah ketik).");
         }
+    }
 
-        // 3. Truk tanpa pemilik
+    private void periksaTrukTanpaPemilik(List<Truck> trucks) {
         judul("3. Truk yang tidak punya pemilik (rental)");
         List<Truck> tanpaPemilik = new ArrayList<>();
         for (Truck t : trucks) {
@@ -121,48 +235,67 @@ public class PeriksaData {
             System.out.println("dihapus. Pemilik bisa diisi ulang lewat halaman Data Master.");
             jumlahMasalah += tanpaPemilik.size();
         }
+    }
 
-        // 4. Baris transaksi tanpa plat truk
+    private void periksaBarisTanpaPlat(Connection c) throws SQLException {
         judul("4. Baris buku yang kehilangan plat truknya");
-        List<ReportRow> tanpaPlat = new ArrayList<>();
-        for (ReportRow b : baris) {
-            if (b.getPlate() == null) {
-                tanpaPlat.add(b);
+        List<String> pesan = new ArrayList<>();
+        String sql = "SELECT t.tanggal, d.jumlah_uang FROM transaksi_detail d "
+                + "JOIN transaksi t ON t.id_transaksi = d.id_transaksi "
+                + "WHERE d.id_truk IS NULL ORDER BY t.tanggal, d.id_detail";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                LocalDate tanggal = rs.getDate("tanggal") == null
+                        ? null : rs.getDate("tanggal").toLocalDate();
+                BigDecimal uang = rs.getBigDecimal("jumlah_uang");
+                pesan.add("  - tanggal " + Dates.format(tanggal) + ", jumlah uang Rp "
+                        + Calculator.formatCurrency(uang));
             }
         }
-        if (tanpaPlat.isEmpty()) {
+        if (pesan.isEmpty()) {
             System.out.println("Aman: semua baris buku punya plat truk.");
         } else {
-            System.out.println("Ditemukan " + tanpaPlat.size() + " baris tanpa plat:");
-            for (ReportRow b : tanpaPlat) {
-                System.out.println("  - tanggal " + Dates.format(b.getDate())
-                        + ", jumlah uang Rp " + Calculator.formatCurrency(b.getTotalAmount()));
+            System.out.println("Ditemukan " + pesan.size() + " baris tanpa plat:");
+            for (String p : pesan) {
+                System.out.println(p);
             }
             System.out.println("Artinya: baris lama ini menampilkan kolom plat kosong, karena truknya");
             System.out.println("sudah dihapus dari daftar truk. Uangnya tetap terhitung di total,");
             System.out.println("tetapi tidak bisa dilacak per pemilik. Ini tidak bisa diperbaiki dari");
             System.out.println("aplikasi; barisnya hanya berguna sebagai arsip.");
-            jumlahMasalah += tanpaPlat.size();
+            jumlahMasalah += pesan.size();
         }
+    }
 
-        // 5. Transaksi tanpa satu pun baris detail
+    private void periksaTransaksiKosong(Connection c) throws SQLException {
         judul("5. Transaksi (tanggal) yang tidak punya satu pun baris");
-        List<String> transaksiKosong = transaksiTanpaBaris();
-        if (transaksiKosong.isEmpty()) {
+        List<String> kosong = new ArrayList<>();
+        String sql = "SELECT t.tanggal FROM transaksi t "
+                + "LEFT JOIN transaksi_detail d ON d.id_transaksi = t.id_transaksi "
+                + "WHERE d.id_detail IS NULL ORDER BY t.tanggal";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                LocalDate tanggal = rs.getDate("tanggal") == null
+                        ? null : rs.getDate("tanggal").toLocalDate();
+                kosong.add("  - tanggal " + Dates.format(tanggal));
+            }
+        }
+        if (kosong.isEmpty()) {
             System.out.println("Aman: setiap transaksi punya paling tidak satu baris.");
         } else {
-            System.out.println("Ditemukan " + transaksiKosong.size() + " transaksi kosong:");
-            for (String t : transaksiKosong) {
-                System.out.println("  - tanggal " + t);
+            System.out.println("Ditemukan " + kosong.size() + " transaksi kosong:");
+            for (String t : kosong) {
+                System.out.println(t);
             }
             System.out.println("Artinya: ada catatan tanggal yang tidak berisi satu baris pun. Ini tidak");
             System.out.println("mengganggu hitungan uang (kosong tidak berarti apa-apa di laporan),");
             System.out.println("tetapi tidak seharusnya ada dan menandakan pernah terjadi simpan");
             System.out.println("yang batal di tengah jalan.");
-            jumlahMasalah += transaksiKosong.size();
+            jumlahMasalah += kosong.size();
         }
+    }
 
-        // 6. Nama rental yang hanya beda besar-kecil huruf
+    private void periksaNamaKembar(List<Rental> rentals) {
         judul("6. Nama rental yang hanya beda besar-kecil huruf");
         Map<String, List<String>> perKunci = new LinkedHashMap<>();
         for (Rental r : rentals) {
@@ -200,87 +333,91 @@ public class PeriksaData {
             System.out.println("halaman Data Master supaya uangnya menyatu kembali.");
             jumlahMasalah += jumlahKembar;
         }
+    }
 
-        // 7. Ringkasan
+    private void ringkasan(int jumlahRental, int jumlahTruk, int jumlahTransaksi,
+                           int jumlahBaris, Connection c) throws SQLException {
         judul("7. Ringkasan isi data");
         BigDecimal totalUang = BigDecimal.ZERO;
-        for (ReportRow b : baris) {
-            if (b.getTotalAmount() != null) {
-                totalUang = totalUang.add(b.getTotalAmount());
+        String sql = "SELECT jumlah_uang FROM transaksi_detail";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                BigDecimal uang = rs.getBigDecimal("jumlah_uang");
+                if (uang != null) {
+                    totalUang = totalUang.add(uang);
+                }
             }
         }
-        System.out.println("Jumlah rental         : " + rentals.size());
-        System.out.println("Jumlah truk           : " + trucks.size());
-        System.out.println("Jumlah transaksi      : " + jumlahBaris("SELECT COUNT(*) FROM transaksi"));
-        System.out.println("Jumlah baris buku     : " + baris.size());
+        System.out.println("Jumlah rental         : " + jumlahRental);
+        System.out.println("Jumlah truk           : " + jumlahTruk);
+        System.out.println("Jumlah transaksi      : " + jumlahTransaksi);
+        System.out.println("Jumlah baris buku     : " + jumlahBaris);
         System.out.println("Total uang seluruhnya : Rp " + Calculator.formatCurrency(totalUang));
-
-        System.out.println();
-        if (jumlahMasalah == 0) {
-            System.out.println("=== HASIL: tidak ditemukan tanda kerusakan data ===");
-        } else {
-            System.out.println("=== HASIL: ditemukan " + jumlahMasalah
-                    + " masalah — rincian dan penjelasannya di atas ===");
-        }
-        return jumlahMasalah;
     }
+
+    // ================= pembantu =================
 
     private void judul(String teks) {
         System.out.println();
         System.out.println("--- " + teks + " ---");
     }
 
-    /** Id truk yang muncul di paling tidak satu baris transaksi. */
-    private Set<Integer> idTrukDipakai() throws SQLException {
+    private static List<Rental> daftarRental(Connection c) throws SQLException {
+        List<Rental> hasil = new ArrayList<>();
+        String sql = "SELECT id_rental, nama_rental FROM rental ORDER BY nama_rental";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                Rental r = new Rental();
+                r.setRentalId(rs.getInt("id_rental"));
+                r.setRentalName(rs.getString("nama_rental"));
+                hasil.add(r);
+            }
+        }
+        return hasil;
+    }
+
+    private static List<Truck> daftarTruk(Connection c) throws SQLException {
+        List<Truck> hasil = new ArrayList<>();
+        String sql = "SELECT id_truk, plat, id_rental FROM truk ORDER BY plat";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
+            while (rs.next()) {
+                Truck t = new Truck();
+                t.setTruckId(rs.getInt("id_truk"));
+                t.setPlate(rs.getString("plat"));
+                int idRental = rs.getInt("id_rental");
+                t.setRentalId(rs.wasNull() ? null : idRental);
+                hasil.add(t);
+            }
+        }
+        return hasil;
+    }
+
+    private static Set<Integer> idTrukDipakai(Connection c) throws SQLException {
         Set<Integer> hasil = new HashSet<>();
-        try (Connection c = Db.get(); Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery(
-                     "SELECT DISTINCT id_truk FROM transaksi_detail WHERE id_truk IS NOT NULL")) {
+        String sql = "SELECT DISTINCT id_truk FROM transaksi_detail WHERE id_truk IS NOT NULL";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
             while (rs.next()) {
-                hasil.add(rs.getInt("id_truk"));
+                hasil.add(rs.getInt(1));
             }
         }
         return hasil;
     }
 
-    /** Id rental yang truknya muncul di paling tidak satu baris transaksi. */
-    private Set<Integer> idRentalDipakai() throws SQLException {
+    private static Set<Integer> idRentalDipakai(Connection c) throws SQLException {
         Set<Integer> hasil = new HashSet<>();
-        try (Connection c = Db.get(); Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery(
-                     "SELECT DISTINCT t.id_rental FROM truk t"
-                     + " JOIN transaksi_detail d ON d.id_truk = t.id_truk"
-                     + " WHERE t.id_rental IS NOT NULL")) {
+        String sql = "SELECT DISTINCT tr.id_rental FROM transaksi_detail d "
+                + "JOIN truk tr ON tr.id_truk = d.id_truk WHERE tr.id_rental IS NOT NULL";
+        try (Statement s = c.createStatement(); ResultSet rs = s.executeQuery(sql)) {
             while (rs.next()) {
-                hasil.add(rs.getInt("id_rental"));
+                hasil.add(rs.getInt(1));
             }
         }
         return hasil;
     }
 
-    /** Tanggal (dd-MM-yyyy) transaksi yang tidak punya satu pun baris detail. */
-    private List<String> transaksiTanpaBaris() throws SQLException {
-        List<String> hasil = new ArrayList<>();
-        try (Connection c = Db.get(); Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery(
-                     "SELECT t.tanggal FROM transaksi t"
-                     + " LEFT JOIN transaksi_detail d ON d.id_transaksi = t.id_transaksi"
-                     + " WHERE d.id_detail IS NULL"
-                     + " ORDER BY t.tanggal, t.id_transaksi")) {
-            while (rs.next()) {
-                java.sql.Date d = rs.getDate("tanggal");
-                hasil.add(d == null ? "?" : Dates.format(d.toLocalDate()));
-            }
-        }
-        return hasil;
-    }
-
-    /** Hasil satu kueri COUNT(*). */
-    private int jumlahBaris(String sql) throws SQLException {
-        try (Connection c = Db.get(); Statement s = c.createStatement();
-             ResultSet rs = s.executeQuery(sql)) {
-            rs.next();
-            return rs.getInt(1);
+    private static int hitung(Connection c, String sql) throws SQLException {
+        try (PreparedStatement ps = c.prepareStatement(sql); ResultSet rs = ps.executeQuery()) {
+            return rs.next() ? rs.getInt(1) : 0;
         }
     }
 }

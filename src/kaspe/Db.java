@@ -257,4 +257,21 @@ public final class Db {
     public static String infoUrl() {
         return url;
     }
+
+    /**
+     * Nama pengguna database yang sedang dipakai.
+     *
+     * <p>Disediakan supaya alat di luar aplikasi (mis. {@code tools/PeriksaData}) bisa
+     * membuka koneksinya sendiri TANPA lewat {@link #get()}. Lewat {@code get()},
+     * pemeriksaan yang seharusnya hanya membaca akan ikut menjalankan pembuatan tabel -
+     * dan itu mengubah database yang sedang diperiksa.
+     */
+    public static String infoUser() {
+        return user;
+    }
+
+    /** Kata sandi database yang sedang dipakai. Lihat {@link #infoUser()}. */
+    public static String infoPass() {
+        return pass;
+    }
 }

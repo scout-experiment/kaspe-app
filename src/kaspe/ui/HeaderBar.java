@@ -44,13 +44,24 @@ public class HeaderBar extends JPanel {
         add(right, BorderLayout.EAST);
 
         setPage(pageName, subtitle);
-        lblDate.setText(kaspe.util.Dates.longFormat(LocalDate.now()));
+        refreshDate();
     }
 
     /** Ganti nama dan keterangan halaman yang ditampilkan. */
     public void setPage(String pageName, String subtitle) {
         lblPage.setText(pageName);
         lblSubtitle.setText(subtitle == null ? "" : subtitle);
+    }
+
+    /**
+     * Tulis ulang tanggal hari ini.
+     *
+     * <p>Dipanggil setiap kali halaman dibuka atau dipindah: aplikasi yang dibiarkan
+     * terbuka dari sore ke pagi masih menulis tanggal kemarin kalau tanggalnya hanya
+     * diisi sekali di konstruktor.
+     */
+    public void refreshDate() {
+        lblDate.setText(kaspe.util.Dates.longFormat(LocalDate.now()));
     }
 
     /** Nama halaman yang sedang ditampilkan. */

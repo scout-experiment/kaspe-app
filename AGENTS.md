@@ -122,7 +122,18 @@ javac -cp build -d /tmp/tools tools/BuatDataContoh.java
 java  -cp "build:/tmp/tools" BuatDataContoh docs/data-contoh.sql
 javac -cp "build:lib/*" -d /tmp/tools tools/PeriksaDataContoh.java
 java  -cp "build:lib/*:/tmp/tools" PeriksaDataContoh      # verifies sample data against Calculator
+
+javac -cp "build:lib/*" -d /tmp/tools tools/PeriksaData.java
+java  -cp "build:lib/*:/tmp/tools" PeriksaData            # read-only check of the USER's own database
 ```
+
+`PeriksaData` opens its own connection instead of `Db.get()`, because `Db.get()` runs
+`Schema.ensure` and would modify the very database being inspected. It appends `IFEXISTS=TRUE`
+on H2 so a missing database is reported rather than silently created — otherwise it would
+inspect an empty file and print "no damage". It prints the URL it reads. Sections 1 and 2
+(owners/plates with no deliveries yet) are notes, not problems: a newly registered owner is
+normal, and telling the operator to delete one would be dangerous advice. Without
+`mysql-connector-j` in `lib/` it can only inspect H2.
 
 `preview/index.html` and `preview/*.png` are generated — do not hand-edit them. `docs/data-contoh.sql`
 starts with `DELETE`, so it wipes the target database.
@@ -251,7 +262,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 21, `TestDao` 35, `TestAlur` 44, `TestUi` 20 — **127 lulus, 0 gagal**.
+`TestDatabase` 21, `TestDao` 35, `TestAlur` 63, `TestUi` 23 — **149 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

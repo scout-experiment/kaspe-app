@@ -44,6 +44,8 @@ public class NavBar extends JPanel {
      * dibuang setiap kali operator sempat melihat halaman lain.
      */
     private PanelTransaction panelTransaksi;
+    /** Halaman yang sedang terbuka, untuk tahu kapan operator MENINGGALKAN transaksi. */
+    private String halamanAktif;
 
     private NavBar(PagePanel page) {
         super(new BorderLayout());
@@ -115,9 +117,47 @@ public class NavBar extends JPanel {
      * lain — bukan hanya dari klik di bilah ini.
      */
     void setActive(String name) {
+        halamanAktif = name;
         for (Item item : items) {
             item.setSelected(name.equals(item.name));
         }
+    }
+
+    /**
+     * Benar kalau ada pekerjaan transaksi yang belum disimpan. Dipakai jendela utama
+     * saat ingin ditutup, supaya menekan X tidak membuang pekerjaan itu diam-diam.
+     */
+    public boolean adaKerjaBelumDisimpan() {
+        return panelTransaksi != null && panelTransaksi.adaKerjaBelumDisimpan();
+    }
+
+    /**
+     * Bolehkah meninggalkan halaman transaksi menuju halaman lain?
+     *
+     * <p>Baris yang sudah masuk daftar tapi belum disimpan hanya terlihat di halaman
+     * itu; pindah halaman lalu menyimpan notanya dari tempat lain mustahil. Karena itu
+     * perpindahan ditanya dulu — bukan langsung dibuang seperti dulu.
+     *
+     * <p>Tanpa layar (uji otomatis) tidak ada operator yang bisa menjawab; perpindahan
+     * dianggap boleh saja supaya jalurnya tetap teruji.
+     */
+    private boolean bolehTinggalkanTransaksi(String tujuan) {
+        if (panelTransaksi == null || !"Transaksi".equals(halamanAktif)
+                || "Transaksi".equals(tujuan)) {
+            return true;
+        }
+        if (!panelTransaksi.adaKerjaBelumDisimpan()) {
+            return true;
+        }
+        if (GraphicsEnvironment.isHeadless()) {
+            return true;
+        }
+        int jwb = JOptionPane.showConfirmDialog(this,
+                "Masih ada baris transaksi yang belum disimpan.\n"
+                        + "Pindah ke " + tujuan + " dan tinggalkan isian itu?",
+                "Belum disimpan", JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        return jwb == JOptionPane.YES_OPTION;
     }
 
     /**
@@ -145,6 +185,11 @@ public class NavBar extends JPanel {
         Item item = new Item(name, subtitle, icon);
         group.add(item);
         item.addActionListener(e -> {
+            if (!bolehTinggalkanTransaksi(item.name)) {
+                // Batal pindah: sorotan menu dikembalikan ke halaman yang masih terbuka.
+                setActive(halamanAktif);
+                return;
+            }
             setActive(item.name);
             page.showPanel(create(item.name), item.name, item.subtitle);
         });

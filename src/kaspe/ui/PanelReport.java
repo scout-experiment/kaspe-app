@@ -38,6 +38,17 @@ public class PanelReport extends JPanel {
     private final JLabel lblRowCount = new JLabel("0 baris");
     /** Pesan kesalahan isian, ditulis di baris filter — dekat kotak yang salah. */
     private final JLabel lblStatus = new JLabel();
+    /**
+     * Rentang tanggal yang benar-benar diterapkan ke tabel oleh {@link #reload()} yang
+     * berhasil — dipakai kaki cetakan.
+     *
+     * <p>Yang tertulis di kotak tanggal bisa saja belum diterapkan: operator mengubah
+     * tanggal lalu langsung menekan Cetak/Pratinjau tanpa menekan "Tampilkan". Kertas
+     * harus menuliskan periode yang benar-benar sedang ditampilkan tabel, bukan yang
+     * baru diketik, supaya baris dan total di kertas tetap satu periode dengan kakinya.
+     */
+    private LocalDate fromTabel;
+    private LocalDate toTabel;
 
     private final TransactionDao transactionDao = new TransactionDao();
 
@@ -192,7 +203,11 @@ public class PanelReport extends JPanel {
             }
             lblTotalAmount.setText("Rp " + Calculator.formatCurrency(totalAmount));
             lblTotalWeight.setText(Calculator.formatCurrency(totalWeight) + " kg");
-            lblRowCount.setText(row.size() + " baris");
+            // Rentang yang baru boleh dipakai kaki cetakan setelah seluruh isi tabelnya
+            // benar-benar diterapkan — kertas menuliskan apa yang sedang ditampilkan,
+            // bukan apa yang baru diketik di kotak.
+            fromTabel = from;
+            toTabel = to;
             // Dua keadaan kosong yang berbeda butuh penjelasan berbeda: belum punya data
             // sama sekali, versus punya data tapi tidak ada yang masuk rentang tanggal.
             // Pesan yang sama untuk keduanya membuat pengguna menduga aplikasinya rusak.
@@ -226,9 +241,17 @@ public class PanelReport extends JPanel {
         return new MessageFormat("Laporan Penjualan Singkong");
     }
 
-    /** Kaki cetak: periode, total, dan nomor halaman. */
+    /**
+     * Kaki cetak: periode, total, dan nomor halaman.
+     *
+     * <p>Periodenya diambil dari rentang yang diterapkan ke tabel, bukan dari kotak
+     * tanggalnya: operator bisa mengubah tanggal lalu langsung menekan Cetak/Pratinjau,
+     * dan kertas harus menuliskan periode yang sama dengan baris dan totalnya.
+     */
     private MessageFormat kakiCetak() {
-        return new MessageFormat(periodeRingkas((Date) spFrom.getValue(), (Date) spTo.getValue())
+        Date dari = fromTabel == null ? null : toDate(fromTabel);
+        Date sampai = toTabel == null ? null : toDate(toTabel);
+        return new MessageFormat(periodeRingkas(dari, sampai)
                 + "  ·  Total " + quote(lblTotalAmount.getText())
                 + "  ·  " + quote(lblTotalWeight.getText())
                 + "  ·  Hal. {0,number,integer}");
@@ -329,8 +352,8 @@ public class PanelReport extends JPanel {
             return null;
         }
         Theme.markError(kotak, false);
-        // Nilai modelnya ikut disamakan supaya kaki cetakan memakai tanggal yang
-        // benar-benar tertulis, bukan tanggal lama yang tertinggal.
+        // Nilai modelnya ikut disamakan supaya panah kotak tanggal memakai tanggal
+        // yang benar-benar tertulis, bukan tanggal lama yang tertinggal.
         sp.setValue(toDate(t));
         return t;
     }
