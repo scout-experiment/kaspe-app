@@ -19,10 +19,15 @@ import java.util.List;
  *
  * <p>Perubahan itu bukan sekadar merapikan tampilan. Cara lama menyimpan satu kesalahan
  * yang tidak terlihat: kotak pilihan rental selalu sudah terisi begitu halaman dibuka,
- * sehingga mengetik plat baru lalu menekan Tambah / Simpan tanpa menyentuh kotak itu
+ * sehingga mengetik plat baru lalu menekan tombol simpan tanpa menyentuh kotak itu
  * membuat truk tercatat milik pemilik yang kebetulan tampil pertama — tanpa pesan apa
  * pun, dan uangnya masuk ke pemilik yang salah di laporan. Sekarang pemiliknya
  * diturunkan dari baris yang disorot, jadi tidak ada yang bisa salah pilih.
+ *
+ * <p>Tombol tambah dan ubah sengaja dipisah. Satu tombol untuk dua maksud
+ * membuat tombol tambah menimpa baris yang kebetulan tersorot; sekarang
+ * "Tambah ..." selalu membuat baris baru, dan "Simpan Perubahan" hanya
+ * mengubah baris yang sedang disorot.
  */
 public class PanelMaster extends JPanel {
 
@@ -37,7 +42,7 @@ public class PanelMaster extends JPanel {
         }
     };
     private final Theme.Table tableRental = new Theme.Table(modelRental,
-            "Belum ada rental. Isi namanya di atas, lalu tekan Tambah / Simpan.");
+            "Belum ada rental. Isi namanya di atas, lalu tekan Tambah Rental.");
     private final JTextField fNama = new JTextField();
 
     // ---------- kanan: truk milik pemilik yang disorot ----------
@@ -57,6 +62,13 @@ public class PanelMaster extends JPanel {
     private int rentalId = 0;
     /** Truk yang sedang disorot di kanan. 0 artinya belum ada yang dipilih. */
     private int truckId = 0;
+
+    // Tombol yang hanya berlaku untuk baris tersorot. Tanpa baris tersorot
+    // keduanya mati, supaya maksud "ubah yang ini" tidak bisa tertukar lagi.
+    private final JButton btnUbahRental = Theme.plain("Simpan Perubahan");
+    private final JButton btnHapusRental = Theme.plain("Hapus");
+    private final JButton btnUbahTruk = Theme.plain("Simpan Perubahan");
+    private final JButton btnHapusTruk = Theme.plain("Hapus");
 
     public PanelMaster() {
         setLayout(new BorderLayout(0, 12));
@@ -105,15 +117,13 @@ public class PanelMaster extends JPanel {
 
         JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         tombol.setOpaque(false);
-        JButton btnSimpan = Theme.primary("Tambah / Simpan");
-        JButton btnHapus = Theme.plain("Hapus");
-        JButton btnBersih = Theme.plain("Bersihkan");
-        btnSimpan.addActionListener(e -> saveRental());
-        btnHapus.addActionListener(e -> deleteRental());
-        btnBersih.addActionListener(e -> clearRentalForm());
-        tombol.add(btnSimpan);
-        tombol.add(btnHapus);
-        tombol.add(btnBersih);
+        JButton btnTambah = Theme.primary("Tambah Rental");
+        btnTambah.addActionListener(e -> tambahRental());
+        btnUbahRental.addActionListener(e -> ubahRental());
+        btnHapusRental.addActionListener(e -> deleteRental());
+        tombol.add(btnTambah);
+        tombol.add(btnUbahRental);
+        tombol.add(btnHapusRental);
 
         g.gridy = 1;
         g.insets = new Insets(0, 0, 0, 0);
@@ -170,17 +180,15 @@ public class PanelMaster extends JPanel {
 
         JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         tombol.setOpaque(false);
-        JButton btnSimpan = Theme.primary("Tambah / Simpan");
-        JButton btnHapus = Theme.plain("Hapus");
-        JButton btnBersih = Theme.plain("Bersihkan");
-        btnSimpan.addActionListener(e -> saveTruck());
-        btnHapus.addActionListener(e -> deleteTruck());
-        btnBersih.addActionListener(e -> clearTruckForm());
+        JButton btnTambah = Theme.primary("Tambah Truk");
+        btnTambah.addActionListener(e -> tambahTruk());
+        btnUbahTruk.addActionListener(e -> ubahTruck());
+        btnHapusTruk.addActionListener(e -> deleteTruck());
         JButton btnPindah = Theme.plain("Pindah Pemilik");
         btnPindah.addActionListener(e -> moveTruck());
-        tombol.add(btnSimpan);
-        tombol.add(btnHapus);
-        tombol.add(btnBersih);
+        tombol.add(btnTambah);
+        tombol.add(btnUbahTruk);
+        tombol.add(btnHapusTruk);
         tombol.add(btnPindah);
 
         lblStatus.setForeground(Theme.DANGER);
@@ -240,7 +248,8 @@ public class PanelMaster extends JPanel {
 
             if (modelRental.getRowCount() == 0) {
                 rentalId = 0;
-                clearRentalForm();
+                fNama.setText("");
+                updateTombolRental();
                 loadTruk();
                 return;
             }
@@ -263,11 +272,30 @@ public class PanelMaster extends JPanel {
         return -1;
     }
 
-    /** Isi daftar truk dengan truk milik rental yang sedang disorot. */
+    /** Baris tabel truk yang punya id tertentu, atau -1 kalau tidak ada. */
+    private int barisTruk(int id) {
+        for (int i = 0; i < modelTruk.getRowCount(); i++) {
+            if (id == Integer.parseInt(String.valueOf(modelTruk.getValueAt(i, 0)))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Isi daftar truk dengan truk milik rental yang sedang disorot.
+     *
+     * <p>Truk yang sedang disorot diingat dulu, seperti daftar rental di {@link #load()}:
+     * supaya menambah truk tidak memindahkan pilihan operator.
+     */
     private void loadTruk() {
+        int sebelumnya = truckId;
         modelTruk.setRowCount(0);
         truckId = 0;
-        clearTruckForm();
+        fPlat.setText("");
+        tableTruk.clearSelection();
+        setStatus("");
+        updateTombolTruk();
         if (rentalId == 0) {
             lblPemilik.setText("Belum ada yang dipilih");
             lblPemilik.setForeground(Theme.INK_SOFT);
@@ -289,7 +317,11 @@ public class PanelMaster extends JPanel {
                 }
             }
             tableTruk.setEmptyMessage("Belum ada truk untuk " + nama
-                    + ". Isi platnya di atas, lalu tekan Tambah / Simpan.");
+                    + ". Isi platnya di atas, lalu tekan Tambah Truk.");
+            int baris = barisTruk(sebelumnya);
+            if (baris >= 0) {
+                tableTruk.setRowSelectionInterval(baris, baris);
+            }
         } catch (Exception e) {
             Theme.showError(this, e);
         }
@@ -298,37 +330,69 @@ public class PanelMaster extends JPanel {
     private void selectRental() {
         int i = tableRental.getSelectedRow();
         if (i < 0) {
+            rentalId = 0;
+            updateTombolRental();
             return;
         }
         rentalId = Integer.parseInt(String.valueOf(modelRental.getValueAt(i, 0)));
         fNama.setText(str(modelRental.getValueAt(i, 1)));
         setStatus("");
+        updateTombolRental();
         loadTruk();
     }
 
     private void selectTruck() {
         int i = tableTruk.getSelectedRow();
         if (i < 0) {
+            truckId = 0;
+            updateTombolTruk();
             return;
         }
         truckId = Integer.parseInt(String.valueOf(modelTruk.getValueAt(i, 0)));
         fPlat.setText(str(modelTruk.getValueAt(i, 1)));
         setStatus("");
+        updateTombolTruk();
     }
 
     // ================= simpan dan hapus =================
 
-    private void saveRental() {
+    private void tambahRental() {
+        // Selalu INSERT, tidak peduli ada baris yang tersorot. Sebelumnya tambah dan
+        // ubah berbagi satu tombol, dan karena load() selalu menyorot baris pertama,
+        // mengetik nama baru lalu menekan tombol itu malah MENIMPA rental lama -
+        // beserta seluruh riwayat transaksi pemiliknya, yang ikut berganti nama mundur.
+        String nama = fNama.getText().trim();
+        if (nama.isEmpty()) {
+            setStatus("Nama rental wajib diisi.");
+            return;
+        }
+        try {
+            Rental r = new Rental();
+            r.setRentalName(nama);
+            dao.saveRental(r);
+            setStatus("");
+            // Rental baru belum punya id di sini, jadi barunya dicari lewat namanya.
+            rentalId = cariIdRental(nama);
+            load();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private void ubahRental() {
+        if (rentalId == 0) {
+            return;
+        }
+        String nama = fNama.getText().trim();
+        if (nama.isEmpty()) {
+            setStatus("Nama rental wajib diisi.");
+            return;
+        }
         try {
             Rental r = new Rental();
             r.setRentalId(rentalId);
-            r.setRentalName(require(fNama.getText(), "Nama rental"));
+            r.setRentalName(nama);
             dao.saveRental(r);
-            // Setelah disimpan, baris yang sedang dibuka dicari ulang lewat namanya.
-            // Rental yang baru dibuat belum punya id di sini, jadi patokannya nama.
-            if (rentalId == 0) {
-                rentalId = cariIdRental(r.getRentalName());
-            }
             setStatus("");
             load();
         } catch (Exception e) {
@@ -336,9 +400,11 @@ public class PanelMaster extends JPanel {
         }
     }
 
+    /** Id rental menurut nama (tanpa membedakan besar-kecil huruf), atau 0. */
     private int cariIdRental(String nama) throws Exception {
+        String kunci = Rental.matchKey(nama);
         for (Rental r : dao.listRental()) {
-            if (r.getRentalName() != null && r.getRentalName().equals(nama)) {
+            if (kunci.equals(Rental.matchKey(r.getRentalName()))) {
                 return r.getRentalId();
             }
         }
@@ -375,15 +441,8 @@ public class PanelMaster extends JPanel {
         }
     }
 
-    private void clearRentalForm() {
-        rentalId = 0;
-        fNama.setText("");
-        tableRental.clearSelection();
-        setStatus("");
-        loadTruk();
-    }
 
-    private void saveTruck() {
+    private void tambahTruk() {
         // Tanpa pemilik yang dipilih, truknya tidak boleh disimpan. Kalau dibiarkan,
         // truk itu tidak akan muncul di laporan milik siapa pun, dan tidak ada yang
         // menyadarinya sampai uangnya ditagih.
@@ -391,10 +450,38 @@ public class PanelMaster extends JPanel {
             setStatus("Pilih dulu pemiliknya di kiri.");
             return;
         }
+        String plat = fPlat.getText().trim();
+        if (plat.isEmpty()) {
+            setStatus("Plat nomor wajib diisi.");
+            return;
+        }
+        try {
+            Truck t = new Truck();
+            t.setPlate(plat);
+            t.setRentalId(rentalId);
+            dao.saveTruck(t);
+            setStatus("");
+            // Truk baru belum punya id di sini, jadi dicari lewat platnya.
+            truckId = cariIdTruk(plat);
+            load();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private void ubahTruck() {
+        if (truckId == 0) {
+            return;
+        }
+        String plat = fPlat.getText().trim();
+        if (plat.isEmpty()) {
+            setStatus("Plat nomor wajib diisi.");
+            return;
+        }
         try {
             Truck t = new Truck();
             t.setTruckId(truckId);
-            t.setPlate(require(fPlat.getText(), "Plat nomor"));
+            t.setPlate(plat);
             t.setRentalId(rentalId);
             dao.saveTruck(t);
             setStatus("");
@@ -402,6 +489,17 @@ public class PanelMaster extends JPanel {
         } catch (Exception e) {
             Theme.showError(this, e);
         }
+    }
+
+    /** Id truk menurut platnya (bentuk seragam), atau 0. */
+    private int cariIdTruk(String plat) throws Exception {
+        String kunci = Truck.normalizePlate(plat);
+        for (Truck t : dao.listTrucks()) {
+            if (kunci.equals(Truck.normalizePlate(t.getPlate()))) {
+                return t.getTruckId();
+            }
+        }
+        return 0;
     }
 
     private void deleteTruck() {
@@ -421,12 +519,6 @@ public class PanelMaster extends JPanel {
         }
     }
 
-    private void clearTruckForm() {
-        truckId = 0;
-        fPlat.setText("");
-        tableTruk.clearSelection();
-        setStatus("");
-    }
 
     /**
      * Pindahkan truk yang sedang disorot ke pemilik lain.
@@ -454,7 +546,7 @@ public class PanelMaster extends JPanel {
         try {
             Truck truk = trukDari(truckId);
             if (truk == null) {
-                setStatus("Truknya sudah tidak ada. Tekan Bersihkan lalu pilih lagi.");
+                setStatus("Truknya sudah tidak ada. Pilih lagi truknya di daftar.");
                 return;
             }
             // Perpindahan tidak boleh sekalian mengganti plat. Kotak isiannya bisa saja
@@ -520,16 +612,21 @@ public class PanelMaster extends JPanel {
         return null;
     }
 
+    /** Hidup-matikan tombol per-baris mengikuti ada/tidaknya baris tersorot. */
+    private void updateTombolRental() {
+        btnUbahRental.setEnabled(rentalId != 0);
+        btnHapusRental.setEnabled(rentalId != 0);
+    }
+
+    private void updateTombolTruk() {
+        btnUbahTruk.setEnabled(truckId != 0);
+        btnHapusTruk.setEnabled(truckId != 0);
+    }
+
     private void setStatus(String message) {
         lblStatus.setText(message == null ? "" : message);
     }
 
-    private String require(String value, String name) {
-        if (value == null || value.trim().isEmpty()) {
-            throw new IllegalArgumentException(name + " wajib diisi.");
-        }
-        return value.trim();
-    }
 
     private String str(Object o) {
         return o == null ? "" : o.toString();

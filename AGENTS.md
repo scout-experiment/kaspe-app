@@ -19,7 +19,10 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
 - `Main.main` → `Theme.install()` (FlatLaf, must run before any component) →
   `SwingUtilities.invokeLater(new MainFrame().setVisible(true))`.
 - Navigation is **not** a `CardLayout`: `PagePanel.showPanel(JPanel, String, String)` does
-  `content.removeAll() / add / revalidate / repaint`; each sidebar entry builds a fresh panel.
+  `content.removeAll() / add / revalidate / repaint`. Each sidebar entry builds a fresh panel
+  **except Transaksi**, which `NavBar` keeps and reuses: that page holds rows the operator has
+  entered but not yet saved, and rebuilding it threw them away without warning. Reusing it calls
+  `refreshMaster()` so the plate/owner lists follow Data Master without disturbing those rows.
   The shell is `NavBar` (sidebar, `WEST`) + `PagePanel` (header bar + content). Both are
   standalone builders — `NavBar.build(page)` — so `tools/BuatPratinjau.java` and `TestUi`
   can rebuild the real shell headlessly. Never inline them into `MainFrame`: preview PNGs
@@ -32,6 +35,10 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   **synchronously on the EDT**. There is no `SwingWorker`, no background thread, no service layer.
 - Every DAO method opens its own `DriverManager` connection via `Db.get()` and closes it with
   try-with-resources. No pool, no `DataSource`, autocommit except in `TransactionDao.save`.
+- Rental and truck rows are created by `MasterDao.pastikanTruk(Connection, plate, name)`
+  **inside** `TransactionDao.save`'s transaction — never while a row is still being typed. Creating
+  them earlier, from `PanelTransaction.addRow`, littered Data Master with ghost rentals and trucks
+  from rows that were deleted, abandoned, or never saved, and split the per-owner money summary.
 - `Db` loads config in a static block, precedence: external `kaspe.properties` beside the jar →
   classpath `/kaspe.properties` → hardcoded defaults. It also memoizes "driver loaded" and
   "schema ensured" per JDBC URL.
@@ -86,7 +93,7 @@ export JAVA_HOME=/path/to/jdk1.8.0_171
                #   -cp "lib/*" @sources.txt;
                # copies src/kaspe.properties → build/ and src/kaspe/schema.sql → build/kaspe/
 ./run.sh       # java -cp "build:lib/*" kaspe.Main
-./test.sh      # recompiles, then runs the 4 test classes in order (TestUi headless)
+./test.sh      # recompiles, then runs the 5 test classes in order (TestUi headless)
 ```
 
 Windows: `compile.bat`, then `run-app.bat`. Both use `JAVA_HOME` if it is already set (the
@@ -239,11 +246,12 @@ CP="build:lib/*"
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestCalculator
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestDatabase
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestDao
+"$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestAlur
 "$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestUi
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 21, `TestDao` 22, `TestUi` 20 — **70 lulus, 0 gagal**.
+`TestDatabase` 21, `TestDao` 35, `TestAlur` 44, `TestUi` 20 — **127 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

@@ -4,6 +4,7 @@ import kaspe.Db;
 import kaspe.model.ReportRow;
 import kaspe.model.Transaction;
 import kaspe.model.TransactionDetail;
+import kaspe.model.Truck;
 
 import java.math.BigDecimal;
 import java.sql.*;
@@ -19,9 +20,18 @@ public class TransactionDao {
     /**
      * Simpan header + semua baris detail dalam satu transaksi database.
      * Kalau ada satu baris gagal, semuanya dibatalkan (rollback).
+     *
+     * <p>Truk dan rental yang belum tercatat dibuat di dalam transaksi yang sama,
+     * bukan dari koneksi terpisah, supaya kalau simpan gagal keduanya ikut batal
+     * dan tidak tertinggal sebagai data hantu.
      */
     public int save(Transaction t, List<TransactionDetail> detail) throws SQLException {
         Connection c = null;
+        // Hanya kalau transaksinya sudah ditutup rapi (commit atau rollback berhasil)
+        // autocommit boleh dinyalakan lagi. Kalau rollback gagal, transaksinya masih
+        // terbuka — setAutoCommit(true) di titik itu justru meng-commit sisa
+        // pekerjaannya, dan akan lahir header tanpa detail.
+        boolean selesai = false;
         try {
             c = Db.get();
             c.setAutoCommit(false);
@@ -41,12 +51,21 @@ public class TransactionDao {
             try (PreparedStatement ps = c.prepareStatement(
                     "INSERT INTO transaksi_detail (id_transaksi,id_truk,bobot_lapak,bobot_pabrik,refraksi_persen," +
                     "berat_bersih,tanggal_lunas,harga,jumlah_uang) VALUES (?,?,?,?,?,?,?,?,?)")) {
+                MasterDao masterDao = new MasterDao();
                 for (TransactionDetail d : detail) {
                     ps.setInt(1, transactionId);
-                    if (d.getTruckId() == null) {
+                    Integer truckId = d.getTruckId();
+                    if (truckId == null || truckId == 0) {
+                        // Truk (dan rentalnya) yang belum tercatat dibuat di dalam
+                        // transaksi ini, bukan dari koneksi terpisah — supaya kalau
+                        // simpan gagal, keduanya ikut batal dan tidak jadi data hantu.
+                        Truck truk = masterDao.pastikanTruk(c, d.getPlate(), d.getRentalName());
+                        truckId = truk == null ? null : truk.getTruckId();
+                    }
+                    if (truckId == null) {
                         ps.setNull(2, Types.INTEGER);
                     } else {
-                        ps.setInt(2, d.getTruckId());
+                        ps.setInt(2, truckId);
                     }
                     ps.setBigDecimal(3, d.getFieldWeight());
                     ps.setBigDecimal(4, d.getFactoryWeight());
@@ -65,16 +84,28 @@ public class TransactionDao {
             }
 
             c.commit();
+            selesai = true;
             return transactionId;
-        } catch (SQLException e) {
+        } catch (SQLException | RuntimeException e) {
             if (c != null) {
-                c.rollback();
+                try {
+                    c.rollback();
+                    selesai = true;
+                } catch (SQLException rb) {
+                    // Kegagalan rollback tidak boleh menenggelamkan galat aslinya.
+                    e.addSuppressed(rb);
+                }
             }
             throw e;
         } finally {
             if (c != null) {
-                c.setAutoCommit(true);
-                c.close();
+                try {
+                    if (selesai) {
+                        c.setAutoCommit(true);
+                    }
+                } finally {
+                    c.close();
+                }
             }
         }
     }

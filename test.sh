@@ -24,4 +24,6 @@ echo
 echo
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestDao
 echo
+"$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestAlur
+echo
 "$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestUi

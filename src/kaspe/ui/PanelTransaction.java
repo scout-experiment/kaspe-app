@@ -4,6 +4,7 @@ import kaspe.Calculator;
 import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
 import kaspe.model.*;
+import kaspe.util.Dates;
 
 import javax.swing.*;
 import javax.swing.event.DocumentEvent;
@@ -341,43 +342,85 @@ public class PanelTransaction extends JPanel {
 
     private void loadMaster() {
         try {
-            cmbPlate.removeAllItems();
-            cmbRental.removeAllItems();
-            trukPerPlat.clear();
-
-            for (Rental r : masterDao.listRental()) {
-                cmbRental.addItem(r);
-            }
-            // Truk diurutkan menurut rentalnya, bukan menurut platnya. Dengan begitu plat
-            // yang tampil pertama sudah sepasang dengan rental yang tampil pertama, jadi
-            // layar terbuka dalam keadaan yang masuk akal - bukan menampilkan plat milik
-            // satu rental bersama nama rental yang lain.
-            List<Truck> daftarTruk = masterDao.listTrucks();
-            java.util.Collections.sort(daftarTruk, new java.util.Comparator<Truck>() {
-                @Override
-                public int compare(Truck a, Truck b) {
-                    String na = a.getRentalName() == null ? "" : a.getRentalName();
-                    String nb = b.getRentalName() == null ? "" : b.getRentalName();
-                    int urut = na.compareTo(nb);
-                    return urut != 0 ? urut : a.getPlate().compareTo(b.getPlate());
-                }
-            });
-            for (Truck t : daftarTruk) {
-                cmbPlate.addItem(t.getPlate());
-                trukPerPlat.put(t.getPlate(), t);
-            }
-            if (cmbPlate.getItemCount() == 0) {
-                setStatus("Belum ada plat tersimpan. Ketik platnya langsung, lalu tekan Tambah Baris.");
-            } else {
-                // Pilihan plat dan pilihan rental diisi dari dua daftar yang urutannya
-                // berbeda, jadi baris pertamanya belum tentu sepasang. Tanpa disamakan di
-                // sini, layar terbuka dengan menampilkan plat milik satu rental dan nama
-                // rental milik rental lain — sebelum operator menyentuh apa pun.
-                cmbPlate.setSelectedIndex(0);
-                rentalIkutPlat();
-            }
+            muatDaftarMaster();
         } catch (Exception e) {
             Theme.showError(this, e);
+            return;
+        }
+        pilihAwal();
+    }
+
+    /** Isi ulang daftar plat dan rental dari data master, tanpa menyentuh pilihan apa pun. */
+    private void muatDaftarMaster() throws Exception {
+        cmbPlate.removeAllItems();
+        cmbRental.removeAllItems();
+        trukPerPlat.clear();
+
+        for (Rental r : masterDao.listRental()) {
+            cmbRental.addItem(r);
+        }
+        // Truk diurutkan menurut rentalnya, bukan menurut platnya. Dengan begitu plat
+        // yang tampil pertama sudah sepasang dengan rental yang tampil pertama, jadi
+        // layar terbuka dalam keadaan yang masuk akal - bukan menampilkan plat milik
+        // satu rental bersama nama rental yang lain.
+        List<Truck> daftarTruk = masterDao.listTrucks();
+        java.util.Collections.sort(daftarTruk, new java.util.Comparator<Truck>() {
+            @Override
+            public int compare(Truck a, Truck b) {
+                String na = a.getRentalName() == null ? "" : a.getRentalName();
+                String nb = b.getRentalName() == null ? "" : b.getRentalName();
+                int urut = na.compareTo(nb);
+                return urut != 0 ? urut : a.getPlate().compareTo(b.getPlate());
+            }
+        });
+        for (Truck t : daftarTruk) {
+            cmbPlate.addItem(t.getPlate());
+            trukPerPlat.put(t.getPlate(), t);
+        }
+    }
+
+    /** Pilihan bawaan saat halaman dibuka: plat pertama beserta pemiliknya. */
+    private void pilihAwal() {
+        if (cmbPlate.getItemCount() == 0) {
+            setStatus("Belum ada plat tersimpan. Ketik platnya langsung, lalu tekan Tambah Baris.");
+        } else {
+            // Pilihan plat dan pilihan rental diisi dari dua daftar yang urutannya
+            // berbeda, jadi baris pertamanya belum tentu sepasang. Tanpa disamakan di
+            // sini, layar terbuka dengan menampilkan plat milik satu rental dan nama
+            // rental milik rental lain — sebelum operator menyentuh apa pun.
+            cmbPlate.setSelectedIndex(0);
+            rentalIkutPlat();
+        }
+    }
+
+    /**
+     * Segarkan daftar plat dan rental dari data master saat halaman ini dibuka kembali.
+     *
+     * <p>Halaman transaksi dipakai lagi (tidak dibuat baru setiap dibuka) supaya baris
+     * yang belum disimpan tidak hilang, tetapi daftar plat dan rentalnya tetap harus
+     * mengikuti data master terbaru. Yang sedang tertulis di kotak plat dan rental
+     * TIDAK boleh berubah, dan baris yang sudah masuk daftar tidak boleh tersentuh —
+     * keduanya pekerjaan operator yang sedang berjalan.
+     *
+     * <p>Penyamaan otomatis tidak dijalankan lagi di sini: menjalankannya akan
+     * menghapus rental yang sedang operator tulis untuk plat yang belum dikenal.
+     */
+    public void refreshMaster() {
+        String platSebelumnya = platText();
+        String rentalSebelumnya = rentalText();
+        boolean belumAdaDaftar = cmbPlate.getItemCount() == 0;
+        try {
+            muatDaftarMaster();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+            return;
+        }
+        if (belumAdaDaftar && cmbPlate.getItemCount() > 0) {
+            pilihAwal();
+        } else {
+            cmbPlate.getEditor().setItem(platSebelumnya);
+            cmbRental.getEditor().setItem(rentalSebelumnya);
+            platTersinkron = platSebelumnya;
         }
     }
 
@@ -448,16 +491,6 @@ public class PanelTransaction extends JPanel {
         return isi == null ? "" : isi.toString();
     }
 
-    /** Benar kalau rental dengan id tersebut sudah ada di daftar pilihan. */
-    private boolean adaDiDaftarRental(int rentalId) {
-        for (int i = 0; i < cmbRental.getItemCount(); i++) {
-            Rental r = cmbRental.getItemAt(i);
-            if (r != null && r.getRentalId() == rentalId) {
-                return true;
-            }
-        }
-        return false;
-    }
 
     /** Nama rental yang sedang tertulis, baik dipilih dari daftar maupun diketik. */
     private String rentalText() {
@@ -503,11 +536,12 @@ public class PanelTransaction extends JPanel {
     }
 
     private void addRow() {
-        String plat = platText();
-        if (plat.trim().isEmpty()) {
+        String plat = Truck.normalizePlate(platText());
+        if (plat == null || plat.isEmpty()) {
             setStatus("Plat truk belum diisi.");
             return;
         }
+        String rental = Rental.normalizeName(rentalText());
 
         BigDecimal fieldWeight = parseNumber(txtFieldWeight.getText());
         BigDecimal factoryWeight = parseNumber(txtFactoryWeight.getText());
@@ -517,7 +551,8 @@ public class PanelTransaction extends JPanel {
         // Kotak yang bermasalah ditandai merah di tempatnya, bukan lewat jendela
         // peringatan. Jendela peringatan menutupi layar dan harus ditutup dulu sebelum
         // bisa memperbaiki isian; tanda merah langsung menunjuk kotak yang harus diubah.
-        Theme.clearErrors(txtFieldWeight, txtFactoryWeight, txtRefraction, txtPrice);
+        Theme.clearErrors(txtFieldWeight, txtFactoryWeight, txtRefraction, txtPrice,
+                cmbRental, kotakTanggal(spPaid));
         JTextField firstBad = null;
         if (fieldWeight == null) {
             Theme.markError(txtFieldWeight, true);
@@ -547,6 +582,23 @@ public class PanelTransaction extends JPanel {
             return;
         }
 
+        // Rental wajib diisi, sama seperti angka-angka di atasnya. Truk yang lahir tanpa
+        // pemilik membuat uangnya masuk kelompok "(tanpa rental)" di laporan, dan yang
+        // mendiamkannya hanya operator yang membaca laporan itu belakangan.
+        if (rental == null || rental.isEmpty()) {
+            Theme.markError(cmbRental, true);
+            setStatus("Nama rental belum diisi.");
+            komponenEditor(cmbRental).requestFocusInWindow();
+            return;
+        }
+
+        LocalDate paid = bacaTanggal(spPaid);
+        if (paid == null) {
+            setStatus("Tanggal lunas tidak valid. Tulis seperti 05-10-2026.");
+            kotakTanggal(spPaid).requestFocusInWindow();
+            return;
+        }
+
         BigDecimal netWeight;
         BigDecimal amount;
         try {
@@ -557,52 +609,28 @@ public class PanelTransaction extends JPanel {
             return;
         }
 
-        LocalDate paid = toLocalDate((Date) spPaid.getValue());
+        // Truk hanya dicari dari daftar yang dimuat ke layar — TIDAK dari database.
+        // Mencarikan (apalagi membuatkan) truk di sini pernah menaburkan rental dan
+        // truk hantu di data master setiap kali baris dicoba lalu dibuang, dan rekap
+        // uang per pemilik ikut terpecah. Truk yang belum dikenal ditandai dengan
+        // nomor 0; TransactionDao yang membuatnya nanti, saat transaksinya
+        // benar-benar disimpan.
+        Truck dikenal = trukPerPlat.get(plat);
 
-        // Plat dicari di daftar truk; kalau belum pernah ada, truknya dibuat sekarang.
-        // Dibuat di sini, bukan saat transaksi disimpan, supaya nomor truknya langsung
-        // ada dan barisnya bisa ditampilkan lengkap.
-        //
-        // Rentalnya dicari dari NAMA yang sedang tertulis, bukan dari pilihan di daftar.
-        // Nama rental bisa diketik langsung, dan nama yang belum pernah ada dibuatkan
-        // rentalnya di sini — sama seperti plat. Nama yang sudah ada tetap dipakai apa
-        // adanya, termasuk ejaan hurufnya, karena pencocokannya tidak membedakan
-        // besar-kecil huruf.
-        Truck truck;
-        try {
-            Integer idRental = masterDao.rentalFor(rentalText());
-            truck = masterDao.truckFor(plat, idRental);
-            if (truck != null) {
-                trukPerPlat.put(truck.getPlate(), truck);
-                // Rental yang baru dibuat belum ada di daftar pilihan. Ditambahkan
-                // langsung ke daftar, bukan dengan memuat ulang seluruh data master —
-                // memuat ulang akan mengembalikan pilihan plat ke baris pertama dan
-                // menghapus plat yang baru saja diketik operator.
-                if (truck.getRentalId() != null && !adaDiDaftarRental(truck.getRentalId())) {
-                    Rental baru = new Rental();
-                    baru.setRentalId(truck.getRentalId());
-                    baru.setRentalName(truck.getRentalName());
-                    cmbRental.addItem(baru);
-                }
-                // Yang tampil disamakan dengan yang benar-benar tersimpan. Untuk plat yang
-                // sudah ada, data tersimpan yang menang, jadi pilihan rental di layar
-                // harus ikut berubah — kalau tidak, layar menunjukkan pemilik yang berbeda
-                // dari yang baru saja dicatat.
-                tampilkanRental(truck.getRentalId());
-            }
-        } catch (Exception e) {
-            Theme.showError(this, e);
-            return;
-        }
-        if (truck == null) {
-            setStatus("Plat truk belum diisi.");
+        // Plat yang sudah dikenal tidak boleh diam-diam berganti pemilik di sini.
+        // Memindahkan pemilik mengubah seluruh laporan lama, jadi harus disengaja
+        // lewat halaman Data Master — bukan lewat ketikan yang kebetulan berbeda.
+        if (dikenal != null && dikenal.getRentalName() != null
+                && !Rental.matchKey(dikenal.getRentalName()).equals(Rental.matchKey(rental))) {
+            setStatus("Truk " + plat + " terdaftar milik \"" + dikenal.getRentalName()
+                    + "\". Pindahkan pemiliknya lewat Data Master > Pindah Pemilik.");
             return;
         }
 
         TransactionDetail d = new TransactionDetail();
-        d.setTruckId(truck.getTruckId());
-        d.setPlate(truck.getPlate());
-        d.setRentalName(truck.getRentalName());
+        d.setTruckId(dikenal == null ? 0 : dikenal.getTruckId());
+        d.setPlate(plat);
+        d.setRentalName(rental);
         d.setFieldWeight(fieldWeight);
         d.setFactoryWeight(factoryWeight);
         d.setRefractionPercent(refraction);
@@ -613,9 +641,9 @@ public class PanelTransaction extends JPanel {
 
         detailList.add(d);
         model.addRow(new Object[]{
-                truck.getPlate(), truck.getRentalName(),
+                plat, rental,
                 Calculator.formatCurrency(fieldWeight), Calculator.formatCurrency(factoryWeight), Calculator.formatCurrency(refraction),
-                Calculator.formatCurrency(netWeight), kaspe.util.Dates.format(paid),
+                Calculator.formatCurrency(netWeight), Dates.format(paid),
                 "Rp " + Calculator.formatCurrency(price), "Rp " + Calculator.formatCurrency(amount)});
         setStatus("");
         clearInput();
@@ -668,6 +696,7 @@ public class PanelTransaction extends JPanel {
         spDate.setValue(new Date());
         spPaid.setValue(new Date());
         clearInput();
+        Theme.clearErrors(cmbRental, kotakTanggal(spDate), kotakTanggal(spPaid));
         recalculate();
     }
 
@@ -676,9 +705,15 @@ public class PanelTransaction extends JPanel {
             setStatus("Belum ada baris. Isi dulu satu baris truk.");
             return;
         }
+        LocalDate tanggal = bacaTanggal(spDate);
+        if (tanggal == null) {
+            setStatus("Tanggal tidak valid. Tulis seperti 05-10-2026.");
+            kotakTanggal(spDate).requestFocusInWindow();
+            return;
+        }
         try {
             Transaction t = new Transaction();
-            t.setDate(toLocalDate((Date) spDate.getValue()));
+            t.setDate(tanggal);
             // Total dihitung sebelum daftar dikosongkan oleh newTransaction().
             BigDecimal total = totalOf(detailList);
             int rows = detailList.size();
@@ -713,11 +748,32 @@ public class PanelTransaction extends JPanel {
         }
     }
 
-    private LocalDate toLocalDate(Date d) {
-        if (d == null) {
+    /** Kotak teks di dalam kotak tanggal; tulisannya di situ, bukan di nilai modelnya. */
+    private static JTextField kotakTanggal(JSpinner sp) {
+        return ((JSpinner.DefaultEditor) sp.getEditor()).getTextField();
+    }
+
+    /**
+     * Baca tanggal yang diketik di kotak tanggal, atau null kalau tulisannya tidak valid.
+     *
+     * <p>Teksnya yang dibaca, bukan nilai modelnya: kotak tanggal hanya memindahkan
+     * tulisannya ke model saat tulisannya selesai (Enter atau pindah fokus), dan yang
+     * tidak selesai dipakai apa adanya — diam-diam. Tanpa ini, 31-02-2026 diam-diam
+     * bergulir menjadi 03-03-2026, 5-10-26 menjadi tahun 26 Masehi, dan bentuk lain
+     * (5/10/2026) ditolak sunyi lalu aksinya memakai tanggal LAMA.
+     */
+    private LocalDate bacaTanggal(JSpinner sp) {
+        JTextField kotak = kotakTanggal(sp);
+        LocalDate t = Dates.parseInput(kotak.getText());
+        if (t == null) {
+            Theme.markError(kotak, true);
             return null;
         }
-        return d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+        Theme.markError(kotak, false);
+        // Nilai modelnya ikut disamakan supaya tombol panah kotak tanggal melanjutkan
+        // dari tanggal yang tertulis, bukan dari tanggal lama yang tertinggal.
+        sp.setValue(Date.from(t.atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        return t;
     }
 
     private static JSpinner dateSpinner() {

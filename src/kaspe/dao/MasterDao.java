@@ -43,7 +43,11 @@ public class MasterDao {
             // termasuk ejaan hurufnya.
             try (Connection c = Db.get()) {
                 if (cariIdRental(c, Rental.matchKey(r.getRentalName())) != null) {
-                    return;
+                    // Bukan return diam: tombol yang "tidak jalan" tanpa pesan membuat
+                    // operator mengira aplikasinya rusak, dan rental barunya terasa
+                    // hilang begitu saja.
+                    throw new IllegalArgumentException(
+                            "Nama rental \"" + r.getRentalName() + "\" sudah dipakai.");
                 }
             }
             try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(
@@ -72,40 +76,6 @@ public class MasterDao {
                 ps.setInt(2, r.getRentalId());
                 ps.executeUpdate();
             }
-        }
-    }
-
-    /**
-     * Id rental dengan nama tertentu, dan buat rental baru kalau belum pernah ada.
-     *
-     * <p>Dipakai layar transaksi, tempat nama rental diketik langsung. Dengan cara ini
-     * operator tidak perlu keluar dulu ke halaman data master hanya untuk mencatat rental
-     * yang belum pernah masuk.
-     *
-     * <p>Nama yang diketik dicocokkan tanpa membedakan besar-kecil huruf, supaya
-     * "cv mitra tani" tidak menjadi rental kedua di samping "CV Mitra Tani". Yang dipakai
-     * untuk rental yang sudah ada adalah ejaan yang tersimpan, bukan yang baru diketik.
-     *
-     * @param rentalName nama yang diketik; spasi berlebihnya dirapikan dulu
-     * @return id rental, atau null kalau namanya kosong
-     */
-    public Integer rentalFor(String rentalName) throws SQLException {
-        String rapi = Rental.normalizeName(rentalName);
-        if (rapi == null || rapi.isEmpty()) {
-            return null;
-        }
-        String kunci = Rental.matchKey(rapi);
-        try (Connection c = Db.get()) {
-            Integer id = cariIdRental(c, kunci);
-            if (id == null) {
-                try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO rental (nama_rental) VALUES (?)")) {
-                    ps.setString(1, rapi);
-                    ps.executeUpdate();
-                }
-                id = cariIdRental(c, kunci);
-            }
-            return id;
         }
     }
 
@@ -162,7 +132,17 @@ public class MasterDao {
     }
 
     public void saveTruck(Truck t) throws SQLException {
+        // Pemeriksaan plat kembar dikerjakan di Java lewat cariIdTruk, bukan
+        // diserahkan ke batasan unik database: batasan itu membedakan ejaan dan
+        // berperilaku berbeda antara H2 dan MySQL, sedangkan cariIdTruk juga
+        // menemukan plat dengan ejaan lama.
         if (t.getTruckId() == 0) {
+            try (Connection c = Db.get()) {
+                if (cariIdTruk(c, t.getPlate()) != null) {
+                    throw new IllegalArgumentException(
+                            "Plat \"" + t.getPlate() + "\" sudah terdaftar.");
+                }
+            }
             try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(
                     "INSERT INTO truk (plat,id_rental) VALUES (?,?)")) {
                 ps.setString(1, t.getPlate());
@@ -174,6 +154,13 @@ public class MasterDao {
                 ps.executeUpdate();
             }
         } else {
+            try (Connection c = Db.get()) {
+                Integer lain = cariIdTruk(c, t.getPlate());
+                if (lain != null && lain != t.getTruckId()) {
+                    throw new IllegalArgumentException(
+                            "Plat \"" + t.getPlate() + "\" sudah terdaftar.");
+                }
+            }
             try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(
                     "UPDATE truk SET plat=?, id_rental=? WHERE id_truk=?")) {
                 ps.setString(1, t.getPlate());
@@ -196,41 +183,56 @@ public class MasterDao {
     }
 
     /**
-     * Truk dengan plat tertentu, dan buat baru kalau belum pernah ada.
+     * Pastikan truk dengan plat tertentu sudah tercatat, memakai koneksi pemanggil.
      *
-     * <p>Dipakai layar transaksi, tempat platnya diketik langsung. Dengan cara ini
-     * operator tidak perlu keluar dulu ke halaman data master hanya untuk mencatat plat
-     * yang belum pernah masuk — tetapi datanya tetap tersimpan sebagai satu daftar plat,
-     * bukan sebagai tulisan bebas yang ejaannya bisa berbeda-beda tiap nota.
+     * <p>Dipakai {@link TransactionDao#save} supaya truk dan rental yang belum ada
+     * dibuat di dalam transaksi yang sama dengan detailnya: kalau transaksinya batal,
+     * keduanya ikut batal dan tidak tertinggal sebagai data hantu.
      *
-     * <p>Kalau platnya sudah ada, data yang tersimpan dipakai apa adanya; pilihan rental
-     * di layar transaksi tidak menimpanya. Daftar truk yang berlaku sebagai acuan, supaya
-     * satu plat tidak berpindah pemilik tanpa sengaja.
+     * <p>Truk dicari lewat bentuk seragam platnya, jadi ejaan lama pun ketemu. Kalau
+     * tidak ada, rentalnya dicari (dan dibuat kalau perlu) menurut {@code namaRental},
+     * lalu truk baru disimpan dengan id_rental itu — atau tanpa pemilik sama sekali
+     * kalau {@code namaRental} kosong. Truk yang sudah ada dipakai apa adanya:
+     * pilihan rental di layar transaksi tidak boleh memindahkan pemiliknya diam-diam.
      *
-     * @param plate  plat yang diketik; diseragamkan dulu bentuknya
-     * @param rental id rental untuk truk baru, boleh null
-     * @return truk yang tersimpan (beserta nama rentalnya), atau null kalau platnya kosong
+     * @param c          koneksi (dan transaksi) milik pemanggil; tidak dibuka sendiri
+     * @param plat       plat yang diketik; diseragamkan dulu bentuknya
+     * @param namaRental nama rental untuk truk baru; null/kosong berarti tanpa pemilik
+     * @return truk yang tersimpan beserta nama rentalnya, atau null kalau platnya kosong
      */
-    public Truck truckFor(String plate, Integer rental) throws SQLException {
-        String normalized = Truck.normalizePlate(plate);
+    public Truck pastikanTruk(Connection c, String plat, String namaRental) throws SQLException {
+        String normalized = Truck.normalizePlate(plat);
         if (normalized == null || normalized.isEmpty()) {
             return null;
         }
-        try (Connection c = Db.get()) {
-            if (cariIdTruk(c, normalized) == null) {
+        Truck ada = bacaTruk(c, normalized);
+        if (ada != null) {
+            return ada;
+        }
+        Integer idRental = null;
+        String rapi = Rental.normalizeName(namaRental);
+        if (rapi != null && !rapi.isEmpty()) {
+            idRental = cariIdRental(c, Rental.matchKey(rapi));
+            if (idRental == null) {
                 try (PreparedStatement ps = c.prepareStatement(
-                        "INSERT INTO truk (plat,id_rental) VALUES (?,?)")) {
-                    ps.setString(1, normalized);
-                    if (rental == null) {
-                        ps.setNull(2, Types.INTEGER);
-                    } else {
-                        ps.setInt(2, rental);
-                    }
+                        "INSERT INTO rental (nama_rental) VALUES (?)")) {
+                    ps.setString(1, rapi);
                     ps.executeUpdate();
                 }
+                idRental = cariIdRental(c, Rental.matchKey(rapi));
             }
-            return bacaTruk(c, normalized);
         }
+        try (PreparedStatement ps = c.prepareStatement(
+                "INSERT INTO truk (plat,id_rental) VALUES (?,?)")) {
+            ps.setString(1, normalized);
+            if (idRental == null) {
+                ps.setNull(2, Types.INTEGER);
+            } else {
+                ps.setInt(2, idRental);
+            }
+            ps.executeUpdate();
+        }
+        return bacaTruk(c, normalized);
     }
 
     /** Id truk dengan plat tertentu, atau null kalau belum ada. */

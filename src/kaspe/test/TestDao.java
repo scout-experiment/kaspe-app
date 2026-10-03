@@ -63,10 +63,17 @@ public class TestDao {
         int idRental = master.listRental().get(0).getRentalId();
         // Tiga ejaan berbeda untuk truk yang sama. Kalau masing-masing membuat truk baru,
         // laporan akan memecah satu truk menjadi tiga baris berbeda dan tidak ada yang
-        // memberi tahu - jadi jumlah truknya yang diperiksa, bukan cuma idnya.
-        Truck eja1 = master.truckFor("  be  9120 xy ", idRental);
-        Truck eja2 = master.truckFor("BE 9120 XY", idRental);
-        Truck eja3 = master.truckFor("be 9120 xy", null);
+        // memberi tahu - jadi jumlah truknya yang diperiksa, bukan cuma idnya. Jalurnya
+        // kini pastikanTruk, yang dipanggil dengan koneksi milik pemanggil - sama seperti
+        // dipanggil TransactionDao.save di dalam transaksinya.
+        Truck eja1;
+        Truck eja2;
+        Truck eja3;
+        try (Connection c = Db.get()) {
+            eja1 = master.pastikanTruk(c, "  be  9120 xy ", "Rental Sinar Jaya");
+            eja2 = master.pastikanTruk(c, "BE 9120 XY", "Rental Sinar Jaya");
+            eja3 = master.pastikanTruk(c, "be 9120 xy", null);
+        }
         System.out.println("   ejaan 1 -> '" + eja1.getPlate() + "' id=" + eja1.getTruckId()
                 + ", ejaan 2 -> id=" + eja2.getTruckId() + ", ejaan 3 -> id=" + eja3.getTruckId());
         record("BE 9120 XY".equals(eja1.getPlate()), "ejaan plat diseragamkan");
@@ -76,11 +83,18 @@ public class TestDao {
 
         // Truk yang sudah ada tidak boleh berpindah pemilik hanya karena pilihan rental
         // di layar transaksi berbeda - daftar truk yang berlaku sebagai acuan.
-        Truck d = master.truckFor("BE 9120 XY", null);
+        Truck d;
+        try (Connection c = Db.get()) {
+            d = master.pastikanTruk(c, "BE 9120 XY", null);
+        }
         record(d.getRentalId() != null && d.getRentalId() == idRental,
                 "rental truk lama tidak tertimpa");
 
-        record(master.truckFor("   ", idRental) == null, "plat kosong tidak membuat truk");
+        Truck kosong;
+        try (Connection c = Db.get()) {
+            kosong = master.pastikanTruk(c, "   ", "Rental Sinar Jaya");
+        }
+        record(kosong == null, "plat kosong tidak membuat truk");
         record(master.listTrucks().size() == 3, "plat kosong tidak menambah baris");
         System.out.println();
 
@@ -92,7 +106,10 @@ public class TestDao {
         try (Connection c = Db.get(); Statement s = c.createStatement()) {
             s.executeUpdate("INSERT INTO truk (plat) VALUES ('be 5555 xx')");
         }
-        Truck lama = master.truckFor("BE 5555 XX", null);
+        Truck lama;
+        try (Connection c = Db.get()) {
+            lama = master.pastikanTruk(c, "BE 5555 XX", null);
+        }
         System.out.println("   plat lama 'be 5555 xx' dicari sebagai 'BE 5555 XX' -> id=" + lama.getTruckId());
         record(lama.getPlate().equals("BE 5555 XX"), "ejaan lama ditemukan lewat bentuk seragamnya");
         int jumlah = 0;
@@ -168,6 +185,54 @@ public class TestDao {
             balik.setRentalId(idLama < 0 ? null : idLama);
             master.saveTruck(balik);
         }
+        System.out.println();
+
+        System.out.println("1d. Tambah rental baru tidak menimpa rental lama ...");
+        int jumlahRental = master.listRental().size();
+        Rental rBaru = new Rental();
+        rBaru.setRentalName("Rental Baru Sekali Ini");
+        master.saveRental(rBaru);
+        int lamaUtuh = 0;
+        int baruMuncul = 0;
+        for (Rental r : master.listRental()) {
+            if ("Rental Sinar Jaya".equals(r.getRentalName())) {
+                lamaUtuh++;
+            }
+            if ("Rental Baru Sekali Ini".equals(r.getRentalName())) {
+                baruMuncul++;
+            }
+        }
+        System.out.println("   rental: " + jumlahRental + " -> " + master.listRental().size());
+        record(master.listRental().size() == jumlahRental + 1, "rental baru menjadi baris tersendiri");
+        record(lamaUtuh == 1 && baruMuncul == 1, "rental lama tidak berubah nama");
+
+        System.out.println("1e. Nama rental dan plat kembar ditolak dengan pesan ...");
+        String pesanRental = null;
+        try {
+            Rental kembar = new Rental();
+            kembar.setRentalName("RENTAL BARU SEKALI INI");   // beda besar-kecil huruf
+            master.saveRental(kembar);
+        } catch (IllegalArgumentException e) {
+            pesanRental = e.getMessage();
+        }
+        System.out.println("   pesan: " + pesanRental);
+        record(pesanRental != null && pesanRental.contains("sudah dipakai"),
+                "nama rental kembar ditolak dengan pesan");
+        record(master.listRental().size() == jumlahRental + 1, "nama kembar tidak menambah baris");
+
+        String pesanPlat = null;
+        try {
+            Truck kembarPlat = new Truck();
+            kembarPlat.setPlate("kb 8234 hd");   // ejaan lain, truk yang sama
+            kembarPlat.setRentalId(idRental);
+            master.saveTruck(kembarPlat);
+        } catch (IllegalArgumentException e) {
+            pesanPlat = e.getMessage();
+        }
+        System.out.println("   pesan: " + pesanPlat);
+        record(pesanPlat != null && pesanPlat.contains("sudah terdaftar"),
+                "plat kembar ditolak dengan pesan");
+        record(master.listTrucks().size() == 3, "plat kembar tidak menambah baris");
         System.out.println();
 
         truckList = master.listTrucks();
@@ -264,6 +329,60 @@ public class TestDao {
         System.out.println("   ditolak=" + rejected + "  baris laporan sekarang=" + countAfter + " (harap tetap 3)");
         record(rejected, "baris rusak ditolak");
         record(countAfter == 3, "rollback bersih, tidak ada sisa");
+        System.out.println();
+
+        System.out.println("5b. Truk & rental baru dibuat di dalam transaksi ...");
+        int trukSebelum = master.listTrucks().size();
+        int rentalSebelum = master.listRental().size();
+        Transaction trxBaru = new Transaction();
+        trxBaru.setDate(LocalDate.of(2026, 1, 21));
+        List<TransactionDetail> detailBaru = new ArrayList<>();
+        TransactionDetail dBaru = makeDetail(new Truck(), 5000, 4900, 15, 1150);
+        dBaru.setPlate("BK 1111 AA");
+        dBaru.setRentalName("Rental Dari Transaksi");
+        detailBaru.add(dBaru);
+        int idTrxBaru = transactionDao.save(trxBaru, detailBaru);
+        Truck trukBaru = findTruck(master.listTrucks(), "BK 1111 AA");
+        System.out.println("   truk=" + (trukBaru == null ? "-" : trukBaru.getPlate())
+                + " pemilik=" + (trukBaru == null ? "-" : trukBaru.getRentalName()));
+        record(idTrxBaru > 0 && trukBaru != null, "truk baru dibuat di dalam transaksi");
+        record(trukBaru != null && "Rental Dari Transaksi".equals(trukBaru.getRentalName()),
+                "rental baru ikut dibuat dan tersambung ke truknya");
+        record(master.listTrucks().size() == trukSebelum + 1, "truk bertambah tepat satu");
+        record(master.listRental().size() == rentalSebelum + 1, "rental bertambah tepat satu");
+        transactionDao.deleteTransaction(idTrxBaru);
+
+        System.out.println("5c. Simpan gagal: truk/rental hantu tidak tertinggal ...");
+        int trukHantuSebelum = master.listTrucks().size();
+        int rentalHantuSebelum = master.listRental().size();
+        Transaction trxHantu = new Transaction();
+        trxHantu.setDate(LocalDate.of(2026, 1, 22));
+        List<TransactionDetail> detailHantu = new ArrayList<>();
+        TransactionDetail dHantu = makeDetail(new Truck(), 4000, 3900, 15, 1150);
+        dHantu.setPlate("BH 2222 ZZ");
+        dHantu.setRentalName("Rental Hantu");
+        detailHantu.add(dHantu);
+        TransactionDetail dRusak = makeDetail(findTruck(truckList, "KB 8234 HD"), 1000, 1000, 15, 1150);
+        dRusak.setFactoryWeight(null);   // memicu error NOT NULL
+        detailHantu.add(dRusak);
+        boolean hantuGagal = false;
+        try {
+            transactionDao.save(trxHantu, detailHantu);
+        } catch (SQLException e) {
+            hantuGagal = true;
+        }
+        int hantu = 0;
+        for (Truck ht : master.listTrucks()) {
+            if ("BH 2222 ZZ".equals(Truck.normalizePlate(ht.getPlate()))) {
+                hantu++;
+            }
+        }
+        System.out.println("   ditolak=" + hantuGagal
+                + "  truk=" + master.listTrucks().size() + " rental=" + master.listRental().size());
+        record(hantuGagal, "transaksi rusak ditolak");
+        record(master.listTrucks().size() == trukHantuSebelum && hantu == 0,
+                "truk hantu tidak tertinggal");
+        record(master.listRental().size() == rentalHantuSebelum, "rental hantu tidak tertinggal");
         System.out.println();
 
         System.out.println("6. Hapus transaksi (cascade ke detail) ...");

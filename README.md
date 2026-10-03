@@ -517,9 +517,10 @@ pemasangan apa pun.
 |------------|---------|-------|
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji) | 21 lulus |
-| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, simpan transaksi, rollback, laporan, rekap, hapus | 22 lulus |
+| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus | 35 lulus |
 | `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 20 lulus |
-| **Total** | | **70 lulus, 0 gagal** |
+| `TestAlur` | menekan Tambah Baris tidak menulis data master, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, baris tidak hilang saat pindah halaman | 44 lulus |
+| **Total** | | **127 lulus, 0 gagal** |
 
 ---
 

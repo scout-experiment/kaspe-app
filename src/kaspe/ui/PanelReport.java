@@ -36,6 +36,8 @@ public class PanelReport extends JPanel {
     private final JLabel lblTotalAmount = new JLabel("Rp 0");
     private final JLabel lblTotalWeight = new JLabel("0 kg");
     private final JLabel lblRowCount = new JLabel("0 baris");
+    /** Pesan kesalahan isian, ditulis di baris filter — dekat kotak yang salah. */
+    private final JLabel lblStatus = new JLabel();
 
     private final TransactionDao transactionDao = new TransactionDao();
 
@@ -124,6 +126,12 @@ public class PanelReport extends JPanel {
         p.add(btnShow);
         p.add(btnPreview);
         p.add(btnPrint);
+
+        // Pesan tanggal yang tidak valid ditulis di sini, bukan lewat jendela
+        // peringatan: jendela menutupi layar dan harus ditutup dulu sebelum kotaknya
+        // bisa diperbaiki.
+        lblStatus.setForeground(Theme.DANGER);
+        p.add(lblStatus);
         return p;
     }
 
@@ -157,10 +165,16 @@ public class PanelReport extends JPanel {
     }
 
     public void reload() {
+        LocalDate from = bacaTanggal(spFrom, "\"Dari\"");
+        if (from == null) {
+            return;
+        }
+        LocalDate to = bacaTanggal(spTo, "\"Sampai\"");
+        if (to == null) {
+            return;
+        }
+        lblStatus.setText("");
         try {
-            LocalDate from = toLocalDate((Date) spFrom.getValue());
-            LocalDate to = toLocalDate((Date) spTo.getValue());
-
             List<ReportRow> row = transactionDao.listReport(from, to);
             model.setRowCount(0);
             BigDecimal totalAmount = BigDecimal.ZERO;
@@ -225,6 +239,9 @@ public class PanelReport extends JPanel {
      * ditekan, jadi hasil cetak bisa diperiksa dulu.
      */
     private void pratinjau() {
+        if (!tanggalFilterSah()) {
+            return;
+        }
         if (table.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak pada rentang tanggal ini.",
                     "Pratinjau", JOptionPane.INFORMATION_MESSAGE);
@@ -236,6 +253,10 @@ public class PanelReport extends JPanel {
     }
 
     private void print() {
+        if (!tanggalFilterSah()) {
+            return;
+        }
+
         // Tabel tanpa baris tidak menghasilkan satu halaman pun, jadi tanpa pemeriksaan
         // ini menekan Cetak tidak melakukan apa-apa dan terlihat seperti aplikasi macet.
         if (table.getRowCount() == 0) {
@@ -285,8 +306,38 @@ public class PanelReport extends JPanel {
         return Date.from(t.atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
-    private static LocalDate toLocalDate(Date d) {
-        return d == null ? null : d.toInstant().atZone(ZoneId.systemDefault()).toLocalDate();
+    /** Kotak teks di dalam kotak tanggal; tulisannya di situ, bukan di nilai modelnya. */
+    private static JTextField kotakTanggal(JSpinner sp) {
+        return ((JSpinner.DefaultEditor) sp.getEditor()).getTextField();
+    }
+
+    /**
+     * Baca tanggal yang diketik di kotak filter, atau null kalau tulisannya tidak valid.
+     *
+     * <p>Teksnya yang dibaca, bukan nilai modelnya: kotak tanggal hanya memindahkan
+     * tulisannya ke model saat tulisannya selesai, dan yang tidak selesai dipakai apa
+     * adanya — diam-diam. Teks yang tidak valid ditandai merah dan aksinya ditolak,
+     * bukan bergulir sendiri (31-02-2026) atau memakai tanggal lama (5/10/2026).
+     */
+    private LocalDate bacaTanggal(JSpinner sp, String namaKotak) {
+        JTextField kotak = kotakTanggal(sp);
+        LocalDate t = Dates.parseInput(kotak.getText());
+        if (t == null) {
+            Theme.markError(kotak, true);
+            lblStatus.setText("Tanggal " + namaKotak + " tidak valid. Tulis seperti 05-10-2026.");
+            kotak.requestFocusInWindow();
+            return null;
+        }
+        Theme.markError(kotak, false);
+        // Nilai modelnya ikut disamakan supaya kaki cetakan memakai tanggal yang
+        // benar-benar tertulis, bukan tanggal lama yang tertinggal.
+        sp.setValue(toDate(t));
+        return t;
+    }
+
+    /** Benar kalau kedua tanggal filter tertulis dengan benar. */
+    private boolean tanggalFilterSah() {
+        return bacaTanggal(spFrom, "\"Dari\"") != null && bacaTanggal(spTo, "\"Sampai\"") != null;
     }
 
     private static JSpinner dateSpinner() {

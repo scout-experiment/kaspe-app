@@ -35,6 +35,15 @@ public class NavBar extends JPanel {
     private final List<Item> items = new ArrayList<>();
     /** Memastikan hanya satu halaman yang bertanda sedang dibuka. */
     private final ButtonGroup group = new ButtonGroup();
+    /**
+     * Panel transaksi yang disimpan, supaya dipakai lagi saat halamannya dibuka kembali.
+     *
+     * <p>Halaman lain dibuat baru setiap dibuka karena datanya harus segar, tetapi
+     * halaman transaksi adalah pekerjaan yang sedang berjalan: baris yang sudah masuk
+     * daftar tetapi belum disimpan akan hilang tanpa peringatan kalau halamannya
+     * dibuang setiap kali operator sempat melihat halaman lain.
+     */
+    private PanelTransaction panelTransaksi;
 
     private NavBar(PagePanel page) {
         super(new BorderLayout());
@@ -75,11 +84,20 @@ public class NavBar extends JPanel {
      * Buat halaman berdasarkan namanya.
      *
      * <p>Halaman dibuat baru setiap kali dibuka, sama seperti menu yang digantikannya —
-     * jadi datanya selalu yang terbaru, dan tidak ada halaman yang menahan data lama.
+     * jadi datanya selalu yang terbaru. SATU pengecualian: halaman transaksi disimpan
+     * dan dipakai lagi, supaya baris yang sudah masuk daftar tetapi belum disimpan
+     * tidak hilang begitu operator membuka halaman lain. Daftar plat dan rentalnya
+     * tetap disegarkan setiap dibuka kembali, jadi tetap mengikuti data master
+     * terbaru tanpa menyentuh pekerjaan yang sedang berjalan.
      */
-    private static JPanel create(String name) {
+    private JPanel create(String name) {
         if ("Transaksi".equals(name)) {
-            return new PanelTransaction();
+            if (panelTransaksi == null) {
+                panelTransaksi = new PanelTransaction();
+            } else {
+                panelTransaksi.refreshMaster();
+            }
+            return panelTransaksi;
         }
         if ("Laporan".equals(name)) {
             return new PanelReport();
