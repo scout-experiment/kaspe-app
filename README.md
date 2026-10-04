@@ -502,7 +502,7 @@ HASIL: cocok dengan rumus aplikasi
 ```
 
 Pemeriksa yang sama bisa dipakai untuk database yang sudah ada, dengan menyebutkan foldernya
-sebagai argumen kedua — berguna untuk memeriksa hasil render pratinjau (24 transaksi, 66 baris):
+sebagai argumen kedua — berguna untuk memeriksa hasil render pratinjau (67 transaksi, 67 baris):
 
 ```bash
 java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh "" /tmp/kaspe-pratinjau

@@ -54,7 +54,13 @@ public class BuatDataContoh {
             w.println("-- =====================================================================");
             w.println("-- DATA CONTOH - Aplikasi Pencatatan Transaksi Kaspe");
             w.println("--");
-            w.println("-- 23 nota, 64 baris, Juli sampai September 2026.");
+            w.println("-- 64 pengiriman, satu catatan per pengiriman, Juli sampai September 2026.");
+            w.println("--");
+            w.println("-- Satu pengiriman = satu catatan (satu baris transaksi dan satu baris");
+            w.println("-- transaksi_detail). Dua pengiriman bertanggal sama tetap dua catatan.");
+            w.println("-- Bentuk 1:1 ini disengaja: aplikasi mengubah tanggal lewat header, jadi");
+            w.println("-- data contoh yang menumpuk beberapa pengiriman pada satu header akan");
+            w.println("-- ikut berpindah tanggal saat salah satunya diubah.");
             w.println("-- Dipakai untuk demo dan pembuatan gambar pratinjau.");
             w.println("--");
             w.println("-- PERHATIAN: berkas ini MENGHAPUS lebih dulu seluruh isi tabel");
@@ -69,7 +75,7 @@ public class BuatDataContoh {
             w.println("--        java -cp lib/h2-2.1.214.jar org.h2.tools.RunScript \\");
             w.println("--          -url \"jdbc:h2:~/kaspe/db_kaspe;MODE=MySQL;DATABASE_TO_LOWER=TRUE\" \\");
             w.println("--          -user sa -password \"\" -script docs/data-contoh.sql");
-            w.println("--   3. Buka aplikasi lagi - 23 nota itu sudah ada.");
+            w.println("--   3. Buka aplikasi lagi - 64 pengiriman itu sudah ada.");
             w.println("--");
             w.println("-- Semua angka mengikuti rumus aplikasi:");
             w.println("--   berat_bersih = FLOOR(bobot_pabrik x (1 - refraksi/100) / 5) x 5");
@@ -98,12 +104,28 @@ public class BuatDataContoh {
             }
             w.println();
 
-            LocalDate[] tanggal = new LocalDate[23];
+            // Satu header untuk SETIAP pengiriman, bukan satu header untuk sekelompok
+            // pengiriman bertanggal sama. Model aplikasi sekarang: satu pengiriman = satu
+            // catatan. Kalau data contoh masih menumpuk beberapa pengiriman pada satu
+            // header, mengubah tanggal salah satunya akan ikut memindahkan yang lain -
+            // dan data contoh justru dipakai untuk memperagakan cara kerja yang benar.
+            int jumlahPengiriman = 0;
+            for (int nota = 0; nota < 23; nota++) {
+                jumlahPengiriman += BARIS[nota];
+            }
+            LocalDate[] tanggalPengiriman = new LocalDate[jumlahPengiriman];
+            int isi = 0;
+            for (int nota = 0; nota < 23; nota++) {
+                LocalDate t = LocalDate.of(2026, 7, 6).plusWeeks(nota / 2);
+                for (int k = 0; k < BARIS[nota]; k++) {
+                    tanggalPengiriman[isi++] = t;
+                }
+            }
+
             w.println("INSERT INTO transaksi (id_transaksi, tanggal) VALUES");
-            for (int i = 0; i < 23; i++) {
-                tanggal[i] = LocalDate.of(2026, 7, 6).plusWeeks(i / 2);
-                w.println("  (" + (i + 1) + ", '" + tanggal[i] + "')"
-                        + (i < 22 ? "," : ";"));
+            for (int i = 0; i < jumlahPengiriman; i++) {
+                w.println("  (" + (i + 1) + ", '" + tanggalPengiriman[i] + "')"
+                        + (i < jumlahPengiriman - 1 ? "," : ";"));
             }
             w.println();
 
@@ -111,34 +133,32 @@ public class BuatDataContoh {
             w.println("       refraksi_persen, berat_bersih, tanggal_lunas, harga, jumlah_uang) VALUES");
 
             StringBuilder baris = new StringBuilder();
-            int idx = 0;
             int jumlahBaris = 0;
-            for (int nota = 0; nota < 23; nota++) {
-                for (int k = 0; k < BARIS[nota]; k++) {
-                    int trukId = (idx % 7) + 1;
-                    int lapak = LAPAK[idx % LAPAK.length];
-                    int pabrik = lapak - (50 + (idx % 4) * 50);
-                    int refraksi = REFRAKSI[idx % REFRAKSI.length];
-                    int harga = HARGA[idx % HARGA.length];
-                    BigDecimal bersih = kaspe.Calculator.netWeight(
-                            new BigDecimal(pabrik), new BigDecimal(refraksi));
-                    BigDecimal uang = kaspe.Calculator.totalAmount(bersih, new BigDecimal(harga));
-                    LocalDate lunas = tanggal[nota].plusDays(3 + (idx % 10));
+            for (int idx = 0; idx < jumlahPengiriman; idx++) {
+                int trukId = (idx % 7) + 1;
+                int lapak = LAPAK[idx % LAPAK.length];
+                int pabrik = lapak - (50 + (idx % 4) * 50);
+                int refraksi = REFRAKSI[idx % REFRAKSI.length];
+                int harga = HARGA[idx % HARGA.length];
+                BigDecimal bersih = kaspe.Calculator.netWeight(
+                        new BigDecimal(pabrik), new BigDecimal(refraksi));
+                BigDecimal uang = kaspe.Calculator.totalAmount(bersih, new BigDecimal(harga));
+                LocalDate lunas = tanggalPengiriman[idx].plusDays(3 + (idx % 10));
 
-                    if (jumlahBaris > 0) {
-                        baris.append(",\n");
-                    }
-                    baris.append("  (").append(nota + 1).append(", ").append(trukId).append(", ")
-                         .append(lapak).append(", ").append(pabrik).append(", ")
-                         .append(refraksi).append(", ").append(bersih.toPlainString()).append(", '")
-                         .append(lunas).append("', ").append(harga).append(", ")
-                         .append(uang.toPlainString()).append(")");
-                    idx++;
-                    jumlahBaris++;
+                if (jumlahBaris > 0) {
+                    baris.append(",\n");
                 }
+                // Header untuk baris ini adalah baris ke-idx juga: 1 : 1.
+                baris.append("  (").append(idx + 1).append(", ").append(trukId).append(", ")
+                     .append(lapak).append(", ").append(pabrik).append(", ")
+                     .append(refraksi).append(", ").append(bersih.toPlainString()).append(", '")
+                     .append(lunas).append("', ").append(harga).append(", ")
+                     .append(uang.toPlainString()).append(")");
+                jumlahBaris++;
             }
             w.println(baris.append(";").toString());
-            System.out.println("dibuat: " + keluar + " (" + 23 + " nota, " + jumlahBaris + " baris)");
+            System.out.println("dibuat: " + keluar + " (" + jumlahPengiriman + " pengiriman, "
+                    + jumlahBaris + " baris)");
         }
     }
 }

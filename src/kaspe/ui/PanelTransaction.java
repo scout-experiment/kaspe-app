@@ -513,6 +513,20 @@ public class PanelTransaction extends JPanel {
             muatRiwayat();
             return;
         }
+        // Perubahan yang belum disimpan pada catatan lain tidak boleh dibuang diam-diam.
+        // Dibandingkan dengan detailDiubah (bukan penanda "kotor" yang umum) supaya
+        // menekan Ubah pada baris yang SAMA tidak menanyakan apa-apa.
+        if (detailDiubah != null && detailDiubah.intValue() != b.getDetailId()
+                && !GraphicsEnvironment.isHeadless()) {
+            int jwb = JOptionPane.showConfirmDialog(this,
+                    "Perubahan yang belum disimpan pada catatan yang sedang diubah "
+                            + "akan dibuang.\nLanjut mengubah catatan yang dipilih?",
+                    "Perubahan belum disimpan", JOptionPane.YES_NO_OPTION,
+                    JOptionPane.WARNING_MESSAGE);
+            if (jwb != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
         detailDiubah = b.getDetailId();
         judulKartu.setText("Ubah Pengiriman");
         btnSimpan.setText("Simpan Perubahan");
@@ -584,6 +598,11 @@ public class PanelTransaction extends JPanel {
             transactionDao.deleteDeliveries(ids);
         } catch (Exception e) {
             Theme.showError(this, e);
+            // Daftar disegarkan juga saat gagal. Kalau catatannya sudah tidak ada di
+            // database (mis. dihapus dari jendela aplikasi lain), barisnya masih
+            // tergambar di sini; tanpa disegarkan, operator memilihnya lagi, menekan
+            // Hapus, dan mendapat galat yang sama terus tanpa jalan keluar.
+            muatRiwayat();
             return;
         } finally {
             sedangProses = false;
