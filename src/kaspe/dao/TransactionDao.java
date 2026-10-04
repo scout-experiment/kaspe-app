@@ -3,6 +3,7 @@ package kaspe.dao;
 import kaspe.Calculator;
 import kaspe.Db;
 import kaspe.model.ReportRow;
+import kaspe.model.Rental;
 import kaspe.model.Transaction;
 import kaspe.model.TransactionDetail;
 import kaspe.model.Truck;
@@ -362,15 +363,19 @@ public class TransactionDao {
      * Daftar catatan pengiriman dengan saringan: rentang tanggal, nama rental, dan
      * sepenggal plat.
      *
-     * <p>Saringan dikerjakan oleh database, bukan disaring di layar sesudah datanya
-     * dimuat. Kalau disaring di layar, total uang di bawah daftar tetap jumlah seluruh
-     * catatan sementara tabelnya hanya menampilkan sebagian - dan yang membaca akan
-     * menyangka totalnya salah, bukan menyangka daftarnya sedang disaring.
+     * <p>Saringan ini disengaja berada di dalam lapisan data, bukan di layar sesudah
+     * datanya dimuat. Kalau disaring di layar, total uang di bawah daftar tetap jumlah
+     * seluruh catatan sementara tabelnya hanya menampilkan sebagian - dan yang membaca
+     * akan menyangka totalnya salah, bukan menyangka daftarnya sedang disaring.
+     *
+     * <p>Batas tanggal disaring oleh database (kolomnya terindeks). Rental dan plat
+     * disaring di Jawa memakai aturan penyeragaman yang sama dengan bagian aplikasi
+     * lain, bukan lewat perbandingan teks di SQL - lihat catatan di dalam metodenya.
      *
      * @param from   batas tanggal paling awal, atau null kalau tanpa batas
      * @param to     batas tanggal paling akhir, atau null kalau tanpa batas
-     * @param rental nama rental yang dicari (cocok persis), atau null untuk semua rental
-     * @param plat   sepenggal plat yang dicari (cocok sebagian), atau null untuk semua plat
+     * @param rental nama rental yang dicari (cocok setelah diseragamkan), atau null
+     * @param plat   sepenggal plat yang dicari (cocok sebagian), atau null
      */
     public List<ReportRow> listDeliveries(LocalDate from, LocalDate to, String rental, String plat)
             throws SQLException {
@@ -391,17 +396,6 @@ public class TransactionDao {
         if (to != null) {
             sql.append("AND t.tanggal <= ? ");
             param.add(Date.valueOf(to));
-        }
-        if (rental != null && !rental.trim().isEmpty()) {
-            sql.append("AND r.nama_rental = ? ");
-            param.add(rental.trim());
-        }
-        if (plat != null && !plat.trim().isEmpty()) {
-            // Pencocokan sebagian, dan huruf besar-kecil diabaikan. Ejaan plat sudah
-            // diseragamkan saat disimpan, jadi yang diketik operator diseragamkan dulu
-            // di sini supaya "kb 8234" tetap menemukan "KB 8234 HD".
-            sql.append("AND UPPER(tr.plat) LIKE ? ");
-            param.add("%" + Truck.normalizePlate(plat).toUpperCase() + "%");
         }
         sql.append("ORDER BY t.tanggal DESC, t.id_transaksi DESC, d.id_detail DESC");
 
@@ -427,6 +421,35 @@ public class TransactionDao {
                     b.setPrice(rs.getBigDecimal("harga"));
                     b.setTotalAmount(rs.getBigDecimal("jumlah_uang"));
                     result.add(b);
+                }
+            }
+        }
+
+        // Saringan rental dan plat dikerjakan di sini, bukan di dalam SQL.
+        //
+        // Alasannya sama dengan alasan MasterDao mencocokkan plat di Jawa, bukan dengan
+        // "WHERE plat=?": database yang sudah lama dipakai bisa menyimpan ejaan lama
+        // ("be  8888  hd" dengan spasi berlebih). Pencocokan teks di SQL tidak
+        // menemukannya walaupun barisnya terbaca rapi di layar - dan yang membaca akan
+        // menyangka catatannya tidak ada, lalu mencatatnya untuk kedua kalinya.
+        // Yang menemukannya adalah penyeragaman yang sama dengan yang dipakai aplikasi
+        // di tempat lain. Saringan tanggal tetap di SQL karena kolomnya terindeks.
+        if (rental != null && !rental.trim().isEmpty()) {
+            String kunci = Rental.matchKey(rental);
+            for (int i = result.size() - 1; i >= 0; i--) {
+                if (!kunci.equals(Rental.matchKey(result.get(i).getRentalName()))) {
+                    result.remove(i);
+                }
+            }
+        }
+        if (plat != null && !plat.trim().isEmpty()) {
+            // Plat yang tersimpan sudah diseragamkan saat dibaca (ReportRow.setPlate),
+            // jadi yang perlu diseragamkan hanya yang dicari.
+            String kunci = Truck.normalizePlate(plat);
+            for (int i = result.size() - 1; i >= 0; i--) {
+                String p = result.get(i).getPlate();
+                if (p == null || !p.contains(kunci)) {
+                    result.remove(i);
                 }
             }
         }

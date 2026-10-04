@@ -1032,10 +1032,21 @@ public class TestAlur {
         isiAngka(p, "8000", "7900", "1300");
         simpanTanpaLayar(p);
 
-        // Daftar rental pada saringan disegarkan seperti saat halaman ini dibuka
-        // kembali dari halaman lain: kedua rental di atas baru lahir sesudah panelnya
-        // dibuat, jadi belum ada di kotak pilihan saringan.
-        p.refreshMaster();
+        // Rental yang baru lahir dari form ini harus langsung bisa dipilih di kotak
+        // saringan, tanpa perlu berpindah halaman dulu. Kedua rental di atas baru lahir
+        // sesudah panelnya dibuat, jadi ini benar-benar menguji jalur simpannya.
+        JComboBox<?> saringanRental = (JComboBox<?>) field(p, "cmbFilterRental");
+        boolean adaA = false;
+        boolean adaB = false;
+        for (int i = 0; i < saringanRental.getItemCount(); i++) {
+            Object isi = saringanRental.getItemAt(i);
+            if (isi instanceof Rental) {
+                String nama = ((Rental) isi).getRentalName();
+                adaA = adaA || "Rental Uji Saring A".equals(nama);
+                adaB = adaB || "Rental Uji Saring B".equals(nama);
+            }
+        }
+        record(adaA && adaB, "rental baru langsung muncul di kotak saringan");
 
         DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
         JLabel total = (JLabel) field(p, "lblTotal");
@@ -1103,6 +1114,18 @@ public class TestAlur {
                 "tombol Semua: seluruh catatan dan totalnya kembali");
         record("Total tersimpan".equals(keterangan.getText()),
                 "tombol Semua: keterangannya kembali \"Total tersimpan\"");
+
+        // Batas yang sudah di luar jangkauan data dirapikan kembali ke bawaannya.
+        // Tanpa ini, menghapus catatan terawal membuat batas "Dari" tidak lagi sama
+        // dengan catatan terawal yang baru - dan keterangan di bawah daftar menulis
+        // "Total hasil saring" padahal saringannya tidak menyempitkan apa pun.
+        setTanggal(p, "spFilterFrom", "01-01-2000");
+        setTanggal(p, "spFilterTo", "31-12-2030");
+        klik(p, "rapikanBatasSaringan");
+        klik(p, "muatRiwayat");
+        record(riwayat.getRowCount() == semua && total.getText().equals(totalSemua)
+                        && "Total tersimpan".equals(keterangan.getText()),
+                "batas di luar jangkauan data dirapikan, keterangannya jujur lagi");
         System.out.println();
     }
 

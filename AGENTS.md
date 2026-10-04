@@ -236,8 +236,14 @@ starts with `DELETE`, so it wipes the target database.
 - `src/kaspe/Calculator.java` — the only place the business formulas exist.
 - `src/kaspe/schema.sql` — DDL + `v_transaksi` (includes `susut = bobot_lapak - bobot_pabrik`).
 - `src/kaspe/dao/TransactionDao.java` — `save()` (atomic header+detail), `updateDelivery`,
-  `deleteDeliveries` (all-or-nothing), `listDeliveries` (flat, newest first), `listReport`,
-  `totalAmount`, `totalNetWeight`, `summaryPerRental`.
+  `deleteDeliveries` (all-or-nothing), `listDeliveries` (flat, newest first, with date/rental/plate
+  filters), `listReport`, `totalAmount`, `totalNetWeight`, `summaryPerRental`. In
+  `listDeliveries` the DATE bounds are filtered in SQL (indexed) but the rental and plate
+  predicates are applied in Java through `Rental.matchKey` / `Truck.normalizePlate` — the same
+  reason `MasterDao.cariIdTruk` matches plates in Java: an older database can hold legacy
+  spellings such as `be  7777  hd`, and a SQL `LIKE` on the raw column misses them even though
+  the row reads normally on screen, so the operator concludes the record does not exist and
+  enters it a second time.
 - `src/kaspe/ui/Theme.java` — single styling entry point; changing the look means editing here only.
 - `nbproject/project.properties` — `main.class=kaspe.Main`, Java level, output dirs.
 
@@ -272,7 +278,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 73, `TestAlur` 109, `TestUi` 24 — **269 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 77, `TestAlur` 111, `TestUi` 24 — **275 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

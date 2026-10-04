@@ -707,6 +707,40 @@ public class TestDao {
 
         record(gabungId(mitra).equals(idM3 + "," + idM2 + "," + idM1 + "," + idM0),
                 "saringan: hasil tetap diurut dari yang paling baru");
+
+        // Ejaan lama pada plat harus tetap ditemukan saringan.
+        //
+        // Database yang sudah lama dipakai bisa menyimpan plat dengan spasi berlebih dan
+        // huruf kecil ("be  7777  hd"). Pencocokan teks di dalam SQL tidak menemukannya
+        // walaupun barisnya terbaca rapi di layar - dan yang membaca akan mengira
+        // catatannya tidak ada, lalu mencatatnya untuk kedua kalinya. Karena itu
+        // pencocokan plat dan rental dikerjakan memakai aturan penyeragaman aplikasi.
+        Truck trukEjaanLama = new Truck();
+        try (Connection c = Db.get(); Statement s = c.createStatement()) {
+            s.executeUpdate("INSERT INTO truk (plat, id_rental) VALUES ('be  7777  hd', "
+                    + "(SELECT id_rental FROM rental WHERE nama_rental = 'CV Mitra'))");
+            try (ResultSet rs = s.executeQuery("SELECT id_truk FROM truk WHERE plat = 'be  7777  hd'")) {
+                rs.next();
+                trukEjaanLama.setTruckId(rs.getInt(1));
+            }
+        }
+        int idEjaanLama = simpanPengiriman(transactionDao, trukEjaanLama,
+                LocalDate.of(2026, 5, 6), 6000, 5900, 15, 1150);
+        for (String cari : new String[]{"7777", "be 7777", "BE 7777 HD"}) {
+            boolean ketemu = false;
+            for (ReportRow b : transactionDao.listDeliveries(null, null, null, cari)) {
+                if (b.getDetailId() == idEjaanLama) {
+                    ketemu = true;
+                }
+            }
+            record(ketemu, "saringan: plat ejaan lama ketemu saat dicari \"" + cari + "\"");
+        }
+
+        // Rental dicocokkan dengan aturan penyeragaman aplikasi, jadi huruf besar-kecil
+        // tidak menentukan - sama seperti di tempat lain yang membandingkan nama rental.
+        record(transactionDao.listDeliveries(null, null, "cv mitra", null).size()
+                        == transactionDao.listDeliveries(null, null, "CV Mitra", null).size(),
+                "saringan: rental tanpa beda huruf besar-kecil");
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);

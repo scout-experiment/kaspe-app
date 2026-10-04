@@ -589,6 +589,26 @@ public class PanelTransaction extends JPanel {
     }
 
     /**
+     * Kembalikan batas tanggal yang sudah berada di luar jangkauan data ke bawaannya.
+     *
+     * <p>Batas bawaan dihitung dari isi database. Kalau catatan paling awal dihapus,
+     * batas "Dari" yang tadinya sama dengan catatan terawal itu tidak lagi sama -
+     * dan keterangan di bawah daftar akan menulis "Total hasil saring" padahal
+     * saringannya tidak menyempitkan apa pun. Keterangan itu justru ada untuk
+     * mencegah salah baca seperti itu, jadi batasnya dirapikan dulu.
+     */
+    private void rapikanBatasSaringan() {
+        LocalDate dari = bacaTanggal(spFilterFrom);
+        if (dari != null && dari.isBefore(tanggalAwalSaringan())) {
+            spFilterFrom.setValue(toDate(tanggalAwalSaringan()));
+        }
+        LocalDate sampai = bacaTanggal(spFilterTo);
+        if (sampai != null && sampai.isAfter(tanggalAkhirSaringan())) {
+            spFilterTo.setValue(toDate(tanggalAkhirSaringan()));
+        }
+    }
+
+    /**
      * Kembalikan saringan ke keadaan tanpa saringan, lalu muat ulang daftarnya:
      * dari tanggal transaksi terawal sampai hari ini, semua rental, plat kosong.
      *
@@ -774,11 +794,15 @@ public class PanelTransaction extends JPanel {
             // database (mis. dihapus dari jendela aplikasi lain), barisnya masih
             // tergambar di sini; tanpa disegarkan, operator memilihnya lagi, menekan
             // Hapus, dan mendapat galat yang sama terus tanpa jalan keluar.
+            rapikanBatasSaringan();
             muatRiwayat();
             return;
         } finally {
             sedangProses = false;
         }
+        // Menghapus catatan terawal atau terakhir menggeser jangkauan data, sehingga
+        // batas saringan yang tadinya bawaan bisa jadi tidak lagi sama dengannya.
+        rapikanBatasSaringan();
         muatRiwayat();
         setStatus(ids.size() + " catatan pengiriman dihapus.");
     }
@@ -1200,6 +1224,11 @@ public class PanelTransaction extends JPanel {
             // sedangProses tetap terpasang sampai dialognya ditutup (klik kedua yang
             // terkirim oleh putaran kejadian dialog ditolak di paling atas).
             kembaliKeTambah();
+            // Rental yang baru lahir dari form ini harus langsung bisa dipilih di
+            // kotak saringan. Tanpa ini, daftar rental di saringan baru menyusul saat
+            // halaman ditinggalkan lalu dibuka lagi - dan operator yang baru mencatat
+            // truk pertama sebuah rental akan mengira rentalnya tidak tersimpan.
+            muatDaftarRentalSaringan();
             // Catatan yang baru disimpan tidak boleh jatuh di luar saringan yang
             // sedang terpasang: hasilnya terlihat seperti simpanan yang gagal.
             // Batasnya dilebarkan seperlunya saja, saringan lain dibiarkan apa adanya.
