@@ -116,19 +116,36 @@ public class MasterDao {
      * jadi hanya itu yang boleh dihapus.
      */
     public void deleteRental(int id) throws SQLException {
-        int truk = countTrucksForRental(id);
-        if (truk > 0) {
-            throw new IllegalStateException("Rental ini masih memiliki " + truk
-                    + " truk. Menghapusnya akan melepaskan semua truknya dari pemiliknya, "
-                    + "sehingga rekap per pemilik untuk seluruh riwayatnya hilang dan tidak "
-                    + "bisa dikembalikan. Pindahkan dulu truknya ke pemilik lain lewat "
-                    + "Pindah Pemilik, atau hapus truknya satu per satu kalau memang salah "
-                    + "catat dan tidak punya catatan pengiriman.");
+        String penolakan = rentalDeleteRefusal(id);
+        if (penolakan != null) {
+            throw new IllegalStateException(penolakan);
         }
         try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement("DELETE FROM rental WHERE id_rental=?")) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }
+    }
+
+    /**
+     * Alasan rental ini tidak boleh dihapus, atau null kalau boleh.
+     *
+     * <p>Terpisah dari {@link #deleteRental} supaya layar bisa MENANYAKAN alasannya
+     * tanpa harus memanggil penghapusannya. Memanggil fungsi penghapus hanya untuk
+     * memanen pesannya berbahaya: kalau penjaganya suatu saat dilonggarkan atau
+     * dipindahkan, cabang "menampilkan alasan" itu berubah menjadi cabang yang
+     * benar-benar menghapus - di jalur yang justru dibuat untuk melindungi.
+     */
+    public String rentalDeleteRefusal(int id) throws SQLException {
+        int truk = countTrucksForRental(id);
+        if (truk == 0) {
+            return null;
+        }
+        return "Rental ini masih memiliki " + truk
+                + " truk. Menghapusnya akan melepaskan semua truknya dari pemiliknya, "
+                + "sehingga rekap per pemilik untuk seluruh riwayatnya hilang dan tidak "
+                + "bisa dikembalikan. Pindahkan dulu truknya ke pemilik lain lewat "
+                + "Pindah Pemilik, atau hapus truknya satu per satu kalau memang salah "
+                + "catat dan tidak punya catatan pengiriman.";
     }
 
     /** Jumlah truk milik rental ini — dipakai untuk menolak penghapusan rental
@@ -219,18 +236,30 @@ public class MasterDao {
      * hapus dulu catatan pengirimannya di layar transaksi, baru truknya.
      */
     public void deleteTruck(int id) throws SQLException {
-        int dipakai = countDeliveriesForTruck(id);
-        if (dipakai > 0) {
-            throw new IllegalStateException("Truk ini dipakai oleh " + dipakai
-                    + " catatan pengiriman. Menghapusnya akan menghilangkan platnya dari "
-                    + "catatan yang sudah ada, termasuk laporan yang sudah dicetak. "
-                    + "Kalau pemiliknya berganti, pakai Pindah Pemilik. Kalau truknya "
-                    + "memang salah catat, hapus dulu catatan pengirimannya.");
+        String penolakan = truckDeleteRefusal(id);
+        if (penolakan != null) {
+            throw new IllegalStateException(penolakan);
         }
         try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement("DELETE FROM truk WHERE id_truk=?")) {
             ps.setInt(1, id);
             ps.executeUpdate();
         }
+    }
+
+    /**
+     * Alasan truk ini tidak boleh dihapus, atau null kalau boleh. Terpisah dari
+     * {@link #deleteTruck} dengan alasan yang sama seperti pada rental.
+     */
+    public String truckDeleteRefusal(int id) throws SQLException {
+        int dipakai = countDeliveriesForTruck(id);
+        if (dipakai == 0) {
+            return null;
+        }
+        return "Truk ini dipakai oleh " + dipakai
+                + " catatan pengiriman. Menghapusnya akan menghilangkan platnya dari "
+                + "catatan yang sudah ada, termasuk laporan yang sudah dicetak. "
+                + "Kalau pemiliknya berganti, pakai Pindah Pemilik. Kalau truknya "
+                + "memang salah catat, hapus dulu catatan pengirimannya.";
     }
 
     /** Jumlah catatan pengiriman yang memakai truk ini — dipakai untuk menolak

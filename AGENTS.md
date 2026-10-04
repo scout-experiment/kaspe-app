@@ -35,6 +35,10 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   **synchronously on the EDT**. There is no `SwingWorker`, no background thread, no service layer.
 - Every DAO method opens its own `DriverManager` connection via `Db.get()` and closes it with
   try-with-resources. No pool, no `DataSource`, autocommit except in `TransactionDao.save`.
+- Master delete guards are exposed as PURE accessors: `MasterDao.truckDeleteRefusal(id)` /
+  `rentalDeleteRefusal(id)` return the message or null, and the delete methods throw using the
+  same string. `PanelMaster` asks the accessor BEFORE showing its confirmation dialog, so it never
+  calls a deleting method just to harvest its refusal — a read path must not be able to delete.
 - Deleting a truck or rental is REFUSED while it still has history
   (`MasterDao.deleteTruck`/`deleteRental` throw `IllegalStateException` naming the affected
   count). Both foreign keys are `ON DELETE SET NULL`, so a delete would not fail — it would
@@ -244,7 +248,9 @@ starts with `DELETE`, so it wipes the target database.
 - `src/kaspe/schema.sql` — DDL + `v_transaksi` (includes `susut = bobot_lapak - bobot_pabrik`).
 - `src/kaspe/dao/BackupDao.java` — `cadangkan()`: H2's own `BACKUP TO` (not a file copy, which
   can snapshot a live database inconsistently), timestamped target in a `cadangan` folder, and
-  a clear Indonesian refusal on MySQL/MariaDB where backup is the server's job.
+  a clear Indonesian refusal on MySQL/MariaDB where backup is the server's job. Note H2 refuses
+  `BACKUP TO` on an in-memory database, so the suite can only exercise the real zip by pointing
+  `Db.setConfiguration` at a file-based H2 in a temp dir — `TestDao` does exactly that.
 - `src/kaspe/Db.java` — `configError()` returns a refusal message when a config file is PRESENT
   but yields no `db.url`; `Main` prints it to stderr (plus a dialog when not headless) and exits
   without touching the database, and `Db.get()` throws the same message as its first statement so
@@ -294,7 +300,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 89, `TestAlur` 121, `TestUi` 25 — **298 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 121, `TestUi` 26 — **301 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

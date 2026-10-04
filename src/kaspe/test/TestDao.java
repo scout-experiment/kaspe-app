@@ -8,7 +8,10 @@ import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
 import kaspe.model.*;
 
+import java.io.File;
 import java.math.BigDecimal;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.PreparedStatement;
@@ -751,6 +754,8 @@ public class TestDao {
 
         System.out.println("\n12. Cadangan database non-H2 ditolak dengan jelas ...");
         ujiCadangkan();
+        System.out.println("\n13. Cadangan sungguhan tertulis sebagai file zip ...");
+        ujiCadangkanFile();
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
@@ -885,6 +890,70 @@ public class TestDao {
                     "jdbc:h2:mem:daotest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                     "sa", "");
         }
+    }
+
+    /**
+     * Uji cadangan sungguhan pada database H2 yang tersimpan sebagai file.
+     *
+     * <p>Seluruh uji lain memakai database in-memory, dan H2 menolak
+     * {@code BACKUP TO} di sana, jadi tanpa uji ini tak ada satu pun bukti
+     * bahwa cadangan benar-benar tertulis — regresi yang membuat cadangannya
+     * kosong akan lolos diam-diam. Database sementara dibuat di folder uji,
+     * diisi satu pengiriman, lalu dicadangkan dua kali dalam sedetik yang
+     * sama: keduanya harus menghasilkan file zip yang ada, berisi, dan tidak
+     * saling menimpa.
+     */
+    private static void ujiCadangkanFile() throws Exception {
+        Path dirUji = Files.createTempDirectory("kaspe-cadangan-uji");
+        File dbSementara = dirUji.resolve("db_uji").toFile();
+        try {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:" + dbSementara.getAbsolutePath()
+                            + ";MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+            // Db.get() membuat tabelnya sendiri saat pertama kali tersambung ke URL
+            // baru; diisi satu pengiriman supaya cadangannya membawa data sungguhan,
+            // bukan struktur kosong.
+            Truck truk;
+            try (Connection c = Db.get()) {
+                truk = new MasterDao().pastikanTruk(c, "BR 3030 CC", "Rental Cadangan");
+            }
+            simpanPengiriman(new TransactionDao(), truk,
+                    LocalDate.of(2026, 6, 2), 4000, 3900, 15, 1100);
+
+            File cadangan1 = BackupDao.cadangkan();
+            System.out.println("   ditulis: " + cadangan1.getName() + " (" + cadangan1.length() + " B)");
+            record(cadangan1.isFile() && cadangan1.length() > 1024,
+                    "cadangan file: zip tertulis dan berisi, bukan kosong");
+
+            File cadangan2 = BackupDao.cadangkan();
+            System.out.println("   ditulis: " + cadangan2.getName() + " (" + cadangan2.length() + " B)");
+            record(!cadangan2.getName().equals(cadangan1.getName())
+                            && cadangan1.isFile() && cadangan2.isFile(),
+                    "cadangan file: dua kali dalam sedetik tidak saling menimpa");
+        } finally {
+            // Kembalikan dulu setelan sebelum bersih-bersih: pemeriksaan lain di kelas
+            // ini bergantung pada database in-memory yang tadi dipakai.
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:daotest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+            hapusFolder(dirUji.toFile());
+        }
+    }
+
+    /** Hapus folder beserta seluruh isinya; hanya untuk bersih-bersih berkas uji. */
+    private static void hapusFolder(File folder) {
+        File[] isi = folder.listFiles();
+        if (isi != null) {
+            for (File f : isi) {
+                if (f.isDirectory()) {
+                    hapusFolder(f);
+                } else {
+                    f.delete();
+                }
+            }
+        }
+        folder.delete();
     }
 
     private static TransactionDetail makeDetail(Truck truck, long fieldWeight, long factoryWeight, int refraction, long price) {

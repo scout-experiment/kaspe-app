@@ -131,6 +131,10 @@ public class TestUi {
         // seluruh baris dan totalnya masih data periode lama.
         check("periode kaki cetak mengikuti tabel", periodeKakiCetakIkutTabel());
         check("jumlah baris laporan ikut terisi", jumlahBarisLaporanIkutTerisi());
+        // Kaki cetakan juga harus menyebut saringan rental/plat yang sedang diterapkan:
+        // kertas itulah yang dipakai mencocokkan uang, jadi cetakan yang tersaring tanpa
+        // label saringannya bisa disangka daftar lengkap oleh orang yang memegangnya.
+        check("kaki cetak menyebut saringan rental/plat", saringanKakiCetakTertera());
         // Tanggal di bilah atas harus ditulis ulang setiap kali halaman dibuka/dipindah,
         // bukan hanya sekali saat aplikasi dijalankan.
         check("tanggal bilah atas segar saat pindah halaman", tanggalHeaderSegarSaatPindah());
@@ -1338,6 +1342,69 @@ public class TestUi {
         java.lang.reflect.Method m = PanelReport.class.getDeclaredMethod("kakiCetak");
         m.setAccessible(true);
         return ((java.text.MessageFormat) m.invoke(panel)).toPattern();
+    }
+
+    /**
+     * Kaki cetakan harus menuliskan saringan rental/plat yang benar-benar diterapkan
+     * ke tabel, dan tidak menuliskan apa-apa kalau tidak ada saringan.
+     *
+     * <p>Kertas laporan dipakai untuk mencocokkan uang dengan pemilik rental, jadi
+     * cetakan yang tersaring rental tetapi kakinya hanya menulis periode bisa
+     * disangka daftar lengkap — totalnya memang benar, tapi hanya untuk sebagian
+     * data. Plat ditulis dalam bentuk yang sudah diseragamkan, sama seperti yang
+     * dipakai mencocokkan barisnya, supaya yang tercetak bisa dicari kembali.
+     */
+    private static boolean saringanKakiCetakTertera() throws Exception {
+        PanelReport panel = new PanelReport();
+        klik(panel, "reload");
+
+        // (a) Tanpa saringan: tidak boleh ada segmen "Rental:" maupun "Plat:"
+        // sama sekali, bukan segmen kosong seperti "Rental: Semua".
+        String polos = kakiCetak(panel);
+        boolean tanpaSegmen = !polos.contains("Rental:") && !polos.contains("Plat:");
+        if (!tanpaSegmen) {
+            System.out.println("        kaki cetak tanpa saringan tertulis '" + polos
+                    + "', seharusnya tanpa segmen Rental:/Plat:");
+        }
+
+        // (b) Rental dipilih di saringan: kaki menuliskan namanya.
+        JComboBox<?> cmbRental = (JComboBox<?>) field(panel, "cmbRental");
+        Rental dipilih = (Rental) cmbRental.getItemAt(1);
+        cmbRental.setSelectedIndex(1);
+        klik(panel, "reload");
+        String kakiRental = kakiCetak(panel);
+        boolean rentalTertera = kakiRental.contains("Rental: " + dipilih.getRentalName());
+        if (!rentalTertera) {
+            System.out.println("        kaki cetak tersaring rental tertulis '" + kakiRental
+                    + "', seharusnya memuat 'Rental: " + dipilih.getRentalName() + "'");
+        }
+
+        // (c) Kotak rental dikembalikan ke "Semua rental", sepotong plat diketik
+        // seadanya: kaki menuliskan istilah carinya yang sudah diseragamkan,
+        // bukan mentahnya — "be 8009" tidak bisa dicocokkan orang dengan
+        // "BE 8009 CF" yang tercetak di tabel.
+        cmbRental.setSelectedIndex(0);
+        JTextField txtPlat = (JTextField) field(panel, "txtPlat");
+        txtPlat.setText("  be 8009  cf ");
+        klik(panel, "reload");
+        String kakiPlat = kakiCetak(panel);
+        boolean platTertera = kakiPlat.contains("Plat: BE 8009 CF") && !kakiPlat.contains("Rental:");
+        if (!platTertera) {
+            System.out.println("        kaki cetak tersaring plat tertulis '" + kakiPlat
+                    + "', seharusnya memuat 'Plat: BE 8009 CF'");
+        }
+
+        // (d) Saringan dikosongkan lagi: segmennya hilang kembali, bukan menempel.
+        txtPlat.setText("");
+        cmbRental.setSelectedIndex(0);
+        klik(panel, "reload");
+        String bersihLagi = kakiCetak(panel);
+        boolean polosLagi = !bersihLagi.contains("Rental:") && !bersihLagi.contains("Plat:");
+        if (!polosLagi) {
+            System.out.println("        kaki cetak setelah saringan dihapus tertulis '" + bersihLagi
+                    + "', seharusnya kembali tanpa segmen Rental:/Plat:");
+        }
+        return tanpaSegmen && rentalTertera && platTertera && polosLagi;
     }
 
     /**

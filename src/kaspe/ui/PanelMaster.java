@@ -84,6 +84,14 @@ public class PanelMaster extends JPanel {
         dua.add(buildTruckColumn());
         add(dua, BorderLayout.CENTER);
 
+        // Pencadangan database bukan aksi milik rental maupun truk, jadi tombolnya
+        // tidak ditempel di baris tombol salah satunya. Dulu ia ikut di baris tombol
+        // rental, dan di lebar jendela bawaan baris itu kelebihan muatan sehingga
+        // tombolnya terlipat ke baris kedua lalu terpotong - ada di kode, tidak
+        // terlihat di layar, dan tidak ada uji yang menangkapnya. Barisnya sendiri di
+        // bawah kedua kolom tidak bisa terlipat.
+        add(buildCadanganBar(), BorderLayout.SOUTH);
+
         tableRental.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 selectRental();
@@ -96,6 +104,22 @@ public class PanelMaster extends JPanel {
         });
 
         load();
+    }
+
+    /**
+     * Baris pencadangan database, terpisah dari kedua kolom.
+     *
+     * <p>Ditaruh di sini karena pencadangan berlaku untuk seluruh isi buku catatan,
+     * bukan untuk rental atau truk yang sedang disorot.
+     */
+    private JPanel buildCadanganBar() {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        p.setOpaque(false);
+        JButton btnCadangkan = Theme.plain("Cadangkan Database");
+        btnCadangkan.addActionListener(e -> cadangkanDatabase());
+        p.add(btnCadangkan);
+        p.add(Theme.caption("Menyimpan satu berkas cadangan bertanggal berisi seluruh isi buku catatan."));
+        return p;
     }
 
     // ================= bagian kiri: rental =================
@@ -127,9 +151,6 @@ public class PanelMaster extends JPanel {
         tombol.add(btnTambah);
         tombol.add(btnUbahRental);
         tombol.add(btnHapusRental);
-        JButton btnCadangkan = Theme.plain("Cadangkan Database");
-        btnCadangkan.addActionListener(e -> cadangkanDatabase());
-        tombol.add(btnCadangkan);
 
         g.gridy = 1;
         g.insets = new Insets(0, 0, 0, 0);
@@ -423,17 +444,16 @@ public class PanelMaster extends JPanel {
             return;
         }
         try {
-            // Penolakan diperiksa SEBELUM konfirmasi: kalau DAO pasti menolak,
-            // meminta "Ya" lebih dulu hanya menjanjikan hal yang tidak bisa
-            // ditepati. DAO tetap dipanggil walau pasti ditolak, supaya pesan
-            // penolakannya datang dari satu tempat, bukan disalin ke sini.
-            if (dao.countTrucksForRental(rentalId) > 0) {
-                try {
-                    dao.deleteRental(rentalId);
-                } catch (IllegalStateException e) {
-                    JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
-                            JOptionPane.INFORMATION_MESSAGE);
-                }
+            // Penolakan diperiksa SEBELUM konfirmasi: kalau pasti ditolak, meminta
+            // "Ya" lebih dulu hanya menjanjikan hal yang tidak bisa ditepati.
+            // Alasannya DITANYAKAN lewat aksesori khusus, bukan dengan memanggil
+            // penghapusannya - memanggil penghapus hanya untuk membaca pesannya
+            // membuat jalur "tampilkan alasan" ini ikut menghapus kalau penjaganya
+            // suatu saat berubah.
+            String penolakan = dao.rentalDeleteRefusal(rentalId);
+            if (penolakan != null) {
+                JOptionPane.showMessageDialog(this, penolakan, "Tidak bisa dihapus",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
             if (JOptionPane.showConfirmDialog(this, "Hapus rental ini?", "Konfirmasi",
@@ -524,16 +544,12 @@ public class PanelMaster extends JPanel {
             return;
         }
         try {
-            // Sama seperti hapus rental: penolakan DAO diperiksa sebelum
-            // konfirmasi, dan pesannya diambil dari DAO dengan memanggilnya
-            // (yang pasti menolak), bukan disalin ke sini.
-            if (dao.countDeliveriesForTruck(truckId) > 0) {
-                try {
-                    dao.deleteTruck(truckId);
-                } catch (IllegalStateException e) {
-                    JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
-                            JOptionPane.INFORMATION_MESSAGE);
-                }
+            // Sama seperti hapus rental: alasan penolakannya ditanyakan lewat
+            // aksesori khusus, bukan dengan memanggil penghapusannya.
+            String penolakan = dao.truckDeleteRefusal(truckId);
+            if (penolakan != null) {
+                JOptionPane.showMessageDialog(this, penolakan, "Tidak bisa dihapus",
+                        JOptionPane.INFORMATION_MESSAGE);
                 return;
             }
             if (JOptionPane.showConfirmDialog(this, "Hapus truk ini?", "Konfirmasi",

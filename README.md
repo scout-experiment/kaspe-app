@@ -95,8 +95,22 @@ Data disimpan sebagai satu file di folder pengguna:
 | Windows | `C:\Users\<nama kamu>\kaspe\db_kaspe.mv.db` |
 | Linux / macOS | `~/kaspe/db_kaspe.mv.db` |
 
-Untuk mencadangkan, cukup salin file itu ke flashdisk atau folder lain. Untuk memulihkan,
-salin kembali ke tempat semula.
+**Cara mencadangkan yang benar:** buka halaman **Data Master** lalu tekan
+**Cadangkan Database**. Aplikasi membuat satu berkas `.zip` bertanggal di folder
+`cadangan` di sebelah file database, dan jalur lengkapnya diberitahukan setelah selesai.
+Cara ini memakai fasilitas cadangan bawaan H2, jadi isinya tetap utuh walau aplikasi
+sedang dipakai — dan cadangan kedua tidak menimpa yang pertama.
+
+Menyalin file `db_kaspe.mv.db` sendiri juga bisa, **tetapi aplikasinya harus ditutup dulu**.
+Selama aplikasi terbuka, file itu sedang ditulis, sehingga salinannya bisa setengah jadi
+dan justru tidak bisa dibuka — cadangan yang rusak lebih berbahaya daripada tidak punya
+cadangan, karena terlihat seperti cadangan yang sah.
+
+Untuk memulihkan: tutup aplikasi, lalu ganti file database dengan isi cadangan.
+
+**Catatan untuk pemakaian MySQL/MariaDB:** pencadangan otomatis di aplikasi ini hanya
+berlaku untuk database bawaan (H2). Kalau memakai MySQL, cadangannya urusan pengelola
+server database, dan tombol itu akan mengatakan hal itu terus terang.
 
 ---
 
@@ -577,10 +591,10 @@ pemasangan apa pun.
 |------------|---------|-------|
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 56 lulus |
-| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas | 89 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 25 lulus |
+| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa) | 91 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 26 lulus |
 | `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (total ikut berubah, bukan total seluruh catatan; rental baru langsung muncul; batas di luar jangkauan data dirapikan; jangkauan yang gagal dibaca tidak menggeser batas), catatan tersembunyi oleh saringan diberitahu, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 121 lulus |
-| **Total** | | **298 lulus, 0 gagal** |
+| **Total** | | **301 lulus, 0 gagal** |
 
 ---
 
@@ -633,6 +647,27 @@ Cara menjalankan ketiganya ada di [Data contoh](#data-contoh) dan
 > database juga tetap bahasa Indonesia, karena mengikuti istilah yang dipakai mitra.
 
 ---
+
+## Kalau aplikasi tidak mau dibuka
+
+**Gejalanya:** aplikasi langsung tertutup, atau muncul pesan "Setelan database tidak bisa
+dipakai" yang menyebut sebuah berkas `kaspe.properties`.
+
+**Sebabnya:** berkas pengaturan itu ada, tetapi tidak memuat letak database — isinya rusak,
+kosong, hanya berupa komentar, atau tidak bisa dibaca. Aplikasi sengaja **menolak jalan**
+daripada diam-diam menyimpan data ke database bawaan padahal kamu mengira sedang memakai
+MySQL.
+
+**Dua jalan keluar, pilih salah satu:**
+
+1. **Perbaiki berkasnya** — pastikan di dalamnya ada baris `db.url=...` yang benar. Contoh
+   untuk MySQL ada di bagian "Memakai MySQL" di atas.
+2. **Ganti nama berkasnya** — misalnya menjadi `kaspe.properties.rusak`. Aplikasi lalu
+   memakai database bawaan (H2) dan bisa dibuka lagi. Ini pilihan yang paling cepat, dan
+   perpindahan ke database bawaan jadi tindakan yang kamu sengaja, bukan diam-diam.
+
+Berkas itu dicari di dua tempat: folder tempat aplikasi dijalankan, lalu folder tempat kamu
+menjalankan perintahnya. Pesan penolakannya menyebut jalur lengkap berkas yang bermasalah.
 
 ## Catatan
 
