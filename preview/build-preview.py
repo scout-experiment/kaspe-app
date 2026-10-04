@@ -16,14 +16,15 @@ FOLDER = pathlib.Path(__file__).resolve().parent
 GALERI = [
     ("01-dashboard.png", "Halaman pembuka",
      "Aplikasi dibuka langsung di halaman ini, tanpa login. Isinya empat kartu ringkasan: "
-     "jumlah nota, total uang beserta uang bulan berjalan, total berat bersih, dan truk "
+     "jumlah pengiriman, total uang beserta uang bulan berjalan, total berat bersih, dan truk "
      "terdaftar."),
     ("02-transaction-input.png", "Input transaksi",
      "Bobot lapak, bobot pabrik, refraksi, dan harga diisi. Berat bersih dan jumlah uang "
      "terhitung otomatis, dan tiap baris langsung masuk ke tabel."),
     ("03-transaction-saved.png", "Transaksi tersimpan",
-     "Setelah disimpan, angka timbangan dikosongkan dan tanggalnya kembali ke hari ini. "
-     "Plat dan rental masih terisi dari nota sebelumnya."),
+     "Setelah disimpan, bobot, harga, plat, dan rental dikosongkan, sedangkan tanggalnya "
+     "sengaja dibiarkan - pengisian biasanya beberapa pengiriman bertanggal sama, "
+     "sedangkan plat hampir selalu berganti."),
     ("04-master.png", "Data master",
      "Kiri daftar pemilik truk, kanan truk milik pemilik yang sedang disorot. Pemiliknya "
      "tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang yang salah."),
@@ -314,7 +315,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>150 lulus <span>0 gagal</span></dd>
+        <dd>241 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>

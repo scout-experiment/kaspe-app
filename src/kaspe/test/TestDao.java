@@ -9,10 +9,12 @@ import kaspe.model.*;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -389,6 +391,193 @@ public class TestDao {
         transactionDao.deleteTransaction(transactionId);
         record(transactionDao.listReport(null, null).isEmpty(), "hapus transaksi ikut hapus detail");
 
+        System.out.println("7. Ubah catatan pengiriman lewat updateDelivery ...");
+        Truck kbTruk = findTruck(master.listTrucks(), "KB 8234 HD");
+        int idUbah = simpanPengiriman(transactionDao, kbTruk, LocalDate.of(2026, 2, 1), 7200, 7000, 15, 1150);
+
+        // Uang dihitung ulang oleh Calculator, bukan disalin begitu saja dari layar.
+        // Angkanya dipilih supaya pembulatan ke bawah ke kelipatan 5 benar-benar berlaku:
+        // 6150 x 85% = 5227.5 -> 5225, jadi hitungan mentah tanpa pembulatan pasti beda.
+        BigDecimal pabrikUbah = new BigDecimal("6150");
+        BigDecimal refraksiUbah = new BigDecimal("15");
+        BigDecimal hargaUbah = new BigDecimal("1200");
+        transactionDao.updateDelivery(idUbah, LocalDate.of(2026, 2, 1), "KB 8234 HD", null,
+                new BigDecimal("6500"), pabrikUbah, refraksiUbah, null, hargaUbah);
+        ReportRow ubah = cariBaris(transactionDao, idUbah);
+        BigDecimal harapBersih = Calculator.netWeight(pabrikUbah, refraksiUbah);
+        BigDecimal harapUang = Calculator.totalAmount(harapBersih, hargaUbah);
+        System.out.println("   berat bersih=" + (ubah == null ? "-" : plain(ubah.getNetWeight()))
+                + ", uang=" + (ubah == null ? "-" : plain(ubah.getTotalAmount()))
+                + " (harap " + plain(harapBersih) + " / " + plain(harapUang) + ")");
+        record(ubah != null && ubah.getNetWeight().compareTo(harapBersih) == 0,
+                "ubah: berat bersih dihitung ulang oleh Calculator");
+        record(ubah != null && ubah.getTotalAmount().compareTo(harapUang) == 0,
+                "ubah: jumlah uang dihitung ulang dari berat bersih baru");
+        record(ubah != null && ubah.getNetWeight().remainder(Calculator.WEIGHT_MULTIPLE).signum() == 0,
+                "ubah: berat bersih dibulatkan ke bawah ke kelipatan 5");
+
+        // Tanggal headernya ikut pindah, dan barisnya tetap ditemukan lewat id_detail.
+        transactionDao.updateDelivery(idUbah, LocalDate.of(2026, 2, 10), "KB 8234 HD", null,
+                new BigDecimal("6500"), pabrikUbah, refraksiUbah, null, hargaUbah);
+        ReportRow pindahTanggal = cariBaris(transactionDao, idUbah);
+        System.out.println("   tanggal 2026-02-01 -> " + (pindahTanggal == null ? "-" : pindahTanggal.getDate()));
+        record(pindahTanggal != null && LocalDate.of(2026, 2, 10).equals(pindahTanggal.getDate()),
+                "ubah: tanggal headernya ikut berubah, baris ditemukan lewat id_detail");
+
+        // Plat yang belum tercatat: truk dan rentalnya dibuat, catatan pindah ke sana.
+        int trukUbahSebelum = master.listTrucks().size();
+        int rentalUbahSebelum = master.listRental().size();
+        transactionDao.updateDelivery(idUbah, LocalDate.of(2026, 2, 10), "BL 7777 QQ", "Rental Ubah Baru",
+                new BigDecimal("6500"), pabrikUbah, refraksiUbah, null, hargaUbah);
+        Truck trukUbahBaru = null;
+        for (Truck tk : master.listTrucks()) {
+            if ("BL 7777 QQ".equals(tk.getPlate())) {
+                trukUbahBaru = tk;
+            }
+        }
+        ReportRow pindahTruk = cariBaris(transactionDao, idUbah);
+        System.out.println("   truk=" + (trukUbahBaru == null ? "-" : trukUbahBaru.getPlate())
+                + ", pemilik=" + (trukUbahBaru == null ? "-" : trukUbahBaru.getRentalName()));
+        record(trukUbahBaru != null && master.listTrucks().size() == trukUbahSebelum + 1,
+                "ubah: plat yang belum tercatat membuat truk baru");
+        record(trukUbahBaru != null && "Rental Ubah Baru".equals(trukUbahBaru.getRentalName())
+                        && master.listRental().size() == rentalUbahSebelum + 1,
+                "ubah: rental baru ikut dibuat dan tersambung ke truknya");
+        record(pindahTruk != null && "BL 7777 QQ".equals(pindahTruk.getPlate())
+                        && "Rental Ubah Baru".equals(pindahTruk.getRentalName()),
+                "ubah: catatan terpasang ke truk baru (plat + rental tampil di riwayat)");
+
+        // Rental adalah milik truk: input rental lain untuk plat yang sudah ada tidak boleh
+        // memindahkan pemiliknya, dan tidak boleh menambah baris rental baru.
+        int rentalUbahLagi = master.listRental().size();
+        transactionDao.updateDelivery(idUbah, LocalDate.of(2026, 2, 10), "KB 8234 HD", "Rental Palsu Ubah",
+                new BigDecimal("6500"), pabrikUbah, refraksiUbah, null, hargaUbah);
+        ReportRow tetapMilik = cariBaris(transactionDao, idUbah);
+        record(tetapMilik != null && "KB 8234 HD".equals(tetapMilik.getPlate())
+                        && "Rental Sinar Jaya".equals(tetapMilik.getRentalName()),
+                "ubah: rental truk yang sudah ada tidak tertimpa input rental berbeda");
+        record(master.listRental().size() == rentalUbahLagi,
+                "ubah: rental asing tidak dibuat untuk plat yang sudah tercatat");
+
+        // Id detail yang tak dikenal: ditolak, tidak ada yang berubah, truk/rental dari
+        // upaya yang gagal pun ikut batal.
+        String potretUbah = potretDetail();
+        int trukUbahHantuSebelum = master.listTrucks().size();
+        boolean ubahDitolak = false;
+        try {
+            transactionDao.updateDelivery(999999, LocalDate.of(2026, 2, 10), "BG 6666 GG", "Rental Hantu Ubah",
+                    new BigDecimal("6500"), pabrikUbah, refraksiUbah, null, hargaUbah);
+        } catch (SQLException e) {
+            ubahDitolak = true;
+        }
+        int trukUbahHantu = 0;
+        for (Truck tk : master.listTrucks()) {
+            if ("BG 6666 GG".equals(tk.getPlate())) {
+                trukUbahHantu++;
+            }
+        }
+        System.out.println("   ditolak=" + ubahDitolak + ", detail=" + potretDetail() + " (harap " + potretUbah + ")");
+        record(ubahDitolak, "ubah: id detail yang tak dikenal ditolak dengan SQLException");
+        record(potretDetail().equals(potretUbah),
+                "ubah: id tak dikenal tidak mengubah apa pun (jumlah baris dan total uang tetap)");
+        record(master.listTrucks().size() == trukUbahHantuSebelum && trukUbahHantu == 0,
+                "ubah: truk dan rental dari upaya yang gagal ikut dibatalkan");
+
+        transactionDao.deleteDeliveries(Arrays.asList(idUbah));
+        System.out.println();
+
+        System.out.println("8. Hapus catatan pengiriman lewat deleteDeliveries ...");
+        Truck beTruk = findTruck(master.listTrucks(), "BE 8009 CF");
+        Truck xyTruk = findTruck(master.listTrucks(), "BE 9120 XY");
+        int idHapusA = simpanPengiriman(transactionDao, kbTruk, LocalDate.of(2026, 3, 1), 5000, 4900, 15, 1150);
+        int idHapusB = simpanPengiriman(transactionDao, beTruk, LocalDate.of(2026, 3, 2), 5100, 5000, 15, 1150);
+        int idHapusC = simpanPengiriman(transactionDao, xyTruk, LocalDate.of(2026, 3, 3), 5200, 5100, 15, 1150);
+
+        // Hanya yang diminta yang terhapus, dan header yang jadi kosong ikut terhapus.
+        transactionDao.deleteDeliveries(Arrays.asList(idHapusA));
+        boolean aHilang = true, bMasih = false, cMasih = false;
+        int sisaHapus = 0;
+        for (ReportRow b : transactionDao.listDeliveries(null, null)) {
+            sisaHapus++;
+            if (b.getDetailId() == idHapusA) aHilang = false;
+            if (b.getDetailId() == idHapusB) bMasih = true;
+            if (b.getDetailId() == idHapusC) cMasih = true;
+        }
+        System.out.println("   sisa=" + sisaHapus + ", header tanpa detail=" + hitungHeaderKosong());
+        record(aHilang && bMasih && cMasih && sisaHapus == 2,
+                "hapus: hanya pengiriman yang diminta yang terhapus, yang lain utuh");
+        record(hitungHeaderKosong() == 0, "hapus: header yang jadi tanpa detail ikut terhapus");
+
+        // Salah satu id tidak dikenal: semuanya batal, tidak boleh setengah terhapus.
+        boolean hapusGagal = false;
+        try {
+            transactionDao.deleteDeliveries(Arrays.asList(idHapusB, 999999));
+        } catch (SQLException e) {
+            hapusGagal = true;
+        }
+        System.out.println("   ditolak=" + hapusGagal
+                + ", B masih ada=" + (cariBaris(transactionDao, idHapusB) != null));
+        record(hapusGagal, "hapus: daftar yang memuat id tak dikenal ditolak");
+        record(cariBaris(transactionDao, idHapusB) != null,
+                "hapus: id tak dikenal membatalkan semuanya, tidak ada yang setengah terhapus");
+
+        // Daftar kosong atau null: tidak melempar galat dan tidak menghapus apa pun.
+        String potretHapus = potretDetail();
+        transactionDao.deleteDeliveries(new ArrayList<Integer>());
+        transactionDao.deleteDeliveries(null);
+        record(potretDetail().equals(potretHapus),
+                "hapus: daftar kosong atau null tidak melempar galat dan tidak menghapus apa pun");
+
+        // Header kosong warisan (tanpa detail sama sekali) ikut dibersihkan ketika
+        // pengiriman lain dihapus, walau bukan miliknya.
+        try (Connection c = Db.get(); Statement s = c.createStatement()) {
+            s.executeUpdate("INSERT INTO transaksi (tanggal) VALUES ('2026-03-05')");
+        }
+        transactionDao.deleteDeliveries(Arrays.asList(idHapusC));
+        record(cariBaris(transactionDao, idHapusC) == null && hitungHeaderKosong() == 0,
+                "hapus: header kosong warisan ikut dibersihkan meski bukan milik detail yang dihapus");
+        transactionDao.deleteDeliveries(Arrays.asList(idHapusB));
+        System.out.println();
+
+        System.out.println("9. Riwayat pengiriman lewat listDeliveries ...");
+        int idUrutX = simpanPengiriman(transactionDao, kbTruk, LocalDate.of(2026, 4, 1), 6000, 5900, 15, 1150);
+        int idUrutY1 = simpanPengiriman(transactionDao, beTruk, LocalDate.of(2026, 4, 2), 6100, 6000, 15, 1150);
+        int idUrutY2 = simpanPengiriman(transactionDao, xyTruk, LocalDate.of(2026, 4, 2), 6200, 6100, 15, 1150);
+        int idUrutZ = simpanPengiriman(transactionDao, kbTruk, LocalDate.of(2026, 4, 3), 6300, 6200, 15, 1150);
+
+        List<ReportRow> urutan = transactionDao.listDeliveries(null, null);
+        StringBuilder urutanId = new StringBuilder();
+        for (ReportRow b : urutan) {
+            urutanId.append(b.getDetailId()).append(' ');
+        }
+        System.out.println("   urutan id: " + urutanId);
+        record(urutan.size() == 4
+                && urutan.get(0).getDetailId() == idUrutZ
+                && urutan.get(1).getDetailId() == idUrutY2
+                && urutan.get(2).getDetailId() == idUrutY1
+                && urutan.get(3).getDetailId() == idUrutX,
+                "riwayat: satu baris per pengiriman, yang paling baru lebih dulu");
+        record(urutan.size() == 4
+                && urutan.get(1).getDate().equals(urutan.get(2).getDate())
+                && urutan.get(1).getDetailId() > urutan.get(2).getDetailId(),
+                "riwayat: tanggal sama diurut menurun menurut id_detail");
+
+        // Batas tanggal dipakai apa adanya di kedua ujung; null berarti tanpa batas.
+        List<ReportRow> jendela = transactionDao.listDeliveries(LocalDate.of(2026, 4, 2), LocalDate.of(2026, 4, 2));
+        record(jendela.size() == 2
+                && jendela.get(0).getDetailId() == idUrutY2
+                && jendela.get(1).getDetailId() == idUrutY1,
+                "riwayat: batas tanggal inclusif di kedua ujung");
+        List<ReportRow> tanpaBatas = transactionDao.listDeliveries(null, null);
+        record(tanpaBatas.size() == 4, "riwayat: null berarti tanpa batas, semua baris tampil");
+
+        // Detail tanpa truk (id_truk NULL): plat dan rental null, tanpa melempar galat.
+        int idTanpaTruk = simpanPengiriman(transactionDao, new Truck(), LocalDate.of(2026, 4, 5), 4000, 3900, 15, 1150);
+        ReportRow tanpaTruk = cariBaris(transactionDao, idTanpaTruk);
+        System.out.println("   baris tanpa truk: plat=" + (tanpaTruk == null ? "-" : tanpaTruk.getPlate())
+                + ", rental=" + (tanpaTruk == null ? "-" : tanpaTruk.getRentalName()));
+        record(tanpaTruk != null && tanpaTruk.getPlate() == null && tanpaTruk.getRentalName() == null,
+                "riwayat: truk kosong tampil plat null dan rental null tanpa galat");
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
@@ -420,6 +609,54 @@ public class TestDao {
 
     private static String plain(BigDecimal v) {
         return v == null ? "-" : v.stripTrailingZeros().toPlainString();
+    }
+
+    /** Simpan satu pengiriman lewat DAO, kembalikan id_detail hasil simpannya. */
+    private static int simpanPengiriman(TransactionDao dao, Truck truk, LocalDate tanggal,
+                                        long lapak, long pabrik, int refraksi, long harga) throws SQLException {
+        Transaction t = new Transaction();
+        t.setDate(tanggal);
+        List<TransactionDetail> ds = new ArrayList<>();
+        ds.add(makeDetail(truk, lapak, pabrik, refraksi, harga));
+        int idTrx = dao.save(t, ds);
+        for (ReportRow b : dao.listDeliveries(null, null)) {
+            if (b.getTransactionId() == idTrx) {
+                return b.getDetailId();
+            }
+        }
+        throw new IllegalStateException("detail tidak ketemu untuk transaksi " + idTrx);
+    }
+
+    /** Baris riwayat dengan id_detail tertentu, atau null kalau tidak ada. */
+    private static ReportRow cariBaris(TransactionDao dao, int detailId) throws SQLException {
+        for (ReportRow b : dao.listDeliveries(null, null)) {
+            if (b.getDetailId() == detailId) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    /** Potret isi transaksi_detail (jumlah baris + total uang) untuk membandingkan keadaan
+     *  sebelum dan sesudah operasi yang seharusnya tidak mengubah apa pun. */
+    private static String potretDetail() throws SQLException {
+        try (Connection c = Db.get(); Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery(
+                     "SELECT COUNT(*), COALESCE(SUM(jumlah_uang), 0) FROM transaksi_detail")) {
+            rs.next();
+            return rs.getInt(1) + "/" + rs.getBigDecimal(2).stripTrailingZeros().toPlainString();
+        }
+    }
+
+    /** Jumlah header transaksi yang tidak lagi punya detail. */
+    private static int hitungHeaderKosong() throws SQLException {
+        try (Connection c = Db.get(); Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery(
+                     "SELECT COUNT(*) FROM transaksi WHERE id_transaksi NOT IN"
+                             + " (SELECT id_transaksi FROM transaksi_detail)")) {
+            rs.next();
+            return rs.getInt(1);
+        }
     }
 
     private static void createSchema() throws Exception {

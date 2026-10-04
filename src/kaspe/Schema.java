@@ -3,12 +3,16 @@ package kaspe;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.DatabaseMetaData;
+import java.sql.Date;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,6 +40,7 @@ public final class Schema {
     public static void ensure(Connection c) throws SQLException {
         run(c);
         dropObsoleteColumns(c);
+        splitSharedHeaders(c);
     }
 
     /**
@@ -67,6 +72,163 @@ public final class Schema {
         }
         try (Statement s = c.createStatement()) {
             s.execute("ALTER TABLE " + table + " DROP COLUMN " + column);
+        }
+    }
+
+    /**
+     * Pecah header lama yang masih dipakai bersama beberapa detail.
+     *
+     * <p>Pada database lama satu header bisa memiliki banyak detail karena satu pengiriman
+     * dulu dicatat sebagai beberapa baris di bawah satu tanggal. Bentuk itu membuat satu
+     * catatan tidak berdiri sendiri: mengubah tanggal satu pengiriman diam-diam ikut
+     * mengubah tanggal pengiriman lain yang kebetulan sehari (tanggalnya disimpan di header
+     * bersama), dan menghapus satu pengiriman bisa menyeret pengiriman lain ikut terhapus
+     * lewat {@code ON DELETE CASCADE}. Karena itu setiap header yang memiliki lebih dari
+     * satu detail dipecah: detail dengan {@code id_detail} terkecil tetap tinggal di header
+     * asli, sisanya dipindah ke header baru yang menyalin {@code tanggal} dan
+     * {@code dibuat_pada} dari header asli — bukan membiarkan default
+     * {@code CURRENT_TIMESTAMP} — supaya waktu pencatatan aslinya tidak hilang. Semuanya
+     * dikerjakan dalam satu transaksi yang diperiksa ulang sebelum di-commit, jadi aplikasi
+     * menolak menyala daripada jalan di atas data yang setengah termigrasi.
+     */
+    private static void splitSharedHeaders(Connection c) throws SQLException {
+        // Deteksi dulu tanpa menulis apa pun. Database yang baru atau sudah bersih
+        // tidak diganggu sama sekali — tidak ada transaksi, tidak ada tulisan.
+        List<Integer> headerBercabang = new ArrayList<>();
+        try (Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery(
+                     "SELECT id_transaksi FROM transaksi_detail"
+                     + " GROUP BY id_transaksi HAVING COUNT(*) > 1")) {
+            while (rs.next()) {
+                headerBercabang.add(rs.getInt(1));
+            }
+        }
+        if (headerBercabang.isEmpty()) {
+            return;
+        }
+
+        // Patokan sebelum migrasi, untuk membandingkan hasilnya nanti.
+        // SUM menghasilkan NULL kalau tabelnya kosong, jadi totalnya boleh null.
+        long jumlahDetailSebelum;
+        BigDecimal totalUangSebelum;
+        try (Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery(
+                     "SELECT COUNT(*), SUM(jumlah_uang) FROM transaksi_detail")) {
+            rs.next();
+            jumlahDetailSebelum = rs.getLong(1);
+            totalUangSebelum = rs.getBigDecimal(2);
+        }
+
+        boolean autoCommitLama = c.getAutoCommit();
+        // Hanya kalau transaksinya sudah ditutup rapi (commit atau rollback berhasil)
+        // autocommit boleh dikembalikan. Kalau rollback gagal, transaksinya masih
+        // terbuka — setAutoCommit di titik itu justru meng-commit sisanya.
+        boolean selesai = false;
+        try {
+            c.setAutoCommit(false);
+            try (PreparedStatement ambilHeader = c.prepareStatement(
+                         "SELECT tanggal, dibuat_pada FROM transaksi WHERE id_transaksi = ?");
+                 PreparedStatement ambilDetail = c.prepareStatement(
+                         "SELECT id_detail FROM transaksi_detail WHERE id_transaksi = ?"
+                         + " ORDER BY id_detail");
+                 PreparedStatement buatHeader = c.prepareStatement(
+                         "INSERT INTO transaksi (tanggal, dibuat_pada) VALUES (?, ?)",
+                         Statement.RETURN_GENERATED_KEYS);
+                 PreparedStatement pindahDetail = c.prepareStatement(
+                         "UPDATE transaksi_detail SET id_transaksi = ? WHERE id_detail = ?")) {
+                for (int idHeader : headerBercabang) {
+                    ambilHeader.setInt(1, idHeader);
+                    Date tanggal;
+                    Timestamp dibuatPada;
+                    try (ResultSet rs = ambilHeader.executeQuery()) {
+                        rs.next();
+                        tanggal = rs.getDate(1);
+                        dibuatPada = rs.getTimestamp(2);
+                    }
+                    List<Integer> detail = new ArrayList<>();
+                    ambilDetail.setInt(1, idHeader);
+                    try (ResultSet rs = ambilDetail.executeQuery()) {
+                        while (rs.next()) {
+                            detail.add(rs.getInt(1));
+                        }
+                    }
+                    // Detail pertama (id_detail terkecil) tetap tinggal di header asli;
+                    // sisanya pindah ke header baru masing-masing.
+                    for (int i = 1; i < detail.size(); i++) {
+                        buatHeader.setDate(1, tanggal);
+                        buatHeader.setTimestamp(2, dibuatPada);
+                        buatHeader.executeUpdate();
+                        int idHeaderBaru;
+                        try (ResultSet k = buatHeader.getGeneratedKeys()) {
+                            k.next();
+                            idHeaderBaru = k.getInt(1);
+                        }
+                        pindahDetail.setInt(1, idHeaderBaru);
+                        pindahDetail.setInt(2, detail.get(i));
+                        pindahDetail.executeUpdate();
+                    }
+                }
+            }
+
+            // Periksa ulang hasilnya sebelum di-commit. Ada satu saja yang gagal
+            // berarti migrasi cacat: rollback dan aplikasi menolak menyala.
+            try (Statement s = c.createStatement()) {
+                long jumlahDetailSesudah;
+                BigDecimal totalUangSesudah;
+                try (ResultSet rs = s.executeQuery(
+                        "SELECT COUNT(*), SUM(jumlah_uang) FROM transaksi_detail")) {
+                    rs.next();
+                    jumlahDetailSesudah = rs.getLong(1);
+                    totalUangSesudah = rs.getBigDecimal(2);
+                }
+                if (jumlahDetailSesudah != jumlahDetailSebelum) {
+                    throw new SQLException("Migrasi gagal: jumlah baris transaksi_detail berubah dari "
+                            + jumlahDetailSebelum + " menjadi " + jumlahDetailSesudah);
+                }
+                if (totalUangSebelum == null ? totalUangSesudah != null
+                        : totalUangSesudah == null || totalUangSesudah.compareTo(totalUangSebelum) != 0) {
+                    throw new SQLException("Migrasi gagal: total jumlah_uang berubah dari "
+                            + totalUangSebelum + " menjadi " + totalUangSesudah);
+                }
+                long cabang;
+                try (ResultSet rs = s.executeQuery(
+                        "SELECT COUNT(*) FROM (SELECT id_transaksi FROM transaksi_detail"
+                        + " GROUP BY id_transaksi HAVING COUNT(*) > 1) x")) {
+                    rs.next();
+                    cabang = rs.getLong(1);
+                }
+                if (cabang > 0) {
+                    throw new SQLException(
+                            "Migrasi gagal: masih ada header dengan lebih dari satu detail");
+                }
+                long yatim;
+                try (ResultSet rs = s.executeQuery(
+                        "SELECT COUNT(*) FROM transaksi_detail d"
+                        + " LEFT JOIN transaksi t ON t.id_transaksi = d.id_transaksi"
+                        + " WHERE t.id_transaksi IS NULL")) {
+                    rs.next();
+                    yatim = rs.getLong(1);
+                }
+                if (yatim > 0) {
+                    throw new SQLException("Migrasi gagal: masih ada detail tanpa header");
+                }
+            }
+
+            c.commit();
+            selesai = true;
+        } catch (SQLException | RuntimeException e) {
+            try {
+                c.rollback();
+                selesai = true;
+            } catch (SQLException rb) {
+                // Kegagalan rollback tidak boleh menenggelamkan galat aslinya.
+                e.addSuppressed(rb);
+            }
+            throw e;
+        } finally {
+            if (selesai) {
+                c.setAutoCommit(autoCommitLama);
+            }
         }
     }
 

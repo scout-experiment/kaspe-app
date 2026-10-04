@@ -36,9 +36,15 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
 - Every DAO method opens its own `DriverManager` connection via `Db.get()` and closes it with
   try-with-resources. No pool, no `DataSource`, autocommit except in `TransactionDao.save`.
 - Rental and truck rows are created by `MasterDao.pastikanTruk(Connection, plate, name)`
-  **inside** `TransactionDao.save`'s transaction — never while a row is still being typed. Creating
-  them earlier, from `PanelTransaction.addRow`, littered Data Master with ghost rentals and trucks
-  from rows that were deleted, abandoned, or never saved, and split the per-owner money summary.
+  **inside** the transaction of `TransactionDao.save`/`updateDelivery` — never while a form is
+  still being typed. Creating them earlier, from the transaction screen as the operator typed,
+  littered Data Master with ghost rentals and trucks from entries that were abandoned or rejected,
+  and split the per-owner money summary.
+- One submitted delivery is one record: `PanelTransaction` writes on Simpan with no in-memory
+  staging, and its saved list is a flat per-delivery list (`TransactionDao.listDeliveries`,
+  newest first) whose hidden column 0 holds `id_detail`. Row identity must be read from the
+  table model, never from the screen row index — a date/rental filter or a sort would otherwise
+  make edit/delete hit a different record.
 - `Db` loads config in a static block, precedence: external `kaspe.properties` beside the jar →
   classpath `/kaspe.properties` → hardcoded defaults. It also memoizes "driver loaded" and
   "schema ensured" per JDBC URL.
@@ -65,12 +71,12 @@ Never re-implement these inline in UI or DAO code; call `Calculator` so UI, repo
 | `src/kaspe/` | Core: `Main`, `Db` (connection/config), `Schema` (auto table creation), `Calculator` |
 | `src/kaspe/model/` | Plain beans: `Rental`, `Truck`, `Transaction`, `TransactionDetail`, `ReportRow` |
 | `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals) |
-| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `PanelDashboard`, `PanelTransaction`, `PanelMaster`, `PanelReport`, `Theme` |
+| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `PanelDashboard`, `PanelTransaction`, `PanelMaster`, `PanelReport`, `PrintPreview`, `Theme` |
 | `src/kaspe/util/` | `Dates` (display `dd-MM-yyyy`, lenient parse) |
 | `src/kaspe/test/` | Hand-rolled test harness (no JUnit) |
 | `src/kaspe/schema.sql` | Bundled DDL + `v_transaksi` view; run by the app at first start |
 | `src/kaspe.properties` | Bundled DB config (H2 active, MySQL block commented) |
-| `docs/` | `specification.md` (system spec), `data-contoh.sql` (sample data, 23 nota / 64 rows) |
+| `docs/` | `specification.md` (system spec), `data-contoh.sql` (sample data, 23 legacy headers / 64 deliveries, split to 1:1 on first start) |
 | `tools/` | Demo helpers, **not** part of the app (see below) |
 | `preview/` | Static browser preview page + PNGs, generated artifacts |
 | `lib/` | Vendored jars: `flatlaf-3.7.2.jar`, `flatlaf-fonts-inter-3.19.jar`, `h2-2.1.214.jar`. `mysql-connector-j-9.1.0.jar` is GPLv2 and is deliberately NOT published (gitignored, absent from `javac.classpath` and `manifest.mf`); MySQL mode needs the user to drop it into `lib/` themselves. It is runtime-only (`Db` loads it via `Class.forName`), so nothing breaks without it. |
@@ -222,11 +228,15 @@ starts with `DELETE`, so it wipes the target database.
 - `src/kaspe/Main.java` — entry point (`Theme.install()` then `MainFrame`).
 - `src/kaspe/Db.java` — config loading, connection factory, H2 error translation, MySQL bootstrap.
 - `src/kaspe/Schema.java` — `ensure(Connection)`, `readStatements()`, `tableExists()`,
-  `columnExists()`, `dropObsoleteColumns()`; the same SQL
-  parser is used by tests so tested SQL equals runtime SQL.
+  `columnExists()`, `dropObsoleteColumns()`, `splitSharedHeaders()`; the same SQL
+  parser is used by tests so tested SQL equals runtime SQL. `splitSharedHeaders` runs at every
+  start and normalises a legacy database so one `transaksi` header owns at most one detail —
+  it is transactional, verifies detail count and `SUM(jumlah_uang)` before committing, and
+  rolls back and refuses to start on any mismatch.
 - `src/kaspe/Calculator.java` — the only place the business formulas exist.
 - `src/kaspe/schema.sql` — DDL + `v_transaksi` (includes `susut = bobot_lapak - bobot_pabrik`).
-- `src/kaspe/dao/TransactionDao.java` — `save()` (atomic header+details), `listReport`,
+- `src/kaspe/dao/TransactionDao.java` — `save()` (atomic header+detail), `updateDelivery`,
+  `deleteDeliveries` (all-or-nothing), `listDeliveries` (flat, newest first), `listReport`,
   `totalAmount`, `totalNetWeight`, `summaryPerRental`.
 - `src/kaspe/ui/Theme.java` — single styling entry point; changing the look means editing here only.
 - `nbproject/project.properties` — `main.class=kaspe.Main`, Java level, output dirs.
@@ -262,7 +272,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 21, `TestDao` 35, `TestAlur` 63, `TestUi` 24 — **150 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 58, `TestAlur` 96, `TestUi` 24 — **241 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

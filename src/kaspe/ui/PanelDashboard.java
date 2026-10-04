@@ -10,16 +10,14 @@ import javax.swing.*;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Set;
 
 /**
  * Halaman pembuka: ringkasan angka.
  *
  * <p>Sebelumnya halaman ini hanya berisi satu kartu petunjuk, sehingga sebagian besar
  * layar kosong dan tidak memberi keterangan apa pun tentang isi catatan. Sekarang isinya
- * angka yang paling sering dicari saat aplikasi dibuka — berapa nota yang tercatat dan
+ * angka yang paling sering dicari saat aplikasi dibuka — berapa pengiriman yang
  * berapa total uangnya.
  *
  * <p>Semua angkanya dihitung dari query yang sudah ada; tidak ada tabel atau kolom baru.
@@ -44,13 +42,10 @@ public class PanelDashboard extends JPanel {
             BigDecimal amount = dao.totalAmount(from, to);
             BigDecimal weight = dao.totalNetWeight(from, to);
 
-            // Satu nota = satu header transaksi, dan sekarang tidak ada nomor nota lagi.
-            // Yang dihitung adalah id transaksinya, bukan barisnya: satu nota berisi
-            // beberapa baris plat.
-            Set<Integer> notes = new LinkedHashSet<>();
-            for (ReportRow row : rows) {
-                notes.add(row.getTransactionId());
-            }
+            // Satu pengiriman = satu catatan sendiri, jadi jumlahnya adalah jumlah
+            // baris daftar datar (listReport mengembalikan satu baris per pengiriman),
+            // bukan jumlah header transaksi.
+            int pengiriman = rows.size();
 
             MasterDao master = new MasterDao();
             int rentals = master.listRental().size();
@@ -68,7 +63,7 @@ public class PanelDashboard extends JPanel {
             // menyisakan lajur kosong di atas kartu, yang kedua membuat kartunya melar
             // jadi tinggi sekali sehingga lambang di dalamnya ikut tertarik jadi lajur
             // panjang seperti garis.
-            add(buildStats(from, notes.size(), amount, weight, rentals, trucks, monthAmount),
+            add(buildStats(from, pengiriman, amount, weight, rentals, trucks, monthAmount),
                     BorderLayout.NORTH);
 
 
@@ -105,11 +100,11 @@ public class PanelDashboard extends JPanel {
      * selebar ini menyisakan ruang kosong di sebelah kanan. Itu disengaja: menaruh
      * catatannya di samping angka akan membuatnya terbaca sebagai angka kedua.
      */
-    private JPanel buildStats(LocalDate earliest, int notes, BigDecimal amount,
+    private JPanel buildStats(LocalDate earliest, int pengiriman, BigDecimal amount,
                               BigDecimal weight, int rentals, int trucks, BigDecimal monthAmount) {
         JPanel p = new JPanel(new GridLayout(2, 2, 14, 14));
         p.setOpaque(false);
-        p.add(statCard(Icons.NOTE, "Nota tercatat", String.valueOf(notes),
+        p.add(statCard(Icons.NOTE, "Pengiriman tercatat", String.valueOf(pengiriman),
                 earliest == null ? "belum ada data" : "sejak " + Dates.format(earliest), false));
         // Angka besarnya tetap total sepanjang masa — mengubah arti angka besar tanpa
         // mengubah judulnya justru bikin salah baca. Yang bergerak ditaruh di keterangan

@@ -269,21 +269,21 @@ cukup nyalakan server MySQL-nya.
 
 ## Fitur utama
 
-- **Halaman pembuka** — empat kartu ringkasan: jumlah nota, total uang (beserta uang bulan
-  berjalan), total berat bersih, dan truk terdaftar.
-- **Input transaksi per nota** — satu nota bisa berisi banyak baris plat truk.
+- **Halaman pembuka** — empat kartu ringkasan: jumlah pengiriman, total uang (beserta uang
+  bulan berjalan), total berat bersih, dan truk terdaftar.
+- **Satu pengiriman, satu catatan** — mengisi form lalu menekan Simpan langsung menulis ke
+  buku catatan. Tidak ada penampungan sementara dan tidak ada istilah "baris": dua pengiriman
+  truk yang sama pada tanggal yang sama tetap tercatat sebagai dua catatan terpisah.
 - **Perhitungan otomatis** — berat bersih dan jumlah uang terhitung sambil kamu mengetik, tanpa
   menekan tombol apa pun.
-- **Penyimpanan utuh** — semua baris tersimpan sekaligus atau dibatalkan sekaligus, jadi tidak
-  ada nota yang tersimpan separuh.
-- **Riwayat dan hapus nota** — daftar Transaksi Tersimpan di halaman transaksi menampilkan
-  nota yang sudah masuk (tanggal, jumlah baris, total uang) dan bisa menghapusnya dengan
-  konfirmasi yang menyebut tanggal dan totalnya.
+- **Ubah dan hapus** — daftar Transaksi Tersimpan menampilkan setiap pengiriman (tanggal, plat,
+  rental, bobot, dan jumlah uang). Pilih satu baris lalu Ubah untuk memperbaikinya, atau pilih
+  satu baris atau lebih lalu Hapus. Penghapusan sekaligus bersifat tuntas: kalau satu catatan
+  gagal terhapus, tidak ada satu pun yang terhapus.
 - **Belum dibayar** — centang "Sudah dibayar" dilepas membuat baris tercatat dengan tanggal
   lunas kosong (belum dibayar), bukan dipaksa lunas hari itu.
-- **Pekerjaan dijaga** — pindah halaman atau menutup jendela saat masih ada baris yang belum
-  disimpan ditanya dulu; isian yang belum menjadi baris ditawarkan ikut tersimpan saat
-  menekan Simpan Transaksi, bukan dibuang diam-diam.
+- **Isian dijaga** — pindah halaman atau menutup jendela saat form masih terisi ditanya dulu,
+  jadi ketikan yang belum disimpan tidak hilang diam-diam.
 - **Data master** — satu halaman berisi pemilik truk di kiri dan truk miliknya di kanan.
   Pemiliknya tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang
   yang salah. Truk yang salah pemilik dipindahkan lewat tombol Pindah Pemilik, tanpa perlu
@@ -554,11 +554,11 @@ pemasangan apa pun.
 | Berkas uji | Cakupan | Hasil |
 |------------|---------|-------|
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
-| `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji) | 21 lulus |
-| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus | 35 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi tabel baris dan daftar riwayat, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 24 lulus |
-| `TestAlur` | menekan Tambah Baris tidak menulis data master, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, baris tidak hilang saat pindah halaman, pekerjaan belum disimpan terdeteksi, belum lunas tersimpan, hapus transaksi, simpan tidak tercatat dua kali | 63 lulus |
-| **Total** | | **150 lulus, 0 gagal** |
+| `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 56 lulus |
+| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu | 58 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 24 lulus |
+| `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 96 lulus |
+| **Total** | | **241 lulus, 0 gagal** |
 
 ---
 

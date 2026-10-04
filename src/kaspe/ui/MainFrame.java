@@ -12,7 +12,7 @@ public class MainFrame extends JFrame {
 
     public MainFrame() {
         setTitle("Aplikasi Pencatatan Kaspe");
-        // Menutup jendela tidak langsung keluar: kalau masih ada baris transaksi yang
+        // Menutup jendela tidak langsung keluar: kalau masih ada isian transaksi yang
         // belum disimpan, operator harus ditanya dulu — sama seperti saat pindah halaman.
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(1320, 760);
@@ -32,7 +32,7 @@ public class MainFrame extends JFrame {
             public void windowClosing(WindowEvent e) {
                 if (nav != null && nav.adaKerjaBelumDisimpan()) {
                     int jwb = JOptionPane.showConfirmDialog(MainFrame.this,
-                            "Masih ada baris transaksi yang belum disimpan.\nKeluar tanpa menyimpan?",
+                            "Masih ada isian transaksi yang belum disimpan.\nKeluar tanpa menyimpan?",
                             "Belum disimpan", JOptionPane.YES_NO_OPTION,
                             JOptionPane.WARNING_MESSAGE);
                     if (jwb != JOptionPane.YES_OPTION) {

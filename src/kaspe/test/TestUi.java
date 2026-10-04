@@ -99,16 +99,18 @@ public class TestUi {
         // berbeda besar-kecil hurufnya tidak boleh menjadi rental kedua - kalau menjadi
         // dua, total uang per pemilik ikut terpecah.
         check("nama rental yang diketik dipakai apa adanya", rentalDiketikBenar());
-        // Seluruh kolom laporan harus utuh juga pada tabel TRANSAKSI, bukan hanya laporan.
-        check("kolom tabel transaksi utuh", kolomTabelUtuh(new PanelTransaction()));
-        // Tabel baris yang sedang diketik harus benar-benar punya tinggi di jendela
-        // bawaan. Pernah terjadi sebaliknya tanpa satu pun tanda: tiga bagian halaman
-        // bertumpuk melebihi tinggi jendela, BorderLayout mengorbankan bagian tengah,
-        // dan tabel itu tinggal bernilai MINUS - tidak tergambar sama sekali. Total uang
-        // di bawahnya tetap benar, jadi layarnya terlihat wajar; yang hilang hanya
-        // tabelnya, dan barisnya tidak bisa dipilih untuk dihapus. Pemeriksaan lebar
-        // kolom dan hitungan piksel tidak menangkapnya, karena keduanya tetap lolos.
-        check("tabel baris punya tinggi di jendela bawaan", tabelBarisPunyaTinggi());
+        // Sepuluh kolom daftar pengiriman tersimpan juga harus utuh — bukan hanya
+        // laporan. Kolom id yang disembunyikan di depannya tidak dihitung, karena
+        // memang tidak menampilkan apa pun.
+        check("kolom daftar pengiriman tersimpan utuh", kolomTabelUtuh(new PanelTransaction()));
+        // Daftar pengiriman tersimpan harus benar-benar punya tinggi di jendela bawaan.
+        // Inilah daftar yang dipakai operator untuk mencari, lalu mengubah atau
+        // menghapus, pengiriman yang salah dicatat. Pernah terjadi sebaliknya tanpa
+        // satu pun tanda: kartu form di atasnya terlalu tinggi dan daftarnya terhimpit
+        // sampai 66px — hanya kepala tabelnya yang muat. Total uang di bawahnya tetap
+        // benar, jadi layarnya terlihat wajar. Pemeriksaan lebar kolom dan hitungan
+        // piksel tidak menangkapnya, karena keduanya tetap lolos.
+        check("daftar pengiriman tersimpan punya tinggi di jendela bawaan", daftarRiwayatPunyaTinggi());
         // Angka bulan berjalan di halaman pembuka harus dihitung dari awal bulan, bukan
         // dari sekian hari ke belakang. Batas itu tidak kelihatan di layar - yang tampak
         // hanya hasilnya - sehingga salah batas berarti angka yang salah tanpa satu pun
@@ -209,14 +211,21 @@ public class TestUi {
     }
 
     /**
-     * Tabel baris di halaman transaksi harus punya tinggi yang benar-benar terpakai
-     * pada ukuran jendela bawaan.
+     * Daftar pengiriman tersimpan di halaman transaksi harus punya tinggi yang
+     * benar-benar terpakai pada ukuran jendela bawaan.
      *
-     * <p>Bukan sekadar "tidak nol": tinggi di bawah satu baris berarti tabelnya tidak
+     * <p>Daftar itulah satu-satunya jalan operator untuk mencari, lalu mengubah atau
+     * menghapus, pengiriman yang salah dicatat — kalau daftarnya terhimpit, catatan
+     * yang salah tidak bisa diperbaiki. Pernah terjadi: kartu form di atasnya
+     * terlalu tinggi dan daftarnya terhimpit sampai 66px, cukup untuk kepala
+     * tabelnya saja, tanpa satu pun tanda — total uang di bawahnya tetap benar,
+     * jadi layarnya terlihat wajar.
+     *
+     * <p>Bukan sekadar "tidak nol": tinggi di bawah satu baris berarti daftarnya tidak
      * berguna walaupun ada. Diperiksa pada susunan jendela sungguhan, bukan panel
      * sendirian, karena yang menjepitnya adalah pembagian ruang antar bagian halaman.
      */
-    private static boolean tabelBarisPunyaTinggi() throws Exception {
+    private static boolean daftarRiwayatPunyaTinggi() throws Exception {
         PagePanel halaman = new PagePanel();
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
@@ -232,14 +241,7 @@ public class TestUi {
             System.out.println("        halaman transaksi tidak tergambar");
             return false;
         }
-        // Dua-duanya diperiksa. Daftar riwayat justru yang paling sering terhimpit -
-        // ia di bawah - dan itulah yang dipakai mencari lalu menghapus nota yang salah
-        // dicatat. Menjaga tabel baris saja membiarkan bentuk regresi yang sama lolos
-        // lewat riwayat.
-        if (!cukupTinggi((JTable) field(p, "table"), "tabel baris")) {
-            return false;
-        }
-        return cukupTinggi((JTable) field(p, "riwayatTable"), "daftar riwayat");
+        return cukupTinggi((JTable) field(p, "riwayatTable"), "daftar pengiriman tersimpan");
     }
 
     /** Benar kalau tabelnya benar-benar dapat tinggi yang terpakai, bukan hanya headernya. */
@@ -318,6 +320,12 @@ public class TestUi {
         boolean utuh = true;
         for (int c = 0; c < t.getColumnCount(); c++) {
             javax.swing.table.TableColumn col = t.getColumnModel().getColumn(c);
+            // Kolom yang disembunyikan (id catatan, lebarnya 0) memang tidak menampilkan
+            // apa pun, jadi syarat "muat utuh" tidak berlaku untuknya — sepuluh kolom
+            // yang benar-benar tampil tetap diperiksa semuanya.
+            if (col.getMaxWidth() == 0) {
+                continue;
+            }
             String nama = String.valueOf(col.getHeaderValue());
 
             int butuh = judul.stringWidth(nama);
@@ -718,17 +726,18 @@ public class TestUi {
     /**
      * Rental yang tampil di layar transaksi harus sama dengan rental yang tercatat.
      *
-     * <p>Empat keadaan diperiksa:
+     * <p>Lima keadaan diperiksa:
      *
      * <ol>
      *   <li>Setiap plat di daftar harus tampil bersama pemiliknya sendiri.</li>
      *   <li>Plat yang belum pernah ada harus mengosongkan pilihan rental, bukan
      *       mewarisi rental baris sebelumnya.</li>
-     *   <li>Rental yang dipilih operator untuk plat baru harus tercatat di baris yang
-     *       ditambahkan — dengan nomor truk 0, karena menambah baris tidak boleh
-     *       menyentuh database; truknya baru lahir saat transaksinya disimpan.</li>
+     *   <li>Rental yang dipilih operator untuk plat baru harus tercatat pada
+     *       pengiriman yang tersimpan, dan truknya lahir milik rental pilihan itu.</li>
      *   <li>Plat yang sudah dikenal + rental yang BERBEDA dari pemilik tersimpan harus
      *       DITOLAK dengan pesan, bukan diam-diam memakai pemilik lama.</li>
+     *   <li>Rental yang sama (huruf beda) untuk plat yang dikenal tetap diterima,
+     *       dan catatannya tetap milik pemilik yang tersimpan.</li>
      * </ol>
      *
      * <p>Keadaan (1) diperiksa untuk SELURUH plat, bukan hanya plat yang kebetulan tampil
@@ -773,10 +782,9 @@ public class TestUi {
             return false;
         }
 
-        // (3) Operator memilih rental sendiri untuk plat baru, lalu menambahkan barisnya.
-        // Pilihan itu harus tercatat di barisnya, dan baris itu TIDAK boleh membuat truk
-        // di database — menambah baris pernah menaburkan truk hantu setiap kali barisnya
-        // dicoba lalu dibuang.
+        // (3) Operator memilih rental sendiri untuk plat baru, lalu menyimpan
+        // pengirimannya. Pilihan itu harus tercatat pada pengiriman yang tersimpan,
+        // dan truknya lahir milik rental pilihan itu — bukan milik rental lain.
         Rental dipilih = null;
         for (int i = 0; i < rental.getItemCount(); i++) {
             if (rental.getItemAt(i) != null) {
@@ -790,7 +798,7 @@ public class TestUi {
         }
         rental.setSelectedItem(dipilih);
         // Combo yang bisa diketik menyelesaikan tulisannya saat fokus berpindah ke tombol
-        // Tambah Baris, dan Swing menyampaikan itu sebagai ActionEvent — bukan sebagai
+        // Simpan, dan Swing menyampaikan itu sebagai ActionEvent — bukan sebagai
         // perubahan teks. Karena itu kejadiannya ditirukan di sini dengan ActionEvent,
         // bukan dengan menuliskan ulang isi kotaknya: penulisan ulang teks yang sama
         // tidak menghasilkan kejadian apa pun, jadi pemeriksaannya tidak pernah bisa gagal.
@@ -803,42 +811,43 @@ public class TestUi {
             return false;
         }
         MasterDao dao = new MasterDao();
-        int trukSebelum = dao.listTrucks().size();
+        int riwayatSebelum = jumlahRiwayat(p);
         isi(p, "txtFieldWeight", "7200");
         isi(p, "txtFactoryWeight", "7050");
         isi(p, "txtRefraction", "15");
         isi(p, "txtPrice", "1150");
-        if (!tambahBaris(p)) {
+        if (!simpanPanel(p)) {
             return false;
         }
 
-        kaspe.model.TransactionDetail detailBaru = barisTerakhir(p);
-        if (detailBaru == null) {
-            System.out.println("        baris tidak bertambah, pengujian tidak sampai tujuan");
+        // Pengiriman itu tersimpan sebagai satu catatan dengan pasangan plat + rental
+        // pilihan operator, dan truknya lahir milik rental pilihan itu.
+        if (jumlahRiwayat(p) != riwayatSebelum + 1) {
+            System.out.println("        pengiriman plat baru tidak tercatat tepat satu kali");
             return false;
         }
-        if (detailBaru.getTruckId() == null || detailBaru.getTruckId() != 0) {
-            System.out.println("        plat yang belum dikenal harus ditandai truckId 0, tertulis "
-                    + detailBaru.getTruckId());
+        kaspe.model.ReportRow tersimpan = cariPengiriman("ZZ 9999 ZZ");
+        if (tersimpan == null || !dipilih.getRentalName().equals(tersimpan.getRentalName())) {
+            System.out.println("        pengiriman plat baru tercatat rental '"
+                    + (tersimpan == null ? "-" : tersimpan.getRentalName())
+                    + "', seharusnya '" + dipilih.getRentalName() + "'");
             return false;
         }
-        if (!"ZZ 9999 ZZ".equals(detailBaru.getPlate())
-                || !dipilih.getRentalName().equals(detailBaru.getRentalName())) {
-            System.out.println("        baris tercatat plat '" + detailBaru.getPlate() + "' rental '"
-                    + detailBaru.getRentalName() + "', seharusnya 'ZZ 9999 ZZ' / '"
-                    + dipilih.getRentalName() + "'");
-            return false;
+        Truck lahir = null;
+        for (Truck t : dao.listTrucks()) {
+            if ("ZZ 9999 ZZ".equals(t.getPlate())) {
+                lahir = t;
+            }
         }
-        int trukSesudah = dao.listTrucks().size();
-        if (trukSesudah != trukSebelum) {
-            System.out.println("        menambah baris ikut membuat truk di database: "
-                    + trukSebelum + " -> " + trukSesudah);
+        if (lahir == null || lahir.getRentalId() == null
+                || lahir.getRentalId() != dipilih.getRentalId()) {
+            System.out.println("        truk plat baru lahir tanpa pemilik yang dipilih operator");
             return false;
         }
 
         // (4) Plat yang sudah dikenal + rental yang sengaja disetel ke rental LAIN:
-        // harus DITOLAK dengan pesan yang menunjuk pemilik tersimpan, dan pemilik yang
-        // tersimpan tidak boleh berubah diam-diam.
+        // harus DITOLAK dengan pesan yang menunjuk pemilik tersimpan, tidak ada catatan
+        // baru, dan pemilik yang tersimpan tidak boleh berubah diam-diam.
         plat.setSelectedIndex(0);
         String namaPlat = String.valueOf(plat.getItemAt(0));
         Integer idPemilik = pemilikPlat(namaPlat);
@@ -849,18 +858,18 @@ public class TestUi {
             }
         }
         pilihRentalLain(rental, idPemilik);
-        int jumlahBarisSebelum = jumlahBaris(p);
+        int jumlahRiwayatSebelum = jumlahRiwayat(p);
 
         isi(p, "txtFieldWeight", "7200");
         isi(p, "txtFactoryWeight", "7050");
         isi(p, "txtRefraction", "15");
         isi(p, "txtPrice", "1150");
-        if (!tambahBaris(p)) {
+        if (!simpanPanel(p)) {
             return false;
         }
 
-        if (jumlahBaris(p) != jumlahBarisSebelum) {
-            System.out.println("        plat dikenal + rental berbeda tidak ditolak, baris ikut bertambah");
+        if (jumlahRiwayat(p) != jumlahRiwayatSebelum) {
+            System.out.println("        plat dikenal + rental berbeda tidak ditolak, catatan ikut tersimpan");
             return false;
         }
         String status = String.valueOf(((javax.swing.JLabel) field(p, "lblStatus")).getText());
@@ -870,12 +879,12 @@ public class TestUi {
             return false;
         }
         if (!idPemilik.equals(pemilikPlat(namaPlat))) {
-            System.out.println("        pemilik tersimpan berubah diam-diam oleh penambahan baris");
+            System.out.println("        pemilik tersimpan berubah diam-diam oleh penyimpanan");
             return false;
         }
 
         // (5) Rental yang sama (huruf beda) untuk plat yang dikenal tetap diterima,
-        // dan barisnya memakai nomor truk yang sudah tersimpan — bukan 0.
+        // dan catatannya tetap milik pemilik yang tersimpan — tidak terpecah.
         for (int i = 0; i < rental.getItemCount(); i++) {
             Rental r = (Rental) rental.getItemAt(i);
             if (r != null && idPemilik != null && r.getRentalId() == idPemilik) {
@@ -884,33 +893,37 @@ public class TestUi {
                 break;
             }
         }
-        if (!tambahBaris(p)) {
+        if (!simpanPanel(p)) {
             return false;
         }
-        kaspe.model.TransactionDetail diterima = barisTerakhir(p);
-        if (diterima == null || jumlahBaris(p) != jumlahBarisSebelum + 1) {
+        if (jumlahRiwayat(p) != jumlahRiwayatSebelum + 1) {
             System.out.println("        rental yang sama (huruf beda) malah ditolak");
             return false;
         }
-        if (diterima.getTruckId() == null || diterima.getTruckId() == 0) {
-            System.out.println("        plat yang dikenal seharusnya memakai nomor truk tersimpan, tertulis "
-                    + diterima.getTruckId());
-            return false;
+        for (kaspe.model.ReportRow b : new kaspe.dao.TransactionDao().listDeliveries(null, null)) {
+            if (namaPlat.equals(b.getPlate())
+                    && !String.valueOf(namaPemilik).equals(b.getRentalName())) {
+                System.out.println("        catatan plat '" + namaPlat + "' tercatat milik '"
+                        + b.getRentalName() + "', padahal pemiliknya '" + namaPemilik + "'");
+                return false;
+            }
         }
         return true;
     }
 
-    /** Baris terakhir yang sudah masuk daftar transaksi, atau null kalau kosong. */
-    @SuppressWarnings("unchecked")
-    private static kaspe.model.TransactionDetail barisTerakhir(PanelTransaction p) throws Exception {
-        java.util.List<kaspe.model.TransactionDetail> detail =
-                (java.util.List<kaspe.model.TransactionDetail>) field(p, "detailList");
-        return detail.isEmpty() ? null : detail.get(detail.size() - 1);
+    /** Banyaknya pengiriman yang terdaftar di daftar "Transaksi Tersimpan". */
+    private static int jumlahRiwayat(PanelTransaction p) throws Exception {
+        return ((JTable) field(p, "riwayatTable")).getRowCount();
     }
 
-    /** Banyaknya baris yang sudah masuk daftar transaksi. */
-    private static int jumlahBaris(PanelTransaction p) throws Exception {
-        return ((javax.swing.table.DefaultTableModel) field(p, "model")).getRowCount();
+    /** Pengiriman tersimpan untuk sebuah plat, atau null kalau belum ada. */
+    private static kaspe.model.ReportRow cariPengiriman(String plat) throws Exception {
+        for (kaspe.model.ReportRow b : new kaspe.dao.TransactionDao().listDeliveries(null, null)) {
+            if (plat.equals(b.getPlate())) {
+                return b;
+            }
+        }
+        return null;
     }
 
     /** Id rental pemilik sebuah plat, atau null kalau platnya tidak dikenal. */
@@ -940,26 +953,24 @@ public class TestUi {
     }
 
     /**
-     * Nama rental yang diketik langsung harus tercatat di barisnya, dan truk serta
-     * rentalnya baru lahir saat transaksi DISIMPAN — bukan saat barisnya ditambahkan.
+     * Nama rental yang diketik langsung harus tercatat pada pengiriman yang disimpan,
+     * dan truk serta rentalnya lahir saat pengiriman itu disimpan.
      *
      * <p>Tiga keadaan diperiksa:
      *
      * <ol>
-     *   <li>Rental yang belum pernah ada, diketik dengan spasi berantakan: baris yang
-     *       ditambahkan memuat nama ternormalisasi dan nomor truk 0, dan database
-     *       belum tersentuh.</li>
-     *   <li>Baris kedua memakai nama yang sama dengan ejaan huruf berbeda: tetap
-     *       diterima sebagai baris (nomor truk 0 juga).</li>
-     *   <li>Setelah disimpan, kedua truk benar-benar lahir DI SITU, keduanya milik
-     *       SATU rental yang sama — ejaan yang berbeda tidak boleh memecahnya menjadi
-     *       dua pemilik, karena jumlah uang per pemilik ikut terpecah.</li>
+     *   <li>Rental yang belum pernah ada, diketik dengan spasi berantakan untuk plat
+     *       yang juga belum pernah ada: pengiriman tersimpan memuat bentuk yang sudah
+     *       dirapikan, dan truknya lahir milik rental itu.</li>
+     *   <li>Pengiriman kedua memakai nama yang sama dengan ejaan huruf berbeda, untuk
+     *       plat lain yang juga baru: tetap diterima.</li>
+     *   <li>Kedua truk itu milik SATU rental yang sama — ejaan yang berbeda tidak
+     *       boleh memecahnya menjadi dua pemilik, karena jumlah uang per pemilik
+     *       ikut terpecah.</li>
      * </ol>
      *
-     * <p>Simpan dipanggil lewat TransactionDao, bukan lewat tombol Simpan Transaksi:
-     * tombol itu memunculkan jendela pesan setelah berhasil, dan jendela tidak bisa
-     * dibuat saat pengujian berjalan tanpa layar. Jalan data yang ditempuh tetap
-     * sama — persis kontrak yang diuji.
+     * <p>Simpan dijalankan lewat tombol Simpannya sendiri; dialog "Tersimpan" yang
+     * tidak bisa tampil tanpa layar ditangani di {@link #simpanPanel(PanelTransaction)}.
      */
     private static boolean rentalDiketikBenar() throws Exception {
         PanelTransaction p = new PanelTransaction();
@@ -973,7 +984,7 @@ public class TestUi {
 
         MasterDao dao = new MasterDao();
         int rentalSebelum = dao.listRental().size();
-        int trukSebelum = dao.listTrucks().size();
+        int riwayatSebelum = jumlahRiwayat(p);
 
         // (1) Rental yang belum pernah ada, diketik untuk plat yang juga belum pernah ada.
         // Spasinya sengaja berantakan: yang tercatat harus bentuk yang sudah dirapikan.
@@ -983,62 +994,15 @@ public class TestUi {
         isi(p, "txtFactoryWeight", "6900");
         isi(p, "txtRefraction", "15");
         isi(p, "txtPrice", "1150");
-        if (!tambahBaris(p)) {
+        if (!simpanPanel(p)) {
             return false;
         }
-
-        kaspe.model.TransactionDetail baris1 = barisTerakhir(p);
-        if (baris1 == null) {
-            System.out.println("        baris tidak bertambah, pengujian tidak sampai tujuan");
+        if (jumlahRiwayat(p) != riwayatSebelum + 1) {
+            System.out.println("        pengiriman dengan rental yang diketik tidak tersimpan");
             return false;
         }
-        if (baris1.getTruckId() == null || baris1.getTruckId() != 0) {
-            System.out.println("        plat yang belum dikenal harus ditandai truckId 0, tertulis "
-                    + baris1.getTruckId());
-            return false;
-        }
-        if (!"ZZ 1234 ZZ".equals(baris1.getPlate()) || !"CV Uji Diketik".equals(baris1.getRentalName())) {
-            System.out.println("        baris tercatat plat '" + baris1.getPlate() + "' rental '"
-                    + baris1.getRentalName() + "', seharusnya 'ZZ 1234 ZZ' / 'CV Uji Diketik'");
-            return false;
-        }
-        if (dao.listRental().size() != rentalSebelum || dao.listTrucks().size() != trukSebelum) {
-            System.out.println("        menambah baris ikut menulis database: rental "
-                    + rentalSebelum + " -> " + dao.listRental().size() + ", truk "
-                    + trukSebelum + " -> " + dao.listTrucks().size());
-            return false;
-        }
-
-        // (2) Nama yang sama dengan ejaan huruf berbeda: tetap diterima sebagai baris.
-        plat.getEditor().setItem("ZZ 5678 ZZ");
-        rental.getEditor().setItem("  cv   uji   diketik ");
-        isi(p, "txtFieldWeight", "7000");
-        isi(p, "txtFactoryWeight", "6900");
-        isi(p, "txtRefraction", "15");
-        isi(p, "txtPrice", "1150");
-        if (!tambahBaris(p)) {
-            return false;
-        }
-        kaspe.model.TransactionDetail baris2 = barisTerakhir(p);
-        if (baris2 == null || jumlahBaris(p) != 2) {
-            System.out.println("        ejaan berbeda dari nama yang sama malah ditolak");
-            return false;
-        }
-        if (baris2.getTruckId() == null || baris2.getTruckId() != 0) {
-            System.out.println("        baris kedua seharusnya juga truckId 0, tertulis "
-                    + baris2.getTruckId());
-            return false;
-        }
-
-        // (3) Simpan: kedua truk lahir di sini, keduanya milik SATU rental.
-        kaspe.model.Transaction trx = new kaspe.model.Transaction();
-        trx.setDate(java.time.LocalDate.of(2026, 10, 5));
-        new kaspe.dao.TransactionDao().save(trx,
-                (java.util.List<kaspe.model.TransactionDetail>) field(p, "detailList"));
-
-        int rentalSesudah = dao.listRental().size();
-        if (rentalSesudah != rentalSebelum + 1) {
-            System.out.println("        simpan membuat " + (rentalSesudah - rentalSebelum)
+        if (dao.listRental().size() != rentalSebelum + 1) {
+            System.out.println("        simpan membuat " + (dao.listRental().size() - rentalSebelum)
                     + " rental baru, seharusnya tepat satu");
             return false;
         }
@@ -1050,6 +1014,37 @@ public class TestUi {
         }
         if (lahir == null) {
             System.out.println("        rental yang diketik tidak tersimpan dengan namanya");
+            return false;
+        }
+        kaspe.model.ReportRow baris1 = cariPengiriman("ZZ 1234 ZZ");
+        if (baris1 == null || !"CV Uji Diketik".equals(baris1.getRentalName())) {
+            System.out.println("        pengiriman tercatat plat '"
+                    + (baris1 == null ? "-" : baris1.getPlate()) + "' rental '"
+                    + (baris1 == null ? "-" : baris1.getRentalName())
+                    + "', seharusnya 'ZZ 1234 ZZ' / 'CV Uji Diketik'");
+            return false;
+        }
+
+        // (2) Nama yang sama dengan ejaan huruf berbeda, untuk plat lain yang juga baru.
+        plat.getEditor().setItem("ZZ 5678 ZZ");
+        rental.getEditor().setItem("  cv   uji   diketik ");
+        isi(p, "txtFieldWeight", "7000");
+        isi(p, "txtFactoryWeight", "6900");
+        isi(p, "txtRefraction", "15");
+        isi(p, "txtPrice", "1150");
+        if (!simpanPanel(p)) {
+            return false;
+        }
+        if (jumlahRiwayat(p) != riwayatSebelum + 2) {
+            System.out.println("        ejaan berbeda dari nama yang sama malah ditolak");
+            return false;
+        }
+
+        // (3) Kedua truk lahir, keduanya milik SATU rental.
+        int rentalSesudah = dao.listRental().size();
+        if (rentalSesudah != rentalSebelum + 1) {
+            System.out.println("        ejaan berbeda memecah rental: "
+                    + (rentalSesudah - rentalSebelum) + " rental lahir, seharusnya 1");
             return false;
         }
         for (String platBaru : new String[]{"ZZ 1234 ZZ", "ZZ 5678 ZZ"}) {
@@ -1074,21 +1069,27 @@ public class TestUi {
     }
 
     /**
-     * Tekan Tambah Baris, dan laporkan kegagalannya sebagai hasil uji yang gagal.
+     * Tekan Simpan dari luar layar, dan laporkan kegagalannya sebagai hasil uji yang gagal.
      *
-     * <p>Kegagalan di dalam penambahan baris - mis. data yang tidak lengkap - memunculkan
-     * jendela pesan, dan jendela itu tidak bisa dibuat saat pengujian berjalan tanpa layar.
-     * Kalau dibiarkan naik, seluruh kelas uji ini mati di tengah jalan, sisa pemeriksaannya
-     * tidak pernah dijalankan, dan tidak ada satu pun baris hasil yang tercetak. Kegagalan
-     * yang tidak terlihat sama berbahayanya dengan kegagalan yang lolos.
+     * <p>Dialog "Tersimpan" tidak bisa tampil tanpa layar, dan HeadlessException yang
+     * dilemparkannya BUKAN kegagalan simpan: panel sengaja mengosongkan form dan
+     * menyegarkan daftar SEBELUM dialog itu ditampilkan, jadi pekerjaan sudah tuntas
+     * saat dialognya gagal tampil. Karena itu hanya HeadlessException yang diterima.
+     * Kegagalan lain tetap dilaporkan — kalau dibiarkan naik, seluruh berkas uji ini
+     * mati di tengah jalan, sisa pemeriksaannya tidak pernah dijalankan, dan tidak ada
+     * satu pun baris hasil yang tercetak. Kegagalan yang tidak terlihat sama
+     * bahayanya dengan kegagalan yang lolos.
      */
-    private static boolean tambahBaris(PanelTransaction p) {
+    private static boolean simpanPanel(PanelTransaction p) {
         try {
-            klik(p, "addRow");
+            klik(p, "save");
             return true;
         } catch (Exception e) {
             Throwable sebab = e.getCause() == null ? e : e.getCause();
-            System.out.println("        tambah baris gagal: " + sebab);
+            if (sebab instanceof HeadlessException) {
+                return true;
+            }
+            System.out.println("        simpan gagal: " + sebab);
             return false;
         }
     }
@@ -1124,9 +1125,9 @@ public class TestUi {
         return f.get(target);
     }
 
-    /** Ambil tabel di dalam panel lewat pantulan. */
-    private static JTable tabel(Object panel) throws Exception {
-        return (JTable) field(panel, "table");
+    /** Tabel utama halaman: satu-satunya tabel di dalam susunannya, dicari lewat susunannya. */
+    private static JTable tabel(Container panel) {
+        return (JTable) cariDi(panel, JTable.class);
     }
 
     /**

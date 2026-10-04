@@ -39,8 +39,8 @@ public class NavBar extends JPanel {
      * Panel transaksi yang disimpan, supaya dipakai lagi saat halamannya dibuka kembali.
      *
      * <p>Halaman lain dibuat baru setiap dibuka karena datanya harus segar, tetapi
-     * halaman transaksi adalah pekerjaan yang sedang berjalan: baris yang sudah masuk
-     * daftar tetapi belum disimpan akan hilang tanpa peringatan kalau halamannya
+     * halaman transaksi adalah pekerjaan yang sedang berjalan: isian yang sudah
+     * diketik tetapi belum disimpan akan hilang tanpa peringatan kalau halamannya
      * dibuang setiap kali operator sempat melihat halaman lain.
      */
     private PanelTransaction panelTransaksi;
@@ -87,10 +87,10 @@ public class NavBar extends JPanel {
      *
      * <p>Halaman dibuat baru setiap kali dibuka, sama seperti menu yang digantikannya —
      * jadi datanya selalu yang terbaru. SATU pengecualian: halaman transaksi disimpan
-     * dan dipakai lagi, supaya baris yang sudah masuk daftar tetapi belum disimpan
-     * tidak hilang begitu operator membuka halaman lain. Daftar plat dan rentalnya
-     * tetap disegarkan setiap dibuka kembali, jadi tetap mengikuti data master
-     * terbaru tanpa menyentuh pekerjaan yang sedang berjalan.
+     * dan dipakai lagi, supaya isian yang sudah diketik tetapi belum disimpan tidak
+     * hilang begitu operator membuka halaman lain. Daftar plat dan rentalnya tetap
+     * disegarkan setiap dibuka kembali, jadi tetap mengikuti data master terbaru
+     * tanpa menyentuh isian yang sedang dikerjakan.
      */
     private JPanel create(String name) {
         if ("Transaksi".equals(name)) {
@@ -134,8 +134,8 @@ public class NavBar extends JPanel {
     /**
      * Bolehkah meninggalkan halaman transaksi menuju halaman lain?
      *
-     * <p>Baris yang sudah masuk daftar tapi belum disimpan hanya terlihat di halaman
-     * itu; pindah halaman lalu menyimpan notanya dari tempat lain mustahil. Karena itu
+     * <p>Isian yang sudah diketik tetapi belum disimpan hanya ada di halaman itu;
+     * pindah halaman lalu menyimpannya dari tempat lain mustahil. Karena itu
      * perpindahan ditanya dulu — bukan langsung dibuang seperti dulu.
      *
      * <p>Tanpa layar (uji otomatis) tidak ada operator yang bisa menjawab; perpindahan
@@ -153,7 +153,7 @@ public class NavBar extends JPanel {
             return true;
         }
         int jwb = JOptionPane.showConfirmDialog(this,
-                "Masih ada baris transaksi yang belum disimpan.\n"
+                "Masih ada isian transaksi yang belum disimpan.\n"
                         + "Pindah ke " + tujuan + " dan tinggalkan isian itu?",
                 "Belum disimpan", JOptionPane.YES_NO_OPTION,
                 JOptionPane.WARNING_MESSAGE);

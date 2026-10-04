@@ -10,8 +10,12 @@ import javax.swing.*;
 import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableColumn;
 import java.awt.*;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.math.BigDecimal;
+import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
@@ -21,10 +25,13 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Halaman input transaksi.
- * Bagian atas: header (No dan tanggal).
- * Bagian tengah: input satu baris (plat, bobot lapak, bobot pabrik, refraksi, harga, tanggal lunas).
- * Berat bersih dan jumlah uang dihitung otomatis.
+ * Halaman catat pengiriman: satu form untuk satu pengiriman truk, dan daftar
+ * pengiriman yang sudah tersimpan.
+ *
+ * <p>Satu pengiriman = satu catatan sendiri: tidak ada "nota" yang mengumpulkan
+ * beberapa baris, dan dua pengiriman truk yang sama pada hari yang sama tetap dua
+ * catatan terpisah. Mengisi form lalu menekan Simpan langsung menyimpan pengiriman
+ * itu. Berat bersih dan jumlah uang dihitung otomatis.
  */
 public class PanelTransaction extends JPanel {
 
@@ -32,7 +39,7 @@ public class PanelTransaction extends JPanel {
     /**
      * Plat truk. Bisa dipilih dari daftar plat yang sudah pernah masuk, bisa juga
      * langsung diketik. Plat yang belum ada tidak perlu didaftarkan dulu di halaman
-     * data master — dibuat sendiri saat barisnya ditambahkan.
+     * data master — dibuat sendiri saat pengirimannya disimpan.
      */
     private final JComboBox<String> cmbPlate = new JComboBox<>();
     /** Pemilik truk. Terisi sendiri kalau platnya dipilih dari daftar. */
@@ -44,7 +51,8 @@ public class PanelTransaction extends JPanel {
     private final JTextField txtPrice = new JTextField();
     /**
      * Centang "sudah dibayar". Tanpa centang, tanggal lunas dicatat kosong —
-     * kolom tanggal_lunas di database memang boleh NULL untuk nota yang belum dibayar.
+     * kolom tanggal_lunas di database memang boleh NULL untuk pengiriman yang
+     * belum dibayar.
      */
     private final JCheckBox chkPaid = new JCheckBox("Sudah dibayar", true);
     private final JSpinner spPaid = dateSpinner();
@@ -52,30 +60,40 @@ public class PanelTransaction extends JPanel {
     private final JLabel lblTotalAmount = valueLabel();
     private final JLabel lblTotal = totalLabel();
     private final JLabel lblStatus = new JLabel();
+    /** Judul kartu form: "Catat Pengiriman" saat menambah, "Ubah Pengiriman" saat mengubah. */
+    private final JLabel judulKartu = new JLabel("Catat Pengiriman");
+    private final JButton btnSimpan = Theme.primary("Simpan");
+    /** Kembali ke keadaan tambah; hanya tampil saat sedang mengubah catatan lama. */
+    private final JButton btnBatal = Theme.plain("Batal");
+    private final JButton btnUbah = Theme.plain("Ubah");
+    private final JButton btnHapus = Theme.plain("Hapus");
 
-    private final DefaultTableModel model = new DefaultTableModel(
-            new Object[]{"Plat", "Rental", "Bobot Lapak", "Bobot Pabrik", "Refraksi (%)",
-                    "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
-        @Override
-        public boolean isCellEditable(int r, int c) {
-            return false;
-        }
-    };
-    private final JTable table = new Theme.Table(model,
-            "Belum ada baris. Isi datanya di atas, lalu tekan Tambah Baris.");
-    /** Daftar transaksi yang SUDAH tersimpan, satu baris per nota. */
+    /**
+     * Daftar pengiriman tersimpan, satu baris per pengiriman. Kolom 0 menampung
+     * id_detail sebagai identitas baris dan disembunyikan (lihat
+     * {@link #sembunyikanKolomId()}); sepuluh kolom berikutnya sama dengan tabel
+     * laporan.
+     */
     private final DefaultTableModel riwayatModel = new DefaultTableModel(
-            new Object[]{"Tanggal", "Baris", "Total"}, 0) {
+            new Object[]{"Id", "Tanggal", "Plat", "Rental", "Bobot Lapak", "Bobot Pabrik",
+                    "Refraksi (%)", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
         @Override
         public boolean isCellEditable(int r, int c) {
             return false;
         }
     };
     private final Theme.Table riwayatTable = new Theme.Table(riwayatModel,
-            "Belum ada transaksi tersimpan. Nota yang sudah disimpan muncul di sini.");
-    /** Nota di tiap baris riwayat, sejajar dengan baris tabelnya. */
-    private final List<Nota> riwayatNota = new ArrayList<>();
-    private final List<TransactionDetail> detailList = new ArrayList<>();
+            "Belum ada pengiriman tersimpan. Pengiriman yang sudah disimpan muncul di sini.");
+    /** Gulungan yang memuat form dan daftar; digulir ke atas saat catatan lama diubah. */
+    private JScrollPane gulungIsi;
+    /** Id catatan pengiriman yang sedang diubah, atau null kalau sedang mencatat yang baru. */
+    private Integer detailDiubah;
+    /**
+     * Penjaga klik ganda pada aksi yang membuka dialog. Dialog modal menjalankan
+     * putaran kejadian sendiri, jadi klik kedua yang mengantre bisa terkirim saat
+     * dialog masih terbuka — lihat {@link #save()} dan {@link #hapusTerpilih()}.
+     */
+    private boolean sedangProses;
     /** Daftar truk yang sudah dikenal, dicari berdasarkan platnya. */
     private final Map<String, Truck> trukPerPlat = new LinkedHashMap<>();
     /** Teks plat yang pilihan rentalnya sudah ikut disamakan. Lihat {@link #platDiketik}. */
@@ -102,10 +120,10 @@ public class PanelTransaction extends JPanel {
         //   teks, sehingga jalur ini tidak boleh memanggil penyamaannya secara langsung.
         // - Pendengar perubahan teks menyala saat plat DIKETIK. Ini yang paling penting:
         //   tanpa ini, mengetik plat baru tidak menyentuh pilihan rental sama sekali,
-        //   sehingga rental baris sebelumnya ikut terbawa sebagai pemilik truk yang baru —
-        //   dan itu langsung salah di catatan uang, tanpa pesan apa pun.
+        //   sehingga rental pengiriman sebelumnya ikut terbawa sebagai pemilik truk yang
+        //   baru — dan itu langsung salah di catatan uang, tanpa pesan apa pun.
         cmbPlate.addActionListener(e -> platDiketik());
-        // Kotak tanggal lunas hanya aktif kalau notanya ditandai sudah dibayar.
+        // Kotak tanggal lunas hanya aktif kalau pengirimannya ditandai sudah dibayar.
         // Tanpa centang, tanggal lunas dicatat kosong (belum dibayar).
         chkPaid.setOpaque(false);
         chkPaid.addItemListener(e -> spPaid.setEnabled(chkPaid.isSelected()));
@@ -114,9 +132,28 @@ public class PanelTransaction extends JPanel {
             public void removeUpdate(DocumentEvent e) { platDiketik(); }
             public void changedUpdate(DocumentEvent e) { platDiketik(); }
         });
+        btnSimpan.addActionListener(e -> save());
+        btnBatal.addActionListener(e -> kembaliKeTambah());
+        btnUbah.addActionListener(e -> ubahPengiriman());
+        btnHapus.addActionListener(e -> hapusTerpilih());
+        // Kedua tombol mengikuti pilihan di daftar: Ubah hanya kalau tepat satu baris
+        // (kalau dua, tidak jelas mana yang mau diubah), Hapus boleh satu atau lebih.
+        riwayatTable.getSelectionModel().addListSelectionListener(e -> perbaruiTombolRiwayat());
+        riwayatTable.addMouseListener(new MouseAdapter() {
+            @Override
+            public void mouseClicked(MouseEvent e) {
+                if (e.getClickCount() == 2) {
+                    ubahPengiriman();
+                }
+            }
+        });
         loadMaster();
         setupAutoCalculate();
-        newTransaction();
+        // Form dibuka dalam keadaan menambah: tanggal hari ini, dan dianggap sudah
+        // dibayar — keadaan yang paling sering.
+        spDate.setValue(new Date());
+        chkPaid.setSelected(true);
+        spPaid.setValue(new Date());
         muatRiwayat();
     }
 
@@ -168,52 +205,46 @@ public class PanelTransaction extends JPanel {
         JPanel outer = new JPanel(new BorderLayout(0, 12));
         outer.setOpaque(false);
         outer.add(buildInputCard(), BorderLayout.NORTH);
-        outer.add(buildTableCard(), BorderLayout.CENTER);
-        // Daftar nota yang sudah tersimpan ditaruh di bawah: selama ini nota yang
-        // tersimpan tidak terlihat di halaman ini, sehingga terlihat "hilang" dan
-        // tidak ada jalannya dihapus dari layar.
-        outer.add(buildRiwayatCard(), BorderLayout.SOUTH);
+        outer.add(buildRiwayatCard(), BorderLayout.CENTER);
 
-        // Tiga bagian bertumpuk (form, tabel baris, riwayat) tingginya melebihi jendela
-        // bawaan, dan BorderLayout membagi ruang sisa: bagian CENTER-lah yang dikorbankan,
-        // sampai tingginya nol. Akibatnya tabel baris yang sedang diisi tidak tergambar
-        // sama sekali - totalnya tetap benar, jadi layarnya terlihat wajar, tetapi
-        // barisnya tidak bisa dilihat maupun dipilih untuk dihapus.
-        //
-        // Digulir, bukan dipadatkan. Di dalam gulungan, setiap bagian memakai tinggi yang
-        // dimintanya, jadi tidak ada yang bisa terhimpit jadi nol dan kedua tabel dapat
-        // tinggi yang benar-benar terpakai. Halaman yang cukup tinggi tidak menampakkan
-        // gulungan ini sama sekali.
-        //
-        // Pemisah yang bisa digeser sempat dicoba, tetapi ruangnya kurang untuk dua tabel:
-        // tabel baris hanya kebagian 74 piksel - cukup untuk headernya, tidak untuk
-        // barisnya. Gulungan memberi keduanya tinggi yang utuh.
-        JScrollPane gulung = new JScrollPane(outer);
-        gulung.setBorder(BorderFactory.createEmptyBorder());
-        gulung.setOpaque(false);
-        gulung.getViewport().setOpaque(false);
-        gulung.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
-        gulung.getVerticalScrollBar().setUnitIncrement(16);
+        // Form dan daftar digulir bersama. Tinggi yang diminta keduanya bisa melebihi
+        // jendela bawaan, dan BorderLayout membagi ruang sisa dengan mengorbankan
+        // bagian CENTER — sampai tingginya nol dan daftarnya tidak tergambar sama
+        // sekali. Di dalam gulungan, tiap bagian memakai tinggi yang dimintanya,
+        // jadi tidak ada yang terhimpit jadi nol. Halaman yang cukup tinggi tidak
+        // menampakkan gulungan ini sama sekali.
+        gulungIsi = new JScrollPane(outer);
+        gulungIsi.setBorder(BorderFactory.createEmptyBorder());
+        gulungIsi.setOpaque(false);
+        gulungIsi.getViewport().setOpaque(false);
+        gulungIsi.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        gulungIsi.getVerticalScrollBar().setUnitIncrement(16);
 
         JPanel wadah = new JPanel(new BorderLayout());
         wadah.setOpaque(false);
-        wadah.add(gulung, BorderLayout.CENTER);
+        wadah.add(gulungIsi, BorderLayout.CENTER);
         return wadah;
     }
 
     /**
-     * Form satu baris.
+     * Form satu pengiriman.
      *
      * <p>Keterangan tiap kotak ditaruh di atas kotaknya, bukan di sampingnya. Susunan
      * mendatar "label – kotak – label – kotak" membuat mata harus melompati celah yang
      * lebarnya berbeda-beda di tiap baris; susunan bertumpuk membaca satu arah saja.
      *
      * <p>Tiga bagian dipisah jelas: identitas truk, angka timbangan, lalu kotak hasil
-     * hitungan. Tombol aksi ditaruh di barisnya sendiri, tidak lagi menyempil di antara
+     * hitungan. Tombol aksi ditaruh di barisnya sendiri, tidak menyempil di antara
      * kotak isian.
      */
     private JPanel buildInputCard() {
-        JPanel card = Theme.card("Tambah Baris");
+        // Judul kartu dibuat sendiri (bukan lewat Theme.card(String)) supaya bisa
+        // diganti teksnya saat berpindah antara menambah dan mengubah.
+        judulKartu.setFont(Theme.semibold(Theme.FONT_SIZE + 1f));
+        judulKartu.setForeground(Theme.INK);
+        judulKartu.setBorder(BorderFactory.createEmptyBorder(0, 0, 12, 0));
+        JPanel card = Theme.card();
+        card.add(judulKartu, BorderLayout.NORTH);
 
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
@@ -230,12 +261,6 @@ public class PanelTransaction extends JPanel {
         Theme.placeholder(txtPrice, "Rp/kg");
 
         // baris 1 — tanggal nota, lalu truk dan dua angka timbangan.
-        //
-        // Tanggal nota dulu punya kartu sendiri di atas form. Kartu itu tingginya 79
-        // piksel hanya untuk satu kotak isian, dan tinggi itu diambil dari jatah dua
-        // tabel di bawahnya - sampai kartu "Transaksi Tersimpan" terdorong ke bawah
-        // lipatan, padahal justru itu yang dicari operator. Dipindahkan ke sini, tidak
-        // ada isian yang hilang dan dua tabelnya sama-sama muat tanpa menggulir.
         g.gridy = 0;
         g.insets = new Insets(0, 0, 8, 14);
         g.gridx = 0;
@@ -269,12 +294,7 @@ public class PanelTransaction extends JPanel {
         grid.add(Theme.field("Tanggal Lunas", kotakLunas), g);
         addSpacer(grid, g, 3);
 
-        // baris 4 — hasil hitungan dan tombol, sebaris.
-        //
-        // Sebelumnya keduanya dua baris terpisah, dan tingginya menghabiskan ruang yang
-        // justru dibutuhkan dua tabel di bawahnya. Digabung, formulirnya lebih pendek
-        // tanpa ada isian yang hilang, dan tabel baris serta daftar nota tersimpan
-        // masing-masing tetap dapat ruang.
+        // baris 3 — hasil hitungan dan tombol, sebaris.
         g.gridy = 2;
         g.gridx = 0;
         g.gridwidth = 5;
@@ -299,7 +319,7 @@ public class PanelTransaction extends JPanel {
         g.weightx = 0;
     }
 
-    /** Kotak sorot: hasil hitungan baris yang sedang diisi. */
+    /** Kotak sorot: hasil hitungan pengiriman yang sedang diisi. */
     private JPanel buildResult() {
         JPanel p = Theme.strip();
         GridBagConstraints g = new GridBagConstraints();
@@ -333,15 +353,14 @@ public class PanelTransaction extends JPanel {
         JPanel p = new JPanel(new BorderLayout(14, 0));
         p.setOpaque(false);
 
-        JButton btnAdd = Theme.primary("Tambah Baris");
-        btnAdd.addActionListener(e -> addRow());
-        JButton btnDelete = Theme.plain("Hapus Baris Terpilih");
-        btnDelete.addActionListener(e -> removeRow());
+        // Batal hanya ada saat mengubah catatan lama; di keadaan menambah tidak ada
+        // artinya (mengosongkan form saja sudah mengembalikan keadaan tambah).
+        btnBatal.setVisible(false);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         buttons.setOpaque(false);
-        buttons.add(btnAdd);
-        buttons.add(btnDelete);
+        buttons.add(btnSimpan);
+        buttons.add(btnBatal);
 
         lblStatus.setForeground(Theme.DANGER);
 
@@ -350,37 +369,38 @@ public class PanelTransaction extends JPanel {
         return p;
     }
 
-    private JPanel buildTableCard() {
-        Theme.styleTable(table);
-        Theme.widths(table, 112, 148, 104, 104, 92, 104, 96, 85, 120);
-        Theme.alignRight(table, 2, 3, 4, 5, 7, 8);
-        Theme.emphasis(table, 8);
-
-        JPanel card = Theme.card();
-        JScrollPane scroll = new JScrollPane(table);
-        scroll.setBorder(BorderFactory.createEmptyBorder());
-        card.add(scroll, BorderLayout.CENTER);
-        // Tinggi yang diminta menentukan pembagian awal ruang dengan kartu riwayat di
-        // bawahnya; batas bawahnya menjaga tabel ini tidak pernah bisa menyusut sampai
-        // tinggal headernya saja.
-        card.setPreferredSize(new Dimension(0, 150));
-        card.setMinimumSize(new Dimension(0, 120));
-        return card;
+    /**
+     * Sembunyikan kolom 0 (id_detail). Identitas baris disimpan di model tabel,
+     * bukan di daftar yang sejajar dengannya: begitu ada saringan atau pengurutan,
+     * nomor baris di layar tidak lagi sama dengan nomor di daftar asal, dan aksi
+     * pada "baris ke-n" bisa mengenai catatan yang salah tanpa pesan apa pun.
+     */
+    private void sembunyikanKolomId() {
+        TableColumn c = riwayatTable.getColumnModel().getColumn(0);
+        c.setMinWidth(0);
+        c.setMaxWidth(0);
+        c.setPreferredWidth(0);
+        c.setResizable(false);
     }
 
     /**
-     * Kartu "Transaksi Tersimpan": nota yang sudah masuk database, satu baris per
-     * nota (tanggal, jumlah baris, total uang), dan tombol hapusnya.
-     *
-     * <p>Tingginya tidak dipatok, melainkan dibagi bersama tabel baris lewat pemisah di
-     * {@link #buildCenter()}; daftar riwayat yang panjang digulir di dalam kartunya sendiri.
+     * Kartu "Transaksi Tersimpan": pengiriman yang sudah masuk database, satu baris
+     * per pengiriman, dengan tombol ubah dan hapusnya. Kartu ini mengisi sisa ruang
+     * halaman; daftarnya menggulir di dalam kartunya sendiri.
      */
     private JPanel buildRiwayatCard() {
         Theme.styleTable(riwayatTable);
-        Theme.widths(riwayatTable, 120, 70, 130);
-        Theme.alignRight(riwayatTable, 1, 2);
-        Theme.emphasis(riwayatTable, 2);
-        riwayatTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // Lebar kolom sama dengan tabel laporan — sudah teruji muat utuh di jendela
+        // bawaan — dengan satu angka 0 di depan untuk kolom id yang disembunyikan.
+        Theme.widths(riwayatTable, 0, 105, 96, 127, 95, 97, 93, 93, 105, 88, 120);
+        sembunyikanKolomId();
+        // Semua nomor kolom bergeser satu karena kolom id tersembunyi di depannya.
+        // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
+        Theme.alignRight(riwayatTable, 4, 5, 6, 7, 9, 10);
+        Theme.emphasis(riwayatTable, 10);
+        // Theme.styleTable memasang pilihan tunggal untuk semua tabel; daftar ini
+        // justru harus bisa memilih beberapa baris sekaligus untuk hapus sekali jalan.
+        riwayatTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
 
         JPanel card = Theme.card("Transaksi Tersimpan");
         JPanel isi = new JPanel(new BorderLayout(0, 10));
@@ -392,118 +412,199 @@ public class PanelTransaction extends JPanel {
 
         JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
         tombol.setOpaque(false);
-        JButton btnHapus = Theme.plain("Hapus Transaksi Terpilih");
-        btnHapus.addActionListener(e -> hapusTransaksiTerpilih());
+        // Kedua tombol mati sampai ada baris yang dipilih; pembaruan keadaannya
+        // dipasang di konstruktor lewat pendengar pilihan.
+        btnUbah.setEnabled(false);
+        btnHapus.setEnabled(false);
+        tombol.add(btnUbah);
         tombol.add(btnHapus);
         isi.add(tombol, BorderLayout.SOUTH);
 
         card.add(isi, BorderLayout.CENTER);
-        card.setPreferredSize(new Dimension(0, 215));
-        card.setMinimumSize(new Dimension(0, 110));
+        // Tingginya dipatok supaya daftarnya menggulir DI DALAM kartunya sendiri.
+        // Tanpa patokan ini kartu ikut setinggi seluruh isinya: dengan puluhan
+        // pengiriman, tombol Ubah/Hapus terdorong jauh ke bawah halaman dan harus
+        // digulir dulu untuk sampai - padahal tombol itulah gunanya daftar ini.
+        card.setPreferredSize(new Dimension(0, 260));
+        card.setMinimumSize(new Dimension(0, 150));
         return card;
     }
 
     /**
-     * Isi ulang daftar transaksi tersimpan: satu baris per nota, diurutkan menurut
-     * tanggalnya seperti di laporan.
+     * Isi ulang daftar pengiriman tersimpan: satu baris per pengiriman, yang paling
+     * baru di atas (urutan dari {@link TransactionDao#listDeliveries}). Total di
+     * bawah mengikuti baris yang sedang terdaftar, bukan seluruh data sepanjang masa.
      */
     private void muatRiwayat() {
         List<ReportRow> baris;
         try {
-            baris = transactionDao.listReport(null, null);
+            baris = transactionDao.listDeliveries(null, null);
         } catch (Exception e) {
             Theme.showError(this, e);
             return;
         }
-        Map<Integer, Nota> perNota = new LinkedHashMap<>();
-        for (ReportRow b : baris) {
-            Nota nota = perNota.get(b.getTransactionId());
-            if (nota == null) {
-                nota = new Nota(b.getTransactionId(), b.getDate());
-                perNota.put(b.getTransactionId(), nota);
-            }
-            nota.baris++;
-            if (b.getTotalAmount() != null) {
-                nota.total = nota.total.add(b.getTotalAmount());
-            }
-        }
         riwayatModel.setRowCount(0);
-        riwayatNota.clear();
-        // Terbaru di atas. Daftar ini dipakai untuk menghapus nota yang barusan salah
-        // dicatat, dan itu nota yang paling akhir tersimpan - kalau yang lama di atas,
-        // yang dicari justru ada di baris paling bawah dan harus digulir dulu.
-        List<Nota> urut = new ArrayList<>(perNota.values());
-        java.util.Collections.reverse(urut);
-        for (Nota nota : urut) {
-            riwayatNota.add(nota);
+        BigDecimal total = BigDecimal.ZERO;
+        for (ReportRow b : baris) {
             riwayatModel.addRow(new Object[]{
-                    Dates.format(nota.tanggal), nota.baris,
-                    "Rp " + Calculator.formatCurrency(nota.total)});
+                    b.getDetailId(),
+                    Dates.format(b.getDate()),
+                    b.getPlate(), b.getRentalName(),
+                    Calculator.formatCurrency(b.getFieldWeight()), Calculator.formatCurrency(b.getFactoryWeight()),
+                    Calculator.formatCurrency(b.getRefractionPercent()), Calculator.formatCurrency(b.getNetWeight()),
+                    Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
+                    "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
+            if (b.getTotalAmount() != null) {
+                total = total.add(b.getTotalAmount());
+            }
         }
+        lblTotal.setText("Rp " + Calculator.formatCurrency(total));
+    }
+
+    /** Id catatan pengiriman dari tiap baris yang dipilih, dibaca dari modelnya. */
+    private List<Integer> idTerpilih() {
+        List<Integer> ids = new ArrayList<>();
+        for (int barisLayar : riwayatTable.getSelectedRows()) {
+            ids.add((Integer) riwayatModel.getValueAt(riwayatTable.convertRowIndexToModel(barisLayar), 0));
+        }
+        return ids;
+    }
+
+    /** Samakan keadaan tombol Ubah dan Hapus dengan pilihan yang ada di daftar. */
+    private void perbaruiTombolRiwayat() {
+        int terpilih = riwayatTable.getSelectedRowCount();
+        btnUbah.setEnabled(terpilih == 1);
+        btnHapus.setEnabled(terpilih >= 1);
     }
 
     /**
-     * Hapus nota yang dipilih di daftar transaksi tersimpan, lewat konfirmasi yang
-     * menyebut tanggal dan total uangnya. Baris-baris notanya ikut terhapus sendiri
-     * oleh database (FK ON DELETE CASCADE), jadi cukup headernya saja.
+     * Cari data utuh satu pengiriman menurut id_detailnya. Data mentahnya tidak
+     * disimpan di tabel — yang ditampilkan di layar formatnya sudah jadi teks.
      */
-    private void hapusTransaksiTerpilih() {
-        int i = riwayatTable.getSelectedRow();
-        if (i < 0) {
-            setStatus("Pilih dulu nota yang mau dihapus pada daftar Transaksi Tersimpan.");
+    private ReportRow cariPengiriman(int detailId) throws SQLException {
+        for (ReportRow b : transactionDao.listDeliveries(null, null)) {
+            if (b.getDetailId() == detailId) {
+                return b;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Muat pengiriman yang dipilih kembali ke form untuk diubah. Klik dua kali pada
+     * baris daftar memakai jalan yang sama.
+     */
+    private void ubahPengiriman() {
+        if (riwayatTable.getSelectedRowCount() != 1) {
+            setStatus("Pilih satu baris pengiriman yang mau diubah.");
             return;
         }
-        Nota nota = riwayatNota.get(i);
-        int jwb = JOptionPane.showConfirmDialog(this,
-                "Hapus nota tanggal " + Dates.format(nota.tanggal) + "\n("
-                        + nota.baris + " baris, total Rp " + Calculator.formatCurrency(nota.total) + ")?",
-                "Hapus Transaksi", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
-        if (jwb != JOptionPane.YES_OPTION) {
-            return;
-        }
+        int barisModel = riwayatTable.convertRowIndexToModel(riwayatTable.getSelectedRow());
+        int id = (Integer) riwayatModel.getValueAt(barisModel, 0);
+        ReportRow b;
         try {
-            transactionDao.deleteTransaction(nota.id);
+            b = cariPengiriman(id);
         } catch (Exception e) {
             Theme.showError(this, e);
             return;
         }
-        muatRiwayat();
-        setStatus("Nota tanggal " + Dates.format(nota.tanggal) + " dihapus.");
+        if (b == null) {
+            setStatus("Catatan itu sudah tidak ada. Daftar disegarkan.");
+            muatRiwayat();
+            return;
+        }
+        detailDiubah = b.getDetailId();
+        judulKartu.setText("Ubah Pengiriman");
+        btnSimpan.setText("Simpan Perubahan");
+        btnBatal.setVisible(true);
+        spDate.setValue(Date.from(b.getDate().atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        // Plat ditulis dulu, baru rentalnya: menulis plat menyala penyamaan rental
+        // otomatis, dan nama rental catatan ini harus menang yang terakhir.
+        cmbPlate.getEditor().setItem(b.getPlate() == null ? "" : b.getPlate());
+        cmbRental.getEditor().setItem(b.getRentalName() == null ? "" : b.getRentalName());
+        platTersinkron = platText();
+        txtFieldWeight.setText(tulisAngka(b.getFieldWeight()));
+        txtFactoryWeight.setText(tulisAngka(b.getFactoryWeight()));
+        txtRefraction.setText(tulisAngka(b.getRefractionPercent()));
+        txtPrice.setText(tulisAngka(b.getPrice()));
+        if (b.getPaymentDate() == null) {
+            chkPaid.setSelected(false);
+        } else {
+            chkPaid.setSelected(true);
+            spPaid.setValue(Date.from(b.getPaymentDate().atStartOfDay(ZoneId.systemDefault()).toInstant()));
+        }
+        Theme.clearErrors(txtFieldWeight, txtFactoryWeight, txtRefraction, txtPrice,
+                cmbRental, kotakTanggal(spPaid));
+        setStatus("");
+        // Form di atas harus terlihat operator: gulung ke atas, lalu letakkan fokus
+        // di isian pertamanya.
+        gulungIsi.getViewport().setViewPosition(new Point(0, 0));
+        kotakTanggal(spDate).requestFocusInWindow();
     }
 
-    /** Satu nota tersimpan di daftar riwayat. */
-    private static final class Nota {
-        final int id;
-        final LocalDate tanggal;
-        int baris;
-        BigDecimal total = BigDecimal.ZERO;
-
-        Nota(int id, LocalDate tanggal) {
-            this.id = id;
-            this.tanggal = tanggal;
+    /**
+     * Hapus pengiriman yang dipilih — satu atau sekaligus banyak. Seluruh id difoto
+     * SEBELUM dialog konfirmasi dibuka, dan penjaga {@code sedangProses} dipasang
+     * sebelum dialognya tampil: dialog modal menjalankan putaran kejadian sendiri,
+     * jadi klik kedua yang mengantre bisa terkirim saat dialog masih terbuka —
+     * tanpa penjaga itu terbuka dialog kedua, dan kalau daftarnya sempat dimuat
+     * ulang di antaranya, dialog kedua itu menghapus catatan yang lain.
+     */
+    private void hapusTerpilih() {
+        if (sedangProses) {
+            return;
         }
+        List<Integer> ids = idTerpilih();
+        if (ids.isEmpty()) {
+            setStatus("Pilih dulu pengiriman yang mau dihapus.");
+            return;
+        }
+        BigDecimal total = BigDecimal.ZERO;
+        try {
+            for (ReportRow b : transactionDao.listDeliveries(null, null)) {
+                if (ids.contains(b.getDetailId()) && b.getTotalAmount() != null) {
+                    total = total.add(b.getTotalAmount());
+                }
+            }
+        } catch (Exception e) {
+            Theme.showError(this, e);
+            return;
+        }
+        sedangProses = true;
+        try {
+            int jwb = JOptionPane.showConfirmDialog(this,
+                    "Hapus " + ids.size() + " catatan pengiriman\n"
+                            + "(total Rp " + Calculator.formatCurrency(total) + ")?",
+                    "Hapus Transaksi", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (jwb != JOptionPane.YES_OPTION) {
+                return;
+            }
+            // Hapusnya sekali jalan dan menyeluruh: kalau satu id gagal, tidak ada
+            // yang terhapus, jadi daftarnya tidak pernah tinggal setengah terhapus.
+            transactionDao.deleteDeliveries(ids);
+        } catch (Exception e) {
+            Theme.showError(this, e);
+            return;
+        } finally {
+            sedangProses = false;
+        }
+        muatRiwayat();
+        setStatus(ids.size() + " catatan pengiriman dihapus.");
     }
 
     private JPanel buildBottom() {
         JPanel p = new JPanel(new BorderLayout());
         p.setOpaque(false);
 
+        // Totalnya adalah jumlah uang seluruh pengiriman yang sedang terdaftar di
+        // daftar — sama persis dengan apa yang terlihat di tabel, bukan seluruh
+        // data sepanjang masa.
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         left.setOpaque(false);
-        left.add(Theme.label("Total"));
+        left.add(Theme.label("Total tersimpan"));
         left.add(lblTotal);
 
-        JPanel right = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        right.setOpaque(false);
-        JButton btnNew = Theme.plain("Transaksi Baru");
-        JButton btnSave = Theme.primary("Simpan Transaksi");
-        btnSave.addActionListener(e -> save());
-        btnNew.addActionListener(e -> newTransaction());
-        right.add(btnNew);
-        right.add(btnSave);
-
         p.add(left, BorderLayout.WEST);
-        p.add(right, BorderLayout.EAST);
         return p;
     }
 
@@ -549,7 +650,7 @@ public class PanelTransaction extends JPanel {
     /** Pilihan bawaan saat halaman dibuka: plat pertama beserta pemiliknya. */
     private void pilihAwal() {
         if (cmbPlate.getItemCount() == 0) {
-            setStatus("Belum ada plat tersimpan. Ketik platnya langsung, lalu tekan Tambah Baris.");
+            setStatus("Belum ada plat tersimpan. Ketik platnya langsung, lalu tekan Simpan.");
         } else {
             // Pilihan plat dan pilihan rental diisi dari dua daftar yang urutannya
             // berbeda, jadi baris pertamanya belum tentu sepasang. Tanpa disamakan di
@@ -563,11 +664,11 @@ public class PanelTransaction extends JPanel {
     /**
      * Segarkan daftar plat dan rental dari data master saat halaman ini dibuka kembali.
      *
-     * <p>Halaman transaksi dipakai lagi (tidak dibuat baru setiap dibuka) supaya baris
+     * <p>Halaman transaksi dipakai lagi (tidak dibuat baru setiap dibuka) supaya isian
      * yang belum disimpan tidak hilang, tetapi daftar plat dan rentalnya tetap harus
      * mengikuti data master terbaru. Yang sedang tertulis di kotak plat dan rental
-     * TIDAK boleh berubah, dan baris yang sudah masuk daftar tidak boleh tersentuh —
-     * keduanya pekerjaan operator yang sedang berjalan.
+     * TIDAK boleh berubah — itu pekerjaan operator yang sedang berjalan, termasuk saat
+     * sedang mengubah catatan lama.
      *
      * <p>Penyamaan otomatis tidak dijalankan lagi di sini: menjalankannya akan
      * menghapus rental yang sedang operator tulis untuk plat yang belum dikenal.
@@ -590,30 +691,29 @@ public class PanelTransaction extends JPanel {
             platTersinkron = platSebelumnya;
         }
         // Panel dipakai lagi, bukan dibangun baru — tanggal bawaannya harus diisi ulang
-        // dengan hari ini: aplikasi yang dibiarkan terbuka semalaman akan mencatat baris
-        // pagi dengan tanggal kemarin. Kalau operator sedang mengerjakan sesuatu,
-        // tanggal yang sedang dipakainya tidak disentuh.
+        // dengan hari ini: aplikasi yang dibiarkan terbuka semalaman akan mencatat
+        // pengiriman pagi dengan tanggal kemarin. Kalau operator sedang mengerjakan
+        // sesuatu, tanggal yang sedang dipakainya tidak disentuh.
         if (!adaKerjaBelumDisimpan()) {
             spDate.setValue(new Date());
             if (chkPaid.isSelected()) {
                 spPaid.setValue(new Date());
             }
         }
-        // Nota yang barusan disimpan langsung terlihat di daftar Transaksi Tersimpan.
+        // Pengiriman yang barusan disimpan langsung terlihat di daftar.
         muatRiwayat();
     }
 
     /**
      * Benar kalau ada pekerjaan yang akan terbuang kalau halaman ini ditinggalkan:
-     * baris yang sudah masuk daftar tapi belum disimpan, atau isian yang belum
-     * ditambahkan sebagai baris. Dipakai bilah menu sebelum pindah halaman dan
+     * isian form yang belum disimpan. Dipakai bilah menu sebelum pindah halaman dan
      * jendela utama sebelum ditutup.
      */
     public boolean adaKerjaBelumDisimpan() {
-        return !detailList.isEmpty() || formTerisi();
+        return formTerisi();
     }
 
-    /** Benar kalau form baris masih berisi angka yang belum ditambahkan sebagai baris. */
+    /** Benar kalau form masih berisi angka yang belum disimpan. */
     private boolean formTerisi() {
         return !txtFieldWeight.getText().trim().isEmpty()
                 || !txtFactoryWeight.getText().trim().isEmpty()
@@ -624,13 +724,13 @@ public class PanelTransaction extends JPanel {
      * Isi pilihan rental mengikuti plat yang sedang tertulis.
      *
      * <p>Kalau platnya sudah dikenal, rentalnya diisi dari data yang tersimpan — bukan
-     * dibiarkan seperti sebelumnya, karena pilihan yang tertinggal dari baris sebelumnya
-     * akan terbaca sebagai pemilik plat yang baru.
+     * dibiarkan seperti sebelumnya, karena pilihan yang tertinggal dari pengiriman
+     * sebelumnya akan terbaca sebagai pemilik plat yang baru.
      *
      * <p>Kalau platnya belum dikenal, pilihan rentalnya dikosongkan, bukan dibiarkan.
-     * Membiarkannya berarti plat baru diam-diam mewarisi rental baris sebelumnya — dan
-     * aplikasi ini gunanya menghitung uang yang harus dibayar per pemilik truk, jadi
-     * kesalahan di sini langsung masuk ke catatan.
+     * Membiarkannya berarti plat baru diam-diam mewarisi rental pengiriman sebelumnya
+     * — dan aplikasi ini gunanya menghitung uang yang harus dibayar per pemilik truk,
+     * jadi kesalahan di sini langsung masuk ke catatan.
      */
     private void rentalIkutPlat() {
         platTersinkron = platText();
@@ -644,7 +744,7 @@ public class PanelTransaction extends JPanel {
      * <p>Teks yang tidak berubah dilewati. Combo yang bisa diketik menulis ulang isi
      * kotaknya sendiri saat tulisannya diselesaikan (Enter atau pindah fokus ke tombol),
      * dan penulisan ulang itu terlihat persis seperti ketikan baru. Kalau tidak disaring,
-     * penyamaan otomatis jalan lagi tepat sebelum barisnya ditambahkan — dan pilihan
+     * penyamaan otomatis jalan lagi tepat sebelum pengirimannya disimpan — dan pilihan
      * rental yang baru saja ditentukan operator untuk plat baru ikut terhapus, karena
      * plat itu memang belum dikenal. Operator melihat pilihannya hilang sendiri.
      */
@@ -703,9 +803,10 @@ public class PanelTransaction extends JPanel {
         txtFactoryWeight.getDocument().addDocumentListener(dl);
         txtRefraction.getDocument().addDocumentListener(dl);
         txtPrice.getDocument().addDocumentListener(dl);
-        // Enter di kotak terakhir = tambah baris. Tanpa ini, mengetik seluruh baris
-        // lalu menekan Enter tidak melakukan apa-apa dan terasa seperti aplikasi macet.
-        txtPrice.addActionListener(e -> addRow());
+        // Enter di kotak terakhir = simpan. Ini disengaja: mengetik seluruh form lalu
+        // menekan Enter langsung menyimpan pengiriman itu, tanpa memindahkan tangan
+        // ke tombol. Tanpa ini, Enter terasa seperti aplikasi macet.
+        txtPrice.addActionListener(e -> save());
     }
 
     private void recalculate() {
@@ -732,15 +833,14 @@ public class PanelTransaction extends JPanel {
     }
 
     /**
-     * Periksa isian yang sedang tertulis di form baris, tanpa menambahkan barisnya.
+     * Periksa isian yang sedang tertulis di form, tanpa menyimpan apa pun.
      *
-     * <p>Dipakai dua jalur: tombol Tambah Baris, dan tombol Simpan Transaksi saat form
-     * masih berisi isian yang belum ditambahkan sebagai baris — supaya keduanya menolak
-     * isian yang sama dengan alasan yang sama.
+     * <p>Dipakai tombol Simpan — satu-satunya jalur penyimpanan sekarang — supaya
+     * isian yang buruk ditolak di sini, bukan jadi catatan yang salah di database.
      *
-     * @return true kalau isian layak ditambahkan sebagai baris.
+     * @return true kalau isian layak disimpan.
      */
-    private boolean isianLayakJadiBaris() {
+    private boolean isianLayakDisimpan() {
         String plat = Truck.normalizePlate(platText());
         if (plat == null || plat.isEmpty()) {
             setStatus("Plat truk belum diisi.");
@@ -797,9 +897,9 @@ public class PanelTransaction extends JPanel {
             return false;
         }
 
-        // Tanggal lunas hanya wajib kalau notanya ditandai sudah dibayar — keadaan
-        // "belum dibayar" bukan tanggal yang salah. Yang ditolak hanya tanggal yang
-        // diisi tapi salah.
+        // Tanggal lunas hanya wajib kalau pengirimannya ditandai sudah dibayar —
+        // keadaan "belum dibayar" bukan tanggal yang salah. Yang ditolak hanya
+        // tanggal yang diisi tapi salah.
         if (chkPaid.isSelected()) {
             if (bacaTanggal(spPaid) == null) {
                 setStatus("Tanggal lunas tidak valid. Tulis seperti 05-10-2026.");
@@ -830,129 +930,19 @@ public class PanelTransaction extends JPanel {
         return true;
     }
 
-    private void addRow() {
-        if (!isianLayakJadiBaris()) {
-            return;
-        }
-        String plat = Truck.normalizePlate(platText());
-        String rental = Rental.normalizeName(rentalText());
-        BigDecimal fieldWeight = parseNumber(txtFieldWeight.getText());
-        BigDecimal factoryWeight = parseNumber(txtFactoryWeight.getText());
-        BigDecimal refraction = parseNumber(txtRefraction.getText());
-        BigDecimal price = parseNumber(txtPrice.getText());
-        LocalDate paid = chkPaid.isSelected() ? bacaTanggal(spPaid) : null;
-
-        // Truk hanya dicari dari daftar yang dimuat ke layar — TIDAK dari database.
-        // Mencarikan (apalagi membuatkan) truk di sini pernah menaburkan rental dan
-        // truk hantu di data master setiap kali baris dicoba lalu dibuang, dan rekap
-        // uang per pemilik ikut terpecah. Truk yang belum dikenal ditandai dengan
-        // nomor 0; TransactionDao yang membuatnya nanti, saat transaksinya
-        // benar-benar disimpan.
-        Truck dikenal = trukPerPlat.get(plat);
-
-        BigDecimal netWeight = Calculator.netWeight(factoryWeight, refraction);
-        BigDecimal amount = Calculator.totalAmount(netWeight, price);
-
-        TransactionDetail d = new TransactionDetail();
-        d.setTruckId(dikenal == null ? 0 : dikenal.getTruckId());
-        d.setPlate(plat);
-        d.setRentalName(rental);
-        d.setFieldWeight(fieldWeight);
-        d.setFactoryWeight(factoryWeight);
-        d.setRefractionPercent(refraction);
-        d.setNetWeight(netWeight);
-        d.setPrice(price);
-        d.setTotalAmount(amount);
-        d.setPaymentDate(paid);
-
-        detailList.add(d);
-        model.addRow(new Object[]{
-                plat, rental,
-                Calculator.formatCurrency(fieldWeight), Calculator.formatCurrency(factoryWeight), Calculator.formatCurrency(refraction),
-                Calculator.formatCurrency(netWeight), Dates.format(paid),
-                "Rp " + Calculator.formatCurrency(price), "Rp " + Calculator.formatCurrency(amount)});
-        setStatus("");
-        clearInput();
-        updateTotal();
-    }
-
-    private void removeRow() {
-        int i = table.getSelectedRow();
-        if (i < 0) {
-            setStatus("Pilih dulu baris yang mau dihapus.");
-            return;
-        }
-        detailList.remove(i);
-        model.removeRow(i);
-        setStatus("");
-        updateTotal();
-    }
-
-    /** Jumlah uang seluruh baris yang sudah masuk daftar. */
-    private static BigDecimal totalOf(List<TransactionDetail> details) {
-        BigDecimal total = BigDecimal.ZERO;
-        for (TransactionDetail d : details) {
-            total = total.add(d.getTotalAmount());
-        }
-        return total;
-    }
-
-    private void updateTotal() {
-        lblTotal.setText("Rp " + Calculator.formatCurrency(totalOf(detailList)));
-    }
-
-    private void setStatus(String message) {
-        lblStatus.setText(message == null ? "" : message);
-    }
-
-    private void clearInput() {
-        txtFieldWeight.setText("");
-        txtFactoryWeight.setText("");
-        txtPrice.setText("");
-        Theme.clearErrors(txtFieldWeight, txtFactoryWeight, txtRefraction, txtPrice);
-        setValue(lblNetWeight, EMPTY);
-        setValue(lblTotalAmount, EMPTY);
-    }
-
-    private void newTransaction() {
-        detailList.clear();
-        model.setRowCount(0);
-        updateTotal();
-        setStatus("");
-        spDate.setValue(new Date());
-        // Nota baru dimulai dari keadaan "sudah dibayar" — keadaan yang paling sering.
-        chkPaid.setSelected(true);
-        spPaid.setEnabled(true);
-        spPaid.setValue(new Date());
-        clearInput();
-        Theme.clearErrors(cmbRental, kotakTanggal(spDate), kotakTanggal(spPaid));
-        riwayatTable.clearSelection();
-        recalculate();
-    }
-
     private void save() {
-        // Isian yang belum ditambahkan sebagai baris jangan dibuang diam-diam:
-        // operator menekan Simpan dan mengira semuanya tersimpan, padahal isian itu
-        // tidak ikut. Tawarkan menyimpannya, atau beri tahu apa yang kurang.
-        if (formTerisi()) {
-            if (!isianLayakJadiBaris()) {
-                // Pesan kekurangannya sudah tampil di baris status dan kotaknya
-                // ditandai merah — sama seperti saat menekan Tambah Baris.
-                return;
-            }
-            int jwb = JOptionPane.showConfirmDialog(this,
-                    "Ada isian yang belum ditambahkan sebagai baris. Simpan juga?",
-                    "Isian belum ditambahkan", JOptionPane.YES_NO_CANCEL_OPTION,
-                    JOptionPane.QUESTION_MESSAGE);
-            if (jwb == JOptionPane.CANCEL_OPTION) {
-                return;
-            }
-            if (jwb == JOptionPane.YES_OPTION) {
-                addRow();
-            }
+        if (sedangProses) {
+            return;
         }
-        if (detailList.isEmpty()) {
-            setStatus("Belum ada baris. Isi dulu satu baris truk.");
+        // Form yang kosong ditolak di sini, bukan di isianLayakDisimpan(): kotak yang
+        // dikosongkan memang seharusnya kosong setelah simpan sukses, jadi menandainya
+        // merah justru menuduh operator salah. Ini juga setengah dari penjaga simpan
+        // ganda — lihat catatan panjang di bawah.
+        if (!formTerisi()) {
+            setStatus("Form masih kosong. Isi dulu satu pengiriman.");
+            return;
+        }
+        if (!isianLayakDisimpan()) {
             return;
         }
         LocalDate tanggal = bacaTanggal(spDate);
@@ -961,30 +951,116 @@ public class PanelTransaction extends JPanel {
             kotakTanggal(spDate).requestFocusInWindow();
             return;
         }
+        sedangProses = true;
         try {
-            Transaction t = new Transaction();
-            t.setDate(tanggal);
-            // Total dihitung sebelum daftar dikosongkan oleh newTransaction().
-            BigDecimal total = totalOf(detailList);
-            int rows = detailList.size();
+            String plat = Truck.normalizePlate(platText());
+            String rental = Rental.normalizeName(rentalText());
+            BigDecimal fieldWeight = parseNumber(txtFieldWeight.getText());
+            BigDecimal factoryWeight = parseNumber(txtFactoryWeight.getText());
+            BigDecimal refraction = parseNumber(txtRefraction.getText());
+            BigDecimal price = parseNumber(txtPrice.getText());
+            LocalDate paid = chkPaid.isSelected() ? bacaTanggal(spPaid) : null;
+            BigDecimal amount = Calculator.totalAmount(
+                    Calculator.netWeight(factoryWeight, refraction), price);
 
-            transactionDao.save(t, detailList);
+            if (detailDiubah != null) {
+                transactionDao.updateDelivery(detailDiubah, tanggal, plat, rental,
+                        fieldWeight, factoryWeight, refraction, paid, price);
+            } else {
+                // Truk hanya dicari dari daftar yang dimuat ke layar — TIDAK dari database.
+                // Mencarikan (apalagi membuatkan) truk di sini pernah menaburkan rental dan
+                // truk hantu di data master setiap kali penyimpanan dicoba lalu gagal, dan
+                // rekap uang per pemilik ikut terpecah. Truk yang belum dikenal ditandai
+                // dengan nomor 0; TransactionDao yang membuatnya nanti, di dalam
+                // transaksi simpannya sendiri.
+                Truck dikenal = trukPerPlat.get(plat);
 
-            // Daftar dikosongkan dan riwayat disegarkan SEBELUM dialog sukses: kalau
-            // dialognya gagal (mis. galat grafis), daftar sudah bersih, jadi operator
-            // yang menekan Simpan lagi tidak bisa membuat notanya tercatat dua kali.
-            newTransaction();
+                Transaction t = new Transaction();
+                t.setDate(tanggal);
+                TransactionDetail d = new TransactionDetail();
+                d.setTruckId(dikenal == null ? 0 : dikenal.getTruckId());
+                d.setPlate(plat);
+                d.setRentalName(rental);
+                d.setFieldWeight(fieldWeight);
+                d.setFactoryWeight(factoryWeight);
+                d.setRefractionPercent(refraction);
+                d.setNetWeight(Calculator.netWeight(factoryWeight, refraction));
+                d.setPrice(price);
+                d.setTotalAmount(amount);
+                d.setPaymentDate(paid);
+                List<TransactionDetail> daftar = new ArrayList<>();
+                daftar.add(d);
+                transactionDao.save(t, daftar);
+            }
+
+            // Penjaga simpan ganda — klik yang sama dua kali, atau Enter dua kali.
+            // Tidak ada utas latar di aplikasi ini: panggilan DAO berjalan serentak di
+            // EDT, jadi menonaktifkan tombol selama penulisan TIDAK menahan klik
+            // kedua — klik itu terkirim SETELAH pengelola ini selesai, saat tombolnya
+            // sudah aktif lagi. Yang benar-benar bekerja adalah dua hal ini: bentuk
+            // dikosongkan dan mode ubah ditinggalkan SEBELUM dialog sukses ditampilkan
+            // (klik kedua menemukan form kosong dan ditolak di atas), dan bendera
+            // sedangProses tetap terpasang sampai dialognya ditutup (klik kedua yang
+            // terkirim oleh putaran kejadian dialog ditolak di paling atas).
+            kembaliKeTambah();
             muatRiwayat();
 
             JOptionPane.showMessageDialog(this,
-                    "Transaksi tersimpan.\n"
-                            + rows + " baris, total Rp " + Calculator.formatCurrency(total),
+                    "Pengiriman " + plat + " tanggal " + Dates.format(tanggal)
+                            + " tersimpan.\nRp " + Calculator.formatCurrency(amount),
                     "Tersimpan", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             Theme.showError(this, e);
+        } finally {
+            sedangProses = false;
         }
     }
 
+    /**
+     * Kembali ke keadaan menambah pengiriman baru, sekaligus mengosongkan bekas
+     * isian: bobot, harga, plat, dan rental.
+     *
+     * <p>Tanggal TIDAK direset: tanggal biasanya berulang dalam satu rombongan,
+     * sedangkan plat hampir tidak pernah, dan plat yang tertinggal diam-diam
+     * mencatat pengiriman di bawah uang pemilik yang salah.
+     */
+    private void kembaliKeTambah() {
+        detailDiubah = null;
+        judulKartu.setText("Catat Pengiriman");
+        btnSimpan.setText("Simpan");
+        btnBatal.setVisible(false);
+        cmbPlate.getEditor().setItem("");
+        cmbRental.getEditor().setItem("");
+        platTersinkron = "";
+        txtFieldWeight.setText("");
+        txtFactoryWeight.setText("");
+        txtPrice.setText("");
+        Theme.clearErrors(txtFieldWeight, txtFactoryWeight, txtRefraction, txtPrice,
+                cmbRental, kotakTanggal(spPaid));
+        setValue(lblNetWeight, EMPTY);
+        setValue(lblTotalAmount, EMPTY);
+        setStatus("");
+        riwayatTable.clearSelection();
+    }
+
+    private void setStatus(String message) {
+        lblStatus.setText(message == null ? "" : message);
+    }
+
+    /**
+     * Tulis angka BigDecimal kembali ke kotak isian dengan koma sebagai pemisah
+     * desimal — kebalikan dari {@link #parseNumber(String)}, supaya isian yang
+     * dimuat ulang terbaca sama dengan saat ditulis.
+     */
+    private static String tulisAngka(BigDecimal v) {
+        if (v == null) {
+            return "";
+        }
+        // Nol di ekor dibuang: database menyimpan dua angka desimal, jadi 7050
+        // terbaca balik sebagai 7050,00 — operator melihat angka yang tidak
+        // pernah ditulisnya.
+        return v.stripTrailingZeros().toPlainString().replace('.', ',');
+    }
 
     /**
      * Baca angka yang diketik. Titik dipakai sebagai pemisah ribuan dan koma sebagai
