@@ -68,6 +68,7 @@ public class PagePanel extends JPanel {
      * @param keterangan satu baris penjelasan isi halaman
      */
     public void showPanel(JPanel panel, String pageName, String keterangan) {
+        header.setPage(pageName, keterangan);
         header.refreshDate();
         if (nav != null) {
             nav.setActive(pageName);

@@ -61,6 +61,11 @@ public class TestUi {
         // Pemeriksaan yang tidak lewat gambar: bilah atas harus menulis nama HALAMAN,
         // bukan nama aplikasi. Nama aplikasi sudah ada di judul jendela.
         check("bilah atas menulis nama halaman", headerMenulisNamaHalaman());
+        // Judul di bilah atas harus ikut berubah saat halaman dipindah. Pemeriksaan di
+        // atas menguji HeaderBar langsung, jadi ia tetap hijau walaupun sambungannya
+        // putus: pernah terjadi, showPanel berhenti memanggil setPage dan judulnya macet
+        // "Beranda" di semua halaman tanpa satu pun tes gagal.
+        check("judul bilah atas ikut pindah halaman", judulIkutPindahHalaman());
         // Tanggal panjang dipakai di kepala halaman; nama hari dan bulannya ditulis
         // sendiri, jadi hasilnya tidak boleh berubah mengikuti data bahasa komputer.
         check("tanggal panjang berbahasa Indonesia", tanggalPanjang());
@@ -156,6 +161,32 @@ public class TestUi {
         boolean bukanNamaAplikasi = !bar.pageName().contains("Kaspe");
         boolean adaTanggal = bar.dateText() != null && !bar.dateText().isEmpty();
         return awalBenar && gantiBenar && keteranganBenar && bukanNamaAplikasi && adaTanggal;
+    }
+
+    /**
+     * Judul di bilah atas benar-benar berubah saat halaman dipindah.
+     *
+     * <p>Diperiksa lewat {@code showPanel}, bukan lewat {@code HeaderBar} langsung -
+     * justru sambungan itulah yang pernah putus tanpa ada yang menyadari.
+     */
+    private static boolean judulIkutPindahHalaman() throws Exception {
+        PagePanel halaman = new PagePanel();
+        PagePanel.shell(halaman);
+        HeaderBar bar = (HeaderBar) field(halaman, "header");
+
+        halaman.showPanel(new PanelReport(), "Laporan", "Rekap penjualan per periode.");
+        if (!"Laporan".equals(bar.pageName())) {
+            System.out.println("        setelah pindah, bilah atas masih menulis \""
+                    + bar.pageName() + "\", seharusnya \"Laporan\"");
+            return false;
+        }
+        halaman.showPanel(new PanelMaster(), "Data Master", "Kelola data.");
+        if (!"Data Master".equals(bar.pageName())) {
+            System.out.println("        setelah pindah kedua, bilah atas menulis \""
+                    + bar.pageName() + "\", seharusnya \"Data Master\"");
+            return false;
+        }
+        return true;
     }
 
     /**
