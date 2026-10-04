@@ -23,7 +23,7 @@ import java.sql.Statement;
  *   java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh
  *
  * Argumen kedua (opsional) menunjuk folder database yang sudah ada, dipakai untuk
- * memeriksa hasil render pratinjau (yang berisi satu nota tambahan):
+ * memeriksa hasil render pratinjau (yang berisi tiga pengiriman tambahan):
  *   java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh "" /tmp/kaspe-pratinjau
  *
  * Keluar dengan kode 1 kalau ada selisih.
@@ -62,10 +62,10 @@ public class PeriksaDataContoh {
                 }
             }
 
-            int nota = 0;
+            int pengiriman = 0;
             try (ResultSet r = s.executeQuery("SELECT COUNT(*) FROM transaksi")) {
                 r.next();
-                nota = r.getInt(1);
+                pengiriman = r.getInt(1);
             }
 
             int baris = 0;
@@ -100,7 +100,7 @@ public class PeriksaDataContoh {
 
             System.out.println("sumber          = " + (pakaiBerkas ? berkas.toString()
                     : "database " + rumah.resolve("kaspe/db_kaspe")));
-            System.out.println("nota            = " + nota);
+            System.out.println("pengiriman      = " + pengiriman);
             System.out.println("baris diperiksa = " + baris);
             System.out.println("selisih berat   = " + selisihBerat);
             System.out.println("selisih uang    = " + selisihUang);

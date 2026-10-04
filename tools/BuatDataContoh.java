@@ -16,7 +16,7 @@ import java.time.LocalDate;
  *   javac -cp build -d /tmp/tools tools/BuatDataContoh.java
  *   java -cp "build:/tmp/tools" BuatDataContoh docs/data-contoh.sql
  *
- * Isinya: 23 nota, 64 baris, Juli sampai September 2026.
+ * Isinya: 64 pengiriman, satu catatan per pengiriman, Juli sampai September 2026.
  */
 public class BuatDataContoh {
 

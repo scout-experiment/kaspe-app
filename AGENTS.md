@@ -76,7 +76,7 @@ Never re-implement these inline in UI or DAO code; call `Calculator` so UI, repo
 | `src/kaspe/test/` | Hand-rolled test harness (no JUnit) |
 | `src/kaspe/schema.sql` | Bundled DDL + `v_transaksi` view; run by the app at first start |
 | `src/kaspe.properties` | Bundled DB config (H2 active, MySQL block commented) |
-| `docs/` | `specification.md` (system spec), `data-contoh.sql` (sample data, 23 legacy headers / 64 deliveries, split to 1:1 on first start) |
+| `docs/` | `specification.md` (system spec), `data-contoh.sql` (sample data, 64 deliveries already in 1:1 shape) |
 | `tools/` | Demo helpers, **not** part of the app (see below) |
 | `preview/` | Static browser preview page + PNGs, generated artifacts |
 | `lib/` | Vendored jars: `flatlaf-3.7.2.jar`, `flatlaf-fonts-inter-3.19.jar`, `h2-2.1.214.jar`. `mysql-connector-j-9.1.0.jar` is GPLv2 and is deliberately NOT published (gitignored, absent from `javac.classpath` and `manifest.mf`); MySQL mode needs the user to drop it into `lib/` themselves. It is runtime-only (`Db` loads it via `Class.forName`), so nothing breaks without it. |

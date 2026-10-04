@@ -453,7 +453,8 @@ hasilnya ke `preview/*.png`. Jadi gambarnya sama dengan aplikasi yang dijalankan
 
 ## Data contoh
 
-`docs/data-contoh.sql` berisi 23 nota (64 baris) dari Juli sampai September 2026 — dipakai untuk
+`docs/data-contoh.sql` berisi 64 pengiriman (satu catatan per pengiriman) dari Juli sampai
+September 2026 — dipakai untuk
 demo dan untuk membuat gambar pratinjau. Semua angkanya mengikuti rumus yang sama dengan aplikasi.
 
 **Memakainya.** Jalankan aplikasi sekali supaya tabelnya terbentuk (database H2 dibuat sendiri
@@ -465,7 +466,7 @@ java -cp lib/h2-2.1.214.jar org.h2.tools.RunScript \
   -user sa -password "" -script docs/data-contoh.sql
 ```
 
-Buka aplikasi lagi — 23 nota itu sudah ada. Berkas ini **mengganti** seluruh isi database
+Buka aplikasi lagi — 64 pengiriman itu sudah ada. Berkas ini **mengganti** seluruh isi database
 (diawali `DELETE`), jadi jangan dipakai pada database yang sudah berisi data penting.
 
 > [!NOTE]
@@ -494,7 +495,7 @@ java -cp "build:lib/*:/tmp/tools" PeriksaDataContoh
 Hasil pemeriksaan yang benar:
 
 ```
-nota            = 23
+pengiriman      = 64
 baris diperiksa = 64
 selisih berat   = 0
 selisih uang    = 0
@@ -584,7 +585,7 @@ kaspe-app/
                            untuk mengganti pengaturan tanpa membongkar aplikasi
   src/kaspe/schema.sql     skema database, dijalankan sendiri oleh aplikasi
   docs/specification.md    spesifikasi sistem
-  docs/data-contoh.sql     data contoh (23 nota, 64 baris) untuk demo
+  docs/data-contoh.sql     data contoh (64 pengiriman) untuk demo
   tools/                   program bantu (lihat di bawah)
   preview/                 halaman pratinjau + gambar
   lib/                     file jar pendukung
@@ -598,7 +599,7 @@ Isi `tools/` — bukan bagian dari aplikasi, hanya untuk keperluan demo:
 
 | Berkas | Gunanya |
 |---|---|
-| `BuatDataContoh.java` | membuat `docs/data-contoh.sql` (23 nota) memakai `Calculator` |
+| `BuatDataContoh.java` | membuat `docs/data-contoh.sql` (64 pengiriman, satu catatan per pengiriman) memakai `Calculator` |
 | `PeriksaDataContoh.java` | menghitung ulang data contoh dan membandingkannya dengan rumus aplikasi |
 | `BuatPratinjau.java` | menjalankan aplikasi lalu menggambar jendelanya ke `preview/*.png` |
 
