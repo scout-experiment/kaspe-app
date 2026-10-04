@@ -262,7 +262,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 21, `TestDao` 35, `TestAlur` 63, `TestUi` 23 — **149 lulus, 0 gagal**.
+`TestDatabase` 21, `TestDao` 35, `TestAlur` 63, `TestUi` 24 — **150 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

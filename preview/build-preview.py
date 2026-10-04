@@ -23,7 +23,7 @@ GALERI = [
      "terhitung otomatis, dan tiap baris langsung masuk ke tabel."),
     ("03-transaction-saved.png", "Transaksi tersimpan",
      "Setelah disimpan, angka timbangan dikosongkan dan tanggalnya kembali ke hari ini. "
-     "Plat dan rental sengaja dibiarkan terisi — biasanya nota berikutnya masih truk yang sama."),
+     "Plat dan rental masih terisi dari nota sebelumnya."),
     ("04-master.png", "Data master",
      "Kiri daftar pemilik truk, kanan truk milik pemilik yang sedang disorot. Pemiliknya "
      "tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang yang salah."),
@@ -314,7 +314,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>149 lulus <span>0 gagal</span></dd>
+        <dd>150 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>
