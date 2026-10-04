@@ -3,6 +3,7 @@ package kaspe.test;
 import kaspe.Db;
 import kaspe.Schema;
 import kaspe.Calculator;
+import kaspe.dao.BackupDao;
 import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
 import kaspe.model.*;
@@ -748,6 +749,8 @@ public class TestDao {
         System.out.println("\n11. Hapus truk/rental yang masih dipakai riwayat ditolak ...");
         ujiHapusMaster(master, transactionDao);
 
+        System.out.println("\n12. Cadangan database non-H2 ditolak dengan jelas ...");
+        ujiCadangkan();
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
@@ -856,6 +859,32 @@ public class TestDao {
             }
         }
         record(!rentalKosongMasih, "hapus master: rental tanpa truk terhapus");
+    }
+
+    /**
+     * Uji cadangan database.
+     *
+     * <p>H2 menolak {@code BACKUP TO} untuk database in-memory ("Database is
+     * not persistent", dicek dengan uji coba langsung), jadi cadangan
+     * sungguhan tidak bisa diuji dari sini. Yang diuji: konfigurasi non-H2
+     * (MySQL/MariaDB) ditolak dengan pesan yang jelas, bukan pura-pura
+     * berhasil. Mekanisme {@code BACKUP TO} untuk H2 file sudah diverifikasi
+     * dengan uji coba terpisah: file zip tertulis dan isinya tidak kosong.
+     */
+    private static void ujiCadangkan() throws Exception {
+        Db.setConfiguration("org.h2.Driver", "jdbc:mysql://server/db_kaspe", "sa", "");
+        try {
+            BackupDao.cadangkan();
+            record(false, "cadangan: konfigurasi non-H2 ditolak, bukan pura-pura berhasil");
+        } catch (SQLException e) {
+            System.out.println("   ditolak: " + e.getMessage().split("\n")[0]);
+            record(e.getMessage() != null && e.getMessage().contains("MySQL"),
+                    "cadangan: konfigurasi non-H2 ditolak dengan pesan yang jelas");
+        } finally {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:daotest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+        }
     }
 
     private static TransactionDetail makeDetail(Truck truck, long fieldWeight, long factoryWeight, int refraction, long price) {

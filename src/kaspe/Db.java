@@ -36,6 +36,8 @@ public final class Db {
 
     /** Database yang tabelnya sudah dipastikan ada, supaya tidak dicek berulang. */
     private static String preparedUrl;
+    /** Pesan penolakan setelan; null berarti setelan boleh dipakai. Diisi oleh {@link #load()}. */
+    private static String configError;
 
     static {
         load();
@@ -50,25 +52,65 @@ public final class Db {
         // bisa mengubah pengaturan tanpa membongkar jar. Kalau tidak ada,
         // dipakai pengaturan bawaan yang ikut di dalam aplikasi.
         File external = findExternalConfig();
+        String sumber = null;
+        boolean terbaca = false;
         if (external != null) {
+            sumber = external.getAbsolutePath();
             try (InputStream in = new FileInputStream(external)) {
                 p.load(in);
+                terbaca = true;
             } catch (Exception e) {
-                // pakai pengaturan bawaan
+                // berkasnya ada tetapi isinya tidak terbaca — ditolak di bawah
             }
         } else {
             try (InputStream in = Db.class.getResourceAsStream("/" + CONFIG_FILE)) {
                 if (in != null) {
+                    sumber = CONFIG_FILE + " yang terpasang di dalam aplikasi";
                     p.load(in);
+                    terbaca = true;
                 }
             } catch (Exception e) {
-                // pakai default kalau file tidak ada
+                // berkasnya ada tetapi isinya tidak terbaca — ditolak di bawah
             }
+        }
+        String dbUrl = p.getProperty("db.url");
+        if (sumber != null && (dbUrl == null || dbUrl.trim().isEmpty())) {
+            // Berkas yang ada tetapi tidak berkata letak databasenya berarti niat
+            // penggunanya tidak diketahui. Menebak "H2 lokal" persis pemindahan
+            // database diam-diam yang dilarang, jadi aplikasi menolak jalan.
+            // Tidak melempar dari sini — pemuat kelas statis hanya akan
+            // menerjemahkannya jadi ExceptionInInitializerError yang buruk
+            // rupanya; penolakannya dibaca Main dan get().
+            configError = "Setelan database tidak bisa dipakai:\n  " + sumber + "\n"
+                    + (terbaca ? "Berkasnya ada tetapi tidak memuat db.url."
+                               : "Berkasnya ada tetapi tidak bisa dibaca.")
+                    + "\n\nPerbaiki berkas itu"
+                    + (external != null
+                            ? ", atau ganti namanya (mis. menjadi " + CONFIG_FILE
+                                    + ".rusak) supaya aplikasi memakai database bawaan."
+                            : " lalu pasang ulang aplikasinya, atau taruh " + CONFIG_FILE
+                                    + " yang benar di folder sebelah aplikasi — berkas di "
+                                    + "sebelah aplikasi selalu menimpa yang di dalam.");
+            return;
         }
         driver = p.getProperty("db.driver", driver);
         url = expand(p.getProperty("db.url", url));
         user = p.getProperty("db.user", user);
         pass = p.getProperty("db.password", pass);
+    }
+
+    /**
+     * Pesan penolakan setelan, atau null kalau setelan boleh dipakai.
+     *
+     * <p>Terisi kalau berkas {@code kaspe.properties} ada tetapi tidak menyebut
+     * {@code db.url} — termasuk yang tidak terbaca, kosong, atau isinya hanya
+     * komentar. Berkas yang tidak ada bukan masalah: pengaturan bawaan memang
+     * dipakai untuk itu. {@code Main} memeriksanya sebelum jendela dibuat;
+     * {@link #get()} juga menolak dengan pesan yang sama supaya jalan lain
+     * (alat, uji) tidak bisa lolos.
+     */
+    public static String configError() {
+        return configError;
     }
 
     /**
@@ -114,6 +156,9 @@ public final class Db {
         pass = newPass;
         driverLoaded = false;
         preparedUrl = null;
+        // Setelan sudah ditunjuk langsung oleh pemanggil: penolakan berkas
+        // kaspe.properties tidak berlaku lagi.
+        configError = null;
     }
 
     private static void ensureDriver() {
@@ -134,6 +179,11 @@ public final class Db {
      * otomatis kalau memang belum ada.
      */
     public static Connection get() throws SQLException {
+        if (configError != null) {
+            // Menolak sebelum menyentuh apa pun: selama letak database diragukan,
+            // jangan buat file H2, jangan buat tabel, jangan buka koneksi.
+            throw new SQLException(configError);
+        }
         ensureDriver();
         createDatabaseFolder();
         Connection c;

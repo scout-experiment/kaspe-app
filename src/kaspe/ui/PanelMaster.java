@@ -1,8 +1,11 @@
 package kaspe.ui;
 
+import kaspe.dao.BackupDao;
 import kaspe.dao.MasterDao;
 import kaspe.model.Rental;
 import kaspe.model.Truck;
+
+import java.io.File;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
@@ -124,6 +127,9 @@ public class PanelMaster extends JPanel {
         tombol.add(btnTambah);
         tombol.add(btnUbahRental);
         tombol.add(btnHapusRental);
+        JButton btnCadangkan = Theme.plain("Cadangkan Database");
+        btnCadangkan.addActionListener(e -> cadangkanDatabase());
+        tombol.add(btnCadangkan);
 
         g.gridy = 1;
         g.insets = new Insets(0, 0, 0, 0);
@@ -417,6 +423,19 @@ public class PanelMaster extends JPanel {
             return;
         }
         try {
+            // Penolakan diperiksa SEBELUM konfirmasi: kalau DAO pasti menolak,
+            // meminta "Ya" lebih dulu hanya menjanjikan hal yang tidak bisa
+            // ditepati. DAO tetap dipanggil walau pasti ditolak, supaya pesan
+            // penolakannya datang dari satu tempat, bukan disalin ke sini.
+            if (dao.countTrucksForRental(rentalId) > 0) {
+                try {
+                    dao.deleteRental(rentalId);
+                } catch (IllegalStateException e) {
+                    JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
+                            JOptionPane.INFORMATION_MESSAGE);
+                }
+                return;
+            }
             if (JOptionPane.showConfirmDialog(this, "Hapus rental ini?", "Konfirmasi",
                     JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
                 return;
@@ -428,6 +447,9 @@ public class PanelMaster extends JPanel {
             // Ini penolakan yang disengaja, bukan galat: database sehat dan tidak ada
             // yang berubah, jadi prefiks "Gagal: " dari Theme.showError akan terbaca
             // seperti programnya rusak. Penjelasan lengkapnya dibawa pesan DAO.
+            // (Sekarang nyaris tak terjangkau karena sudah dicek di depan, tapi
+            // aplikasi boleh dipakai beberapa komputer lewat MySQL, dan komputer
+            // lain bisa menambah truk di antara pemeriksaan dan penghapusan.)
             JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
                     JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
@@ -501,17 +523,30 @@ public class PanelMaster extends JPanel {
             JOptionPane.showMessageDialog(this, "Pilih dulu truk yang mau dihapus.");
             return;
         }
-        if (JOptionPane.showConfirmDialog(this, "Hapus truk ini?", "Konfirmasi",
-                JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
-            return;
-        }
         try {
+            // Sama seperti hapus rental: penolakan DAO diperiksa sebelum
+            // konfirmasi, dan pesannya diambil dari DAO dengan memanggilnya
+            // (yang pasti menolak), bukan disalin ke sini.
+            if (dao.countDeliveriesForTruck(truckId) > 0) {
+                try {
+                    dao.deleteTruck(truckId);
+                } catch (IllegalStateException e) {
+                    JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
+                            JOptionPane.INFORMATION_MESSAGE);
+                }
+                return;
+            }
+            if (JOptionPane.showConfirmDialog(this, "Hapus truk ini?", "Konfirmasi",
+                    JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+                return;
+            }
             dao.deleteTruck(truckId);
             load();
         } catch (IllegalStateException e) {
             // Penolakan yang disengaja: truknya masih dipakai riwayat, dan DAO sudah
             // menolaknya sebelum ada yang terhapus. Bukan galat, jadi jangan pakai
-            // prefiks "Gagal: ".
+            // prefiks "Gagal: ". (Nyaris tak terjangkau karena sudah dicek di depan,
+            // tapi komputer lain lewat MySQL bisa menambah catatan di antaranya.)
             JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
                     JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
@@ -519,6 +554,35 @@ public class PanelMaster extends JPanel {
         }
     }
 
+
+    /**
+     * Cadangkan seluruh database bawaan ke satu file zip berstempel waktu.
+     *
+     * <p>Database bawaan (H2) tersimpan sebagai satu file di komputer pengguna,
+     * dan aplikasi sekarang ikut menulis ke file itu setiap kali dijalankan —
+     * jadi file yang rusak atau terhapus berarti seluruh catatan hilang. Satu
+     * salinan cadangan yang bisa dibawa pulang adalah satu-satunya jalan pulih.
+     *
+     * <p>Diminta konfirmasi dulu karena menulis file baru, lalu letak file
+     * hasilnya diberitahukan lengkap — cadangan yang tidak ketemu sama saja
+     * dengan tidak ada cadangan.
+     */
+    private void cadangkanDatabase() {
+        if (JOptionPane.showConfirmDialog(this,
+                "Buat cadangan database sekarang?\nFile cadangannya ditulis ke folder "
+                        + "cadangan di samping file databasenya.",
+                "Cadangkan Database", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            File hasil = BackupDao.cadangkan();
+            JOptionPane.showMessageDialog(this,
+                    "Cadangan berhasil dibuat:\n" + hasil.getAbsolutePath(),
+                    "Cadangan Database", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
 
     /**
      * Pindahkan truk yang sedang disorot ke pemilik lain.

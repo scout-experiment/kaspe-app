@@ -1,8 +1,11 @@
 package kaspe.ui;
 
 import kaspe.Calculator;
+import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
 import kaspe.model.ReportRow;
+import kaspe.model.Rental;
+import kaspe.model.Truck;
 import kaspe.util.Dates;
 
 import javax.swing.*;
@@ -24,6 +27,11 @@ public class PanelReport extends JPanel {
     private final JSpinner spFrom = dateSpinner();
     private final JSpinner spTo = dateSpinner();
 
+    private final JComboBox<Object> cmbRental = new JComboBox<>();
+    private final JTextField txtPlat = new JTextField();
+    /** Pilihan pertama kotak rental saringan: tanpa penyaring rental. */
+    private static final String SEMUA_RENTAL = "Semua rental";
+
     private final DefaultTableModel model = new DefaultTableModel(
             new Object[]{"Tanggal", "Plat", "Rental", "Bobot Lapak", "Bobot Pabrik",
                     "Refraksi (%)", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
@@ -39,16 +47,20 @@ public class PanelReport extends JPanel {
     /** Pesan kesalahan isian, ditulis di baris filter — dekat kotak yang salah. */
     private final JLabel lblStatus = new JLabel();
     /**
-     * Rentang tanggal yang benar-benar diterapkan ke tabel oleh {@link #reload()} yang
-     * berhasil — dipakai kaki cetakan.
+     * Rentang tanggal, rental, dan plat yang benar-benar diterapkan ke tabel oleh
+     * {@link #reload()} yang berhasil — dipakai kaki cetakan.
      *
-     * <p>Yang tertulis di kotak tanggal bisa saja belum diterapkan: operator mengubah
-     * tanggal lalu langsung menekan Cetak/Pratinjau tanpa menekan "Tampilkan". Kertas
-     * harus menuliskan periode yang benar-benar sedang ditampilkan tabel, bukan yang
-     * baru diketik, supaya baris dan total di kertas tetap satu periode dengan kakinya.
+     * <p>Yang tertulis di kotak saringan bisa saja belum diterapkan: operator mengubah
+     * isiannya lalu langsung menekan Cetak/Pratinjau tanpa menekan "Tampilkan". Kertas
+     * harus menuliskan periode dan saringan yang benar-benar sedang ditampilkan tabel,
+     * bukan yang baru diketik, supaya baris dan total di kertas tetap satu keterangan
+     * dengan kakinya. Saringan rental/plat terutama: cetakan sebagian data harus
+     * menyebut bagiannya, sebab kertas ini dipakai menyetorkan uang.
      */
     private LocalDate fromTabel;
     private LocalDate toTabel;
+    private String rentalTabel;
+    private String platTabel;
 
     private final TransactionDao transactionDao = new TransactionDao();
 
@@ -120,6 +132,12 @@ public class PanelReport extends JPanel {
         }
     }
 
+    /**
+     * Baris saringan laporan: rentang tanggal, rental, dan sepenggal plat — sama
+     * seperti saringan riwayat di halaman Transaksi, supaya dua layar ini berkelakuan
+     * sama. Semua isian dijaga seukuran tetap supaya barisnya tetap satu baris pada
+     * jendela bawaan; kolom tabel tidak boleh dikecilkan demi memuatnya.
+     */
     private JPanel buildFilter() {
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         Theme.applyCard(p);
@@ -127,11 +145,18 @@ public class PanelReport extends JPanel {
         p.add(spFrom);
         p.add(Theme.label("Sampai"));
         p.add(spTo);
+        p.add(Theme.label("Rental"));
+        p.add(sized(cmbRental, 150));
+        p.add(Theme.label("Plat"));
+        p.add(sized(txtPlat, 110));
 
         JButton btnShow = Theme.primary("Tampilkan");
         JButton btnPreview = Theme.plain("Pratinjau");
         JButton btnPrint = Theme.plain("Cetak");
         btnShow.addActionListener(e -> reload());
+        // Enter pada kotak plat memuat ulang laporan, sama seperti Enter pada kotak
+        // plat di halaman Transaksi: mengetik lalu Enter langsung diterapkan.
+        txtPlat.addActionListener(e -> reload());
         btnPreview.addActionListener(e -> pratinjau());
         btnPrint.addActionListener(e -> print());
         p.add(btnShow);
@@ -144,6 +169,12 @@ public class PanelReport extends JPanel {
         lblStatus.setForeground(Theme.DANGER);
         p.add(lblStatus);
         return p;
+    }
+
+    /** Samakan tinggi kotak saringan, sama seperti di halaman Transaksi. */
+    private static <T extends JComponent> T sized(T c, int width) {
+        c.setPreferredSize(new Dimension(width, Theme.FIELD_HEIGHT));
+        return c;
     }
 
     private JPanel buildSummary() {
@@ -185,8 +216,14 @@ public class PanelReport extends JPanel {
             return;
         }
         lblStatus.setText("");
+        // Daftar rental disegarkan tiap kali dimuat ulang: rental bisa bertambah dari
+        // halaman Transaksi sewaktu halaman ini terbuka. Pilihan yang sedang dipakai
+        // dipulihkan setelahnya supaya menyegarkan tidak menggeser saringan.
+        isiRentalSaringan();
+        String rental = rentalSaringan();
+        String plat = txtPlat.getText();
         try {
-            List<ReportRow> row = transactionDao.listReport(from, to);
+            List<ReportRow> row = transactionDao.listReport(from, to, rental, plat);
             model.setRowCount(0);
             BigDecimal totalAmount = BigDecimal.ZERO;
             BigDecimal totalWeight = BigDecimal.ZERO;
@@ -203,22 +240,66 @@ public class PanelReport extends JPanel {
             }
             lblTotalAmount.setText("Rp " + Calculator.formatCurrency(totalAmount));
             lblTotalWeight.setText(Calculator.formatCurrency(totalWeight) + " kg");
-            // Rentang yang baru boleh dipakai kaki cetakan setelah seluruh isi tabelnya
+            // Jumlah baris yang sedang tampil. Sempat hilang tanpa ketahuan: barisnya
+            // tertimpa blok lain, jadi labelnya terus menulis "0 baris" walaupun
+            // tabelnya penuh - dan angka itu ikut dibaca orang yang mencocokkan uang.
+            lblRowCount.setText(row.size() + " baris");
+            // Saringan yang baru boleh dipakai kaki cetakan setelah seluruh isi tabelnya
             // benar-benar diterapkan — kertas menuliskan apa yang sedang ditampilkan,
             // bukan apa yang baru diketik di kotak.
             fromTabel = from;
             toTabel = to;
+            rentalTabel = rental;
+            platTabel = plat == null ? null : plat.trim();
+            boolean tersaring = rental != null || (platTabel != null && !platTabel.isEmpty());
             // Dua keadaan kosong yang berbeda butuh penjelasan berbeda: belum punya data
-            // sama sekali, versus punya data tapi tidak ada yang masuk rentang tanggal.
-            // Pesan yang sama untuk keduanya membuat pengguna menduga aplikasinya rusak.
+            // sama sekali, versus ada data tetapi tidak ada yang lolos saringan. Pesan
+            // yang sama untuk keduanya membuat pengguna menduga aplikasinya rusak.
             table.setEmptyMessage(row.isEmpty()
                     ? (belumAdaData()
                             ? "Belum ada nota tersimpan. Catat dulu di halaman Transaksi."
-                            : "Tidak ada nota pada rentang tanggal ini. Coba lebarkan tanggalnya.")
+                            : tersaring
+                                    ? "Tidak ada nota yang cocok dengan saringan ini."
+                                    : "Tidak ada nota pada rentang tanggal ini. Coba lebarkan tanggalnya.")
                     : "");
         } catch (Exception e) {
             Theme.showError(this, e);
         }
+    }
+
+    /**
+     * Isi ulang daftar rental pada saringan dari data master, kata per kata seperti
+     * di halaman Transaksi. Pilihan yang sedang dipakai operator dipulihkan
+     * setelahnya; kalau pilihannya sudah tidak ada di data master, kembali ke
+     * "Semua rental".
+     */
+    private void isiRentalSaringan() {
+        Rental dipilih = cmbRental.getSelectedItem() instanceof Rental
+                ? (Rental) cmbRental.getSelectedItem() : null;
+        cmbRental.removeAllItems();
+        cmbRental.addItem(SEMUA_RENTAL);
+        try {
+            for (Rental r : new MasterDao().listRental()) {
+                cmbRental.addItem(r);
+            }
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+        cmbRental.setSelectedIndex(0);
+        if (dipilih != null) {
+            for (int i = 1; i < cmbRental.getItemCount(); i++) {
+                if (((Rental) cmbRental.getItemAt(i)).getRentalId() == dipilih.getRentalId()) {
+                    cmbRental.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
+    }
+
+    /** Nama rental yang dipilih di saringan, atau null kalau "Semua rental". */
+    private String rentalSaringan() {
+        Object pilihan = cmbRental.getSelectedItem();
+        return pilihan instanceof Rental ? ((Rental) pilihan).getRentalName() : null;
     }
 
     /**
@@ -242,19 +323,30 @@ public class PanelReport extends JPanel {
     }
 
     /**
-     * Kaki cetak: periode, total, dan nomor halaman.
+     * Kaki cetak: periode, saringan rental/plat (kalau ada), total, dan nomor halaman.
      *
      * <p>Periodenya diambil dari rentang yang diterapkan ke tabel, bukan dari kotak
      * tanggalnya: operator bisa mengubah tanggal lalu langsung menekan Cetak/Pratinjau,
-     * dan kertas harus menuliskan periode yang sama dengan baris dan totalnya.
+     * dan kertas harus menuliskan periode yang sama dengan baris dan totalnya. Begitu
+     * juga saringan rental/plat: kertas ini dipakai menyetorkan uang, jadi cetakan
+     * sebagian data harus menyebut bagiannya — tanpa itu, cetakan satu rental tidak
+     * bisa dibedakan dari cetakan seluruh rental. Kalau tidak ada saringan rental/plat,
+     * kakinya tertulis sama seperti sebelum ada saringan itu.
      */
     private MessageFormat kakiCetak() {
         Date dari = fromTabel == null ? null : toDate(fromTabel);
         Date sampai = toTabel == null ? null : toDate(toTabel);
-        return new MessageFormat(periodeRingkas(dari, sampai)
-                + "  ·  Total " + quote(lblTotalAmount.getText())
-                + "  ·  " + quote(lblTotalWeight.getText())
-                + "  ·  Hal. {0,number,integer}");
+        StringBuilder teks = new StringBuilder(periodeRingkas(dari, sampai));
+        if (rentalTabel != null && !rentalTabel.trim().isEmpty()) {
+            teks.append("  ·  Rental: ").append(quote(rentalTabel.trim()));
+        }
+        if (platTabel != null && !platTabel.trim().isEmpty()) {
+            teks.append("  ·  Plat: ").append(quote(Truck.normalizePlate(platTabel)));
+        }
+        teks.append("  ·  Total ").append(quote(lblTotalAmount.getText()))
+                .append("  ·  ").append(quote(lblTotalWeight.getText()))
+                .append("  ·  Hal. {0,number,integer}");
+        return new MessageFormat(teks.toString());
     }
 
     /**
@@ -265,11 +357,11 @@ public class PanelReport extends JPanel {
         if (!tanggalFilterSah()) {
             return;
         }
-        if (!tanggalSiapCetak("Pratinjau")) {
+        if (!saringanSiapCetak("Pratinjau")) {
             return;
         }
         if (table.getRowCount() == 0) {
-            JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak pada rentang tanggal ini.",
+            JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak dengan saringan ini.",
                     "Pratinjau", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
@@ -282,14 +374,14 @@ public class PanelReport extends JPanel {
         if (!tanggalFilterSah()) {
             return;
         }
-        if (!tanggalSiapCetak("Cetak")) {
+        if (!saringanSiapCetak("Cetak")) {
             return;
         }
 
         // Tabel tanpa baris tidak menghasilkan satu halaman pun, jadi tanpa pemeriksaan
         // ini menekan Cetak tidak melakukan apa-apa dan terlihat seperti aplikasi macet.
         if (table.getRowCount() == 0) {
-            JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak pada rentang tanggal ini.",
+            JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak dengan saringan ini.",
                     "Cetak", JOptionPane.INFORMATION_MESSAGE);
             return;
         }
@@ -370,42 +462,65 @@ public class PanelReport extends JPanel {
     }
 
     /**
-     * Benar kalau tanggal di kotak berbeda dari rentang yang sedang ditampilkan tabel.
+     * Benar kalau saringan di kotak (tanggal, rental, plat) berbeda dari yang sedang
+     * ditampilkan tabel.
      *
-     * <p>Keadaan ini yang paling mudah terjadi: operator mengubah tanggal lalu langsung
-     * menekan Cetak tanpa menekan "Tampilkan". Kertasnya sudah benar - ia menuliskan
-     * periode yang sama dengan baris dan totalnya - tetapi periodenya yang LAMA, sehingga
-     * maksudnya tetap tidak terlayani dan ia tidak tahu kenapa. Karena itu keadaannya
-     * ditanyakan lebih dulu, bukan dibiarkan lewat diam-diam.
+     * <p>Keadaan ini yang paling mudah terjadi: operator mengubah saringan lalu
+     * langsung menekan Cetak tanpa menekan "Tampilkan". Kertasnya sudah benar - ia
+     * menuliskan saringan yang sama dengan baris dan totalnya - tetapi saringannya
+     * yang LAMA, sehingga maksudnya tetap tidak terlayani dan ia tidak tahu kenapa.
+     * Karena itu keadaannya ditanyakan lebih dulu, bukan dibiarkan lewat diam-diam.
+     *
+     * <p>Rental dibandingkan lewat kunci pencocokan namanya dan plat lewat bentuk
+     * seragamnya, jadi ejaan yang berbeda besar-kecil hurufnya tidak dianggap
+     * saringan berbeda.
      */
-    private boolean tanggalBelumDiterapkan() {
+    private boolean saringanBelumDiterapkan() {
         LocalDate dari = bacaTanggal(spFrom, "\"Dari\"");
         LocalDate sampai = bacaTanggal(spTo, "\"Sampai\"");
         if (dari == null || sampai == null) {
             return false;
         }
-        return !dari.equals(fromTabel) || !sampai.equals(toTabel);
+        if (!dari.equals(fromTabel) || !sampai.equals(toTabel)) {
+            return true;
+        }
+        String rental = rentalSaringan();
+        String kunciRental = Rental.matchKey(rental);
+        String kunciTabel = Rental.matchKey(rentalTabel);
+        if (kunciRental == null ? kunciTabel != null : !kunciRental.equals(kunciTabel)) {
+            return true;
+        }
+        String plat = Truck.normalizePlate(txtPlat.getText());
+        String platTabelBaku = Truck.normalizePlate(platTabel);
+        return plat == null ? platTabelBaku != null : !plat.equals(platTabelBaku);
     }
 
     /**
-     * Tanyakan dulu kalau tanggal di kotak belum diterapkan ke tabel.
+     * Tanyakan dulu kalau saringan di kotak belum diterapkan ke tabel.
      *
      * @return true kalau pencetakan boleh diteruskan, false kalau dibatalkan operator
      */
-    private boolean tanggalSiapCetak(String judul) {
-        if (!tanggalBelumDiterapkan()) {
+    private boolean saringanSiapCetak(String judul) {
+        if (!saringanBelumDiterapkan()) {
             return true;
         }
         Date dariTabel = fromTabel == null ? null : toDate(fromTabel);
         Date sampaiTabel = toTabel == null ? null : toDate(toTabel);
+        StringBuilder masih = new StringBuilder("periode ").append(periodeRingkas(dariTabel, sampaiTabel));
+        if (rentalTabel != null && !rentalTabel.trim().isEmpty()) {
+            masih.append(", rental ").append(rentalTabel.trim());
+        }
+        if (platTabel != null && !platTabel.trim().isEmpty()) {
+            masih.append(", plat ").append(Truck.normalizePlate(platTabel));
+        }
         int pilih = JOptionPane.showConfirmDialog(this,
-                "Tanggal sudah diubah, tetapi tabelnya belum ditampilkan ulang.\n"
-                        + "Yang akan dicetak masih periode " + periodeRingkas(dariTabel, sampaiTabel) + ".\n\n"
-                        + "Tampilkan dulu dengan tanggal yang baru?",
+                "Saringan sudah diubah, tetapi tabelnya belum ditampilkan ulang.\n"
+                        + "Yang akan dicetak masih " + masih + ".\n\n"
+                        + "Tampilkan dulu dengan saringan yang baru?",
                 judul, JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (pilih == JOptionPane.YES_OPTION) {
             reload();
-            // Setelah dimuat ulang, rentangnya sudah sepadan; kalau ternyata tidak ada
+            // Setelah dimuat ulang, saringannya sudah sepadan; kalau ternyata tidak ada
             // baris, pemanggil yang memutuskan pesannya lewat pemeriksaan rowCount.
             return true;
         }

@@ -301,8 +301,33 @@ public class TransactionDao {
         return null;
     }
 
-    /** Daftar baris laporan dengan filter tanggal (null = semua). */
+    /**
+     * Daftar baris laporan dengan filter tanggal (null = semua).
+     *
+     * @see #listReport(LocalDate, LocalDate, String, String)
+     */
     public List<ReportRow> listReport(LocalDate from, LocalDate to) throws SQLException {
+        return listReport(from, to, null, null);
+    }
+
+    /**
+     * Daftar baris laporan dengan saringan: rentang tanggal, nama rental, dan
+     * sepenggal plat. Urutannya tetap menaik menurut tanggal dan id: laporan adalah
+     * dokumen cetak yang dibaca dari atas, bukan daftar yang dicari terbaru-dulu.
+     *
+     * <p>Saringannya disengaja berada di dalam lapisan data, bukan disembunyikan di
+     * layar sesudah datanya dimuat — alasannya sama dengan
+     * {@link #listDeliveries(LocalDate, LocalDate, String, String)}: kalau barisnya
+     * hanya disembunyikan di layar, total di bawah tabel tetap menjumlah seluruh
+     * catatan sementara tabelnya hanya menampilkan sebagian.
+     *
+     * @param from   batas tanggal paling awal, atau null kalau tanpa batas
+     * @param to     batas tanggal paling akhir, atau null kalau tanpa batas
+     * @param rental nama rental yang dicari (cocok setelah diseragamkan), atau null
+     * @param plat   sepenggal plat yang dicari (cocok sebagian), atau null
+     */
+    public List<ReportRow> listReport(LocalDate from, LocalDate to, String rental, String plat)
+            throws SQLException {
         List<ReportRow> result = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
                 "SELECT t.id_transaksi, t.tanggal, " +
@@ -345,6 +370,35 @@ public class TransactionDao {
                     b.setPrice(rs.getBigDecimal("harga"));
                     b.setTotalAmount(rs.getBigDecimal("jumlah_uang"));
                     result.add(b);
+                }
+            }
+        }
+
+        // Saringan rental dan plat dikerjakan di sini, bukan di dalam SQL.
+        //
+        // Alasannya sama dengan alasan MasterDao mencocokkan plat di Jawa, bukan dengan
+        // "WHERE plat=?": database yang sudah lama dipakai bisa menyimpan ejaan lama
+        // ("be  8888  hd" dengan spasi berlebih). Pencocokan teks di SQL tidak
+        // menemukannya walaupun barisnya terbaca rapi di layar - dan yang membaca laporan
+        // akan menyangka catatannya tidak ada, lalu uangnya dihitung dua kali.
+        // Yang menemukannya adalah penyeragaman yang sama dengan yang dipakai aplikasi
+        // di tempat lain. Saringan tanggal tetap di SQL karena kolomnya terindeks.
+        if (rental != null && !rental.trim().isEmpty()) {
+            String kunci = Rental.matchKey(rental);
+            for (int i = result.size() - 1; i >= 0; i--) {
+                if (!kunci.equals(Rental.matchKey(result.get(i).getRentalName()))) {
+                    result.remove(i);
+                }
+            }
+        }
+        if (plat != null && !plat.trim().isEmpty()) {
+            // Plat yang tersimpan sudah diseragamkan saat dibaca (ReportRow.setPlate),
+            // jadi yang perlu diseragamkan hanya yang dicari.
+            String kunci = Truck.normalizePlate(plat);
+            for (int i = result.size() - 1; i >= 0; i--) {
+                String p = result.get(i).getPlate();
+                if (p == null || !p.contains(kunci)) {
+                    result.remove(i);
                 }
             }
         }

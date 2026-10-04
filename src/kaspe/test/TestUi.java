@@ -130,6 +130,7 @@ public class TestUi {
         // menekan "Tampilkan" — kertasnya tidak boleh menulis periode baru padahal
         // seluruh baris dan totalnya masih data periode lama.
         check("periode kaki cetak mengikuti tabel", periodeKakiCetakIkutTabel());
+        check("jumlah baris laporan ikut terisi", jumlahBarisLaporanIkutTerisi());
         // Tanggal di bilah atas harus ditulis ulang setiap kali halaman dibuka/dipindah,
         // bukan hanya sekali saat aplikasi dijalankan.
         check("tanggal bilah atas segar saat pindah halaman", tanggalHeaderSegarSaatPindah());
@@ -1282,6 +1283,29 @@ public class TestUi {
      * untuk mencocokkan uang tidak boleh menuliskan periode baru padahal seluruh
      * baris dan totalnya masih data periode lama.
      */
+    /**
+     * Label jumlah baris di laporan harus benar-benar terisi.
+     *
+     * <p>Labelnya pernah berhenti diisi tanpa ada yang menyadari: baris pengisiannya
+     * tertimpa blok lain saat berkas ini disunting, sehingga laporannya terus menulis
+     * "0 baris" walaupun tabelnya penuh. Angka itu dibaca orang yang mencocokkan uang,
+     * jadi salahnya tidak boleh lolos lagi.
+     */
+    private static boolean jumlahBarisLaporanIkutTerisi() throws Exception {
+        PanelReport panel = new PanelReport();
+        klik(panel, "reload");
+        javax.swing.table.DefaultTableModel model =
+                (javax.swing.table.DefaultTableModel) field(panel, "model");
+        String teks = String.valueOf(((javax.swing.JLabel) field(panel, "lblRowCount")).getText());
+        int tampil = model.getRowCount();
+        boolean cocok = teks.equals(tampil + " baris");
+        if (!cocok) {
+            System.out.println("        label menulis \"" + teks + "\", seharusnya \""
+                    + tampil + " baris\"");
+        }
+        return cocok && tampil > 0;
+    }
+
     private static boolean periodeKakiCetakIkutTabel() throws Exception {
         PanelReport panel = new PanelReport();
         setSpinner(panel, "spFrom", java.time.LocalDate.of(2026, 7, 1));

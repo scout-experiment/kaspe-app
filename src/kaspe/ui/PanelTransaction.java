@@ -958,7 +958,8 @@ public class PanelTransaction extends JPanel {
             muatDaftarMaster();
         } catch (Exception e) {
             Theme.showError(this, e);
-            return;
+            // Tidak berhenti di sini: kegagalan memuat daftar master tidak boleh
+            // membuat daftar rental pada saringan diam-diam tidak disegarkan.
         }
         if (belumAdaDaftar && cmbPlate.getItemCount() > 0) {
             pilihAwal();
@@ -978,8 +979,14 @@ public class PanelTransaction extends JPanel {
             }
         }
         // Daftar rental pada saringan ikut disegarkan, tanpa menggeser pilihan yang
-        // sedang dipakai — sama seperti plat dan rental di form atas.
-        muatDaftarRentalSaringan();
+        // sedang dipakai — sama seperti plat dan rental di form atas. Disegarkan
+        // terpisah dari daftar master supaya kegagalan yang satu tidak membuat
+        // yang lain diam-diam tertinggal.
+        try {
+            muatDaftarRentalSaringan();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
         // Pengiriman yang barusan disimpan langsung terlihat di daftar, menurut
         // saringan yang sedang berlaku.
         muatRiwayat();
@@ -1303,15 +1310,21 @@ public class PanelTransaction extends JPanel {
             muatRiwayat();
 
             // Catatan yang tersimpan tetapi tidak muncul di daftar karena saringan
-            // rental/plat terbaca sebagai simpanan yang gagal. Dikatakan terus terang
-            // di dialognya, karena dialog inilah yang dibaca operator.
-            String tersembunyi = tampilDiSaringan(plat, rental) ? ""
-                    : "\n\nCatatan ini tidak tampil di daftar karena saringan rental "
-                            + "atau plat sedang aktif. Tekan Semua untuk melihatnya.";
+            // rental/plat terbaca sebagai simpanan yang gagal. Dikatakan terus
+            // terang di dialognya, karena dialog inilah yang dibaca operator —
+            // dan juga di bilah status: dialog tidak bisa tampil tanpa layar, dan
+            // pesannya ikut hilang begitu dialog ditutup, sedangkan bilah status
+            // bertahan.
+            String peringatanSaringan = "Catatan ini tidak tampil di daftar karena "
+                    + "saringan rental atau plat sedang aktif. Tekan Semua untuk melihatnya.";
+            boolean tampil = tampilDiSaringan(plat, rental);
+            if (!tampil) {
+                setStatus(peringatanSaringan);
+            }
             JOptionPane.showMessageDialog(this,
                     "Pengiriman " + plat + " tanggal " + Dates.format(tanggal)
                             + " tersimpan.\nRp " + Calculator.formatCurrency(amount)
-                            + tersembunyi,
+                            + (tampil ? "" : "\n\n" + peringatanSaringan),
                     "Tersimpan", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             Theme.showError(this, e);

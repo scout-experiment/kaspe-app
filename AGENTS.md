@@ -242,6 +242,15 @@ starts with `DELETE`, so it wipes the target database.
   rolls back and refuses to start on any mismatch.
 - `src/kaspe/Calculator.java` — the only place the business formulas exist.
 - `src/kaspe/schema.sql` — DDL + `v_transaksi` (includes `susut = bobot_lapak - bobot_pabrik`).
+- `src/kaspe/dao/BackupDao.java` — `cadangkan()`: H2's own `BACKUP TO` (not a file copy, which
+  can snapshot a live database inconsistently), timestamped target in a `cadangan` folder, and
+  a clear Indonesian refusal on MySQL/MariaDB where backup is the server's job.
+- `src/kaspe/Db.java` — `configError()` returns a refusal message when a config file is PRESENT
+  but yields no `db.url`; `Main` prints it to stderr (plus a dialog when not headless) and exits
+  without touching the database, and `Db.get()` throws the same message as its first statement so
+  no other entry point can slip past. A config file that is ABSENT still means the built-in H2
+  default — that is the intended default, not an error. `setConfiguration` clears the error, which
+  is what keeps the test/tool hook working.
 - `src/kaspe/dao/TransactionDao.java` — `save()` (atomic header+detail), `updateDelivery`,
   `deleteDeliveries` (all-or-nothing), `listDeliveries` (flat, newest first, with date/rental/plate
   filters), `listReport`, `totalAmount`, `totalNetWeight`, `summaryPerRental`. In
@@ -285,7 +294,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 88, `TestAlur` 121, `TestUi` 24 — **296 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 89, `TestAlur` 121, `TestUi` 25 — **298 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

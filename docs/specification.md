@@ -24,8 +24,10 @@ pengelola di satu komputer.
 | F-06 | Sistem menyimpan satu pengiriman secara utuh (tersimpan seluruhnya atau dibatalkan seluruhnya, termasuk truk dan rental yang baru pertama kali tercatat) |
 | F-06a | Sistem dapat mengubah dan menghapus catatan pengiriman yang sudah tersimpan, satu per satu maupun beberapa sekaligus. Penghapusan sekaligus bersifat tuntas: kalau satu catatan gagal dihapus, tidak ada yang terhapus |
 | F-06b | Sistem dapat menyaring daftar catatan pengiriman menurut rentang tanggal, nama rental, dan sepenggal plat. Rentang tanggal disaring oleh database, sedangkan nama rental dan plat dicocokkan memakai aturan penyeragaman aplikasi supaya ejaan lama tetap ditemukan. Apa pun saringannya, total uang yang ditampilkan selalu merupakan jumlah catatan yang sedang tampil |
-| F-07 | Sistem menampilkan laporan dengan filter rentang tanggal |
+| F-07 | Sistem menampilkan laporan dengan filter rentang tanggal, rental, dan sepenggal plat. Saringan yang sedang dipakai ikut tertulis di kaki halaman yang dicetak |
 | F-08 | Sistem mencetak laporan |
+| F-08a | Sistem dapat membuat cadangan database bawaan (H2) ke berkas bertanggal tanpa menimpa cadangan sebelumnya. Pada MySQL/MariaDB, pencadangan otomatis tidak dilakukan dan hal itu diberitahukan |
+| F-08b | Sistem menolak dibuka kalau berkas setelannya ada tetapi tidak memuat letak database, disertai penjelasan berkas mana yang bermasalah dan jalan keluarnya |
 | F-09 | Sistem menampilkan susut (selisih bobot lapak dan bobot pabrik) |
 
 ## 3. Kebutuhan non-fungsional
@@ -107,8 +109,10 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 | 5 | Batal simpan | data tidak lengkap | tidak ada data tersimpan |
 | 5a | Saring daftar pengiriman | rentang tanggal, rental, sepenggal plat | hanya catatan yang cocok yang tampil, dan total uang di bawah daftar ikut berubah menjadi jumlah catatan yang tampil |
 | 5b | Kembalikan saringan ke semua | tekan Semua | seluruh catatan tampil lagi |
-| 6 | Filter laporan | rentang tanggal | hanya data dalam rentang itu yang tampil |
+| 6 | Filter laporan | rentang tanggal, rental, sepenggal plat | hanya data yang cocok yang tampil, dan kertas yang dicetak menyebut saringan itu |
 | 7 | Cetak laporan | klik tombol cetak | dialog cetak muncul |
+| 8 | Cadangkan database | klik Cadangkan Database | berkas cadangan bertanggal terbentuk, jalurnya diberitahukan |
+| 9 | Berkas setelan rusak | `kaspe.properties` tanpa `db.url` | aplikasi menolak dibuka, menjelaskan berkas dan jalan keluarnya; database tidak tersentuh |
 
 ## 8. Hasil pengujian otomatis
 
@@ -118,7 +122,7 @@ Seluruh uji dijalankan lewat `./test.sh` dan lulus tanpa kegagalan:
 |------------|---------|-------|
 | TestCalculator | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | TestDatabase | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama menjadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman dijalankan berulang) | 56 lulus |
-| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat | 88 lulus |
-| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 24 lulus |
+| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat, penolakan cadangan di luar H2 | 89 lulus |
+| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 25 lulus |
 | TestAlur | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (total ikut berubah mengikuti baris yang tampil, rental baru langsung muncul, batas dirapikan), rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 121 lulus |
-| **Total** | | **296 lulus, 0 gagal** |
+| **Total** | | **298 lulus, 0 gagal** |
