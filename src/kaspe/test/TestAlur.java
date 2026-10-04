@@ -83,6 +83,7 @@ public class TestAlur {
         kerjaBelumDisimpanTerdeteksi();
         belumLunasTersimpan();
         hapusTransaksiLewatDao();
+        saringanDaftarTersimpan();
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
@@ -1004,6 +1005,105 @@ public class TestAlur {
         java.lang.reflect.Field f = target.getClass().getDeclaredField(name);
         f.setAccessible(true);
         return f.get(target);
+    }
+
+    /**
+     * Saringan daftar pengiriman tersimpan: menyaring tanggal, rental, dan sepenggal
+     * plat — dan yang paling penting, TOTAL UANG ikut berubah mengikuti baris yang
+     * tampil.
+     *
+     * <p>Kalau penyaringan dikerjakan di layar saja (mis. lewat TableRowFilter),
+     * tabelnya menampilkan tiga baris sementara total di bawahnya tetap jumlah
+     * seluruh catatan. Operator membacanya sebagai total yang salah, bukan sebagai
+     * daftar yang sedang disaring. Karena itu yang diperiksa di sini bukan hanya
+     * jumlah barisnya, melainkan juga angka total dan keterangannya.
+     */
+    private static void saringanDaftarTersimpan() throws Exception {
+        System.out.println("19. Saringan daftar pengiriman tersimpan ...");
+        PanelTransaction p = new PanelTransaction();
+
+        ketikPlat(p, "SA 1000 SA");
+        ketikRental(p, "Rental Uji Saring A");
+        isiAngka(p, "7000", "6900", "1100");
+        simpanTanpaLayar(p);
+
+        ketikPlat(p, "SB 2000 SB");
+        ketikRental(p, "Rental Uji Saring B");
+        isiAngka(p, "8000", "7900", "1300");
+        simpanTanpaLayar(p);
+
+        // Daftar rental pada saringan disegarkan seperti saat halaman ini dibuka
+        // kembali dari halaman lain: kedua rental di atas baru lahir sesudah panelnya
+        // dibuat, jadi belum ada di kotak pilihan saringan.
+        p.refreshMaster();
+
+        DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
+        JLabel total = (JLabel) field(p, "lblTotal");
+        JLabel keterangan = (JLabel) field(p, "lblTotalCaption");
+        int semua = riwayat.getRowCount();
+
+        record(semua > 0, "tanpa saringan: daftar terisi (" + semua + " baris)");
+        record("Total tersimpan".equals(keterangan.getText()),
+                "tanpa saringan: keterangannya \"Total tersimpan\"");
+        String totalSemua = total.getText();
+        record(totalSemua.equals("Rp " + Calculator.formatCurrency(
+                        desimal("SELECT COALESCE(SUM(jumlah_uang),0) FROM transaksi_detail"))),
+                "tanpa saringan: totalnya jumlah seluruh catatan");
+
+        // --- saringan rental ---
+        JComboBox<?> cmb = (JComboBox<?>) field(p, "cmbFilterRental");
+        for (int i = 0; i < cmb.getItemCount(); i++) {
+            Object isi = cmb.getItemAt(i);
+            if (isi instanceof Rental && "Rental Uji Saring A".equals(((Rental) isi).getRentalName())) {
+                cmb.setSelectedIndex(i);
+            }
+        }
+        klik(p, "muatRiwayat");
+
+        boolean hanyaA = riwayat.getRowCount() > 0 && riwayat.getRowCount() < semua;
+        for (int i = 0; i < riwayat.getRowCount(); i++) {
+            if (!"Rental Uji Saring A".equals(String.valueOf(riwayat.getValueAt(i, 3)))) {
+                hanyaA = false;
+            }
+        }
+        record(hanyaA, "saringan rental: hanya pengiriman rental itu yang tampil");
+        record(total.getText().equals("Rp " + Calculator.formatCurrency(
+                        desimal("SELECT COALESCE(SUM(d.jumlah_uang),0) FROM transaksi_detail d "
+                                + "JOIN truk t ON t.id_truk = d.id_truk "
+                                + "JOIN rental r ON r.id_rental = t.id_rental "
+                                + "WHERE r.nama_rental = 'Rental Uji Saring A'"))),
+                "saringan rental: totalnya ikut berubah, bukan total seluruh catatan");
+        record(!total.getText().equals(totalSemua),
+                "saringan rental: totalnya memang beda dari total tanpa saringan");
+        record("Total hasil saring".equals(keterangan.getText()),
+                "saringan rental: keterangannya berubah jadi \"Total hasil saring\"");
+
+        // --- saringan plat sebagian ---
+        cmb.setSelectedIndex(0);
+        isi(p, "txtFilterPlat", "2000");
+        klik(p, "muatRiwayat");
+        boolean hanyaPlat = riwayat.getRowCount() > 0;
+        for (int i = 0; i < riwayat.getRowCount(); i++) {
+            if (!String.valueOf(riwayat.getValueAt(i, 2)).contains("2000")) {
+                hanyaPlat = false;
+            }
+        }
+        record(hanyaPlat && riwayat.getRowCount() < semua,
+                "saringan plat: sepenggal plat menemukan pengirimannya");
+
+        // --- saringan yang tidak menemukan apa pun ---
+        isi(p, "txtFilterPlat", "ZZZZ TIDAK ADA");
+        klik(p, "muatRiwayat");
+        record(riwayat.getRowCount() == 0 && "Rp 0".equals(total.getText()),
+                "saringan tanpa hasil: daftar kosong dan totalnya Rp 0");
+
+        // --- tombol Semua ---
+        klik(p, "bersihkanSaringan");
+        record(riwayat.getRowCount() == semua && total.getText().equals(totalSemua),
+                "tombol Semua: seluruh catatan dan totalnya kembali");
+        record("Total tersimpan".equals(keterangan.getText()),
+                "tombol Semua: keterangannya kembali \"Total tersimpan\"");
+        System.out.println();
     }
 
     private static void record(boolean ok, String name) {

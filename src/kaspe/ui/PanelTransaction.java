@@ -68,6 +68,20 @@ public class PanelTransaction extends JPanel {
     private final JButton btnUbah = Theme.plain("Ubah");
     private final JButton btnHapus = Theme.plain("Hapus");
 
+    // Saringan daftar pengiriman tersimpan. Berbeda dari isian form di atasnya,
+    // isian ini tidak menyimpan apa pun: hanya mempersempit baris mana yang dibaca
+    // dari database.
+    private final JSpinner spFilterFrom = dateSpinner();
+    private final JSpinner spFilterTo = dateSpinner();
+    private final JComboBox<Object> cmbFilterRental = new JComboBox<>();
+    private final JTextField txtFilterPlat = new JTextField();
+    private final JButton btnFilterTampilkan = Theme.primary("Tampilkan");
+    private final JButton btnFilterSemua = Theme.plain("Semua");
+    /** Keterangan total di bawah; teksnya berubah saat daftar sedang tersaring. */
+    private final JLabel lblTotalCaption = Theme.label("Total tersimpan");
+    /** Pilihan pertama kotak rental saringan: tanpa penyaring rental. */
+    private static final String SEMUA_RENTAL = "Semua rental";
+
     /**
      * Daftar pengiriman tersimpan, satu baris per pengiriman. Kolom 0 menampung
      * id_detail sebagai identitas baris dan disembunyikan (lihat
@@ -136,6 +150,12 @@ public class PanelTransaction extends JPanel {
         btnBatal.addActionListener(e -> kembaliKeTambah());
         btnUbah.addActionListener(e -> ubahPengiriman());
         btnHapus.addActionListener(e -> hapusTerpilih());
+        // Saringan daftar: tombol Tampilkan dan Enter pada kotak plat memuat ulang
+        // daftarnya; tombol Semua mengembalikan keadaan tanpa saringan dulu, baru
+        // memuat ulang.
+        txtFilterPlat.addActionListener(e -> muatRiwayat());
+        btnFilterTampilkan.addActionListener(e -> muatRiwayat());
+        btnFilterSemua.addActionListener(e -> bersihkanSaringan());
         // Kedua tombol mengikuti pilihan di daftar: Ubah hanya kalau tepat satu baris
         // (kalau dua, tidak jelas mana yang mau diubah), Hapus boleh satu atau lebih.
         riwayatTable.getSelectionModel().addListSelectionListener(e -> perbaruiTombolRiwayat());
@@ -154,7 +174,9 @@ public class PanelTransaction extends JPanel {
         spDate.setValue(new Date());
         chkPaid.setSelected(true);
         spPaid.setValue(new Date());
-        muatRiwayat();
+        // Daftar dibuka dalam keadaan tanpa saringan (lihat bersihkanSaringan).
+        muatDaftarRentalSaringan();
+        bersihkanSaringan();
     }
 
     /**
@@ -405,6 +427,9 @@ public class PanelTransaction extends JPanel {
         JPanel card = Theme.card("Transaksi Tersimpan");
         JPanel isi = new JPanel(new BorderLayout(0, 10));
         isi.setOpaque(false);
+        // Baris saringan ditaruh DI DALAM kartu, di antara judulnya dan tabelnya:
+        // saringan ini milik daftar ini saja, bukan saringan halaman.
+        isi.add(buildSaringanRiwayat(), BorderLayout.NORTH);
 
         JScrollPane scroll = new JScrollPane(riwayatTable);
         scroll.setBorder(BorderFactory.createEmptyBorder());
@@ -425,20 +450,64 @@ public class PanelTransaction extends JPanel {
         // Tanpa patokan ini kartu ikut setinggi seluruh isinya: dengan puluhan
         // pengiriman, tombol Ubah/Hapus terdorong jauh ke bawah halaman dan harus
         // digulir dulu untuk sampai - padahal tombol itulah gunanya daftar ini.
-        card.setPreferredSize(new Dimension(0, 260));
-        card.setMinimumSize(new Dimension(0, 150));
+        // Baris saringan menambah ±40px; patokan 310 menjaga tabel tetap mendapat
+        // sekitar 170px area pandang pada jendela bawaan 1320x760, di atas ambang
+        // uji 80px.
+        card.setPreferredSize(new Dimension(0, 310));
+        card.setMinimumSize(new Dimension(0, 200));
         return card;
     }
 
     /**
-     * Isi ulang daftar pengiriman tersimpan: satu baris per pengiriman, yang paling
-     * baru di atas (urutan dari {@link TransactionDao#listDeliveries}). Total di
-     * bawah mengikuti baris yang sedang terdaftar, bukan seluruh data sepanjang masa.
+     * Baris saringan daftar pengiriman tersimpan: rentang tanggal, rental, dan
+     * sebagian plat. Semua isian dijaga seukuran tetap supaya barisnya tetap satu
+     * baris pada jendela bawaan; sisa lebarnya diserap kosong di ujung kanan.
+     */
+    private JPanel buildSaringanRiwayat() {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        p.setOpaque(false);
+        p.add(Theme.label("Dari"));
+        p.add(sized(spFilterFrom, 110));
+        p.add(Theme.label("Sampai"));
+        p.add(sized(spFilterTo, 110));
+        p.add(Theme.label("Rental"));
+        p.add(sized(cmbFilterRental, 150));
+        p.add(Theme.label("Plat"));
+        p.add(sized(txtFilterPlat, 120));
+        p.add(btnFilterTampilkan);
+        p.add(btnFilterSemua);
+        return p;
+    }
+
+    /**
+     * Isi ulang daftar pengiriman tersimpan menurut saringan yang sedang tertulis,
+     * satu baris per pengiriman, yang paling baru di atas (urutan dari
+     * {@link TransactionDao#listDeliveries}). Total di bawah mengikuti baris yang
+     * sedang terdaftar, bukan seluruh data sepanjang masa.
+     *
+     * <p>Saringannya dijalankan DI DATABASE, bukan disembunyikan di layar. Kalau
+     * barisnya hanya disembunyikan di layar, tabel menampilkan tiga baris sementara
+     * totalnya tetap menuliskan jumlah seluruh catatan — operator membacanya sebagai
+     * total yang salah, bukan daftar yang tersaring. Dengan saringan di database,
+     * baris dan total selalu berasal dari hasil query yang sama, jadi keduanya tidak
+     * bisa berbeda.
+     *
+     * <p>Sebab itu juga isian saringan dibaca ulang di sini setiap kali: daftar ini
+     * dimuat ulang setelah simpan, ubah, hapus, dan gagal hapus — semuanya harus
+     * memakai keadaan saringan yang SEDANG berlaku, bukan keadaan saat terakhir
+     * tombol Tampilkan ditekan.
      */
     private void muatRiwayat() {
+        LocalDate dari = bacaTanggal(spFilterFrom);
+        LocalDate sampai = bacaTanggal(spFilterTo);
+        // Batas tanggal yang tidak terbaca dikirim TIDAK terbatas, bukan menolak
+        // memuat: tulisan tanggal yang salah tidak boleh mengosongkan daftar diam-diam.
+        Object pilihanRental = cmbFilterRental.getSelectedItem();
+        String rental = pilihanRental instanceof Rental ? ((Rental) pilihanRental).getRentalName() : null;
+        String plat = txtFilterPlat.getText();
         List<ReportRow> baris;
         try {
-            baris = transactionDao.listDeliveries(null, null);
+            baris = transactionDao.listDeliveries(dari, sampai, rental, plat);
         } catch (Exception e) {
             Theme.showError(this, e);
             return;
@@ -459,6 +528,109 @@ public class PanelTransaction extends JPanel {
             }
         }
         lblTotal.setText("Rp " + Calculator.formatCurrency(total));
+        boolean tersaring = saringanAktif(dari, sampai, rental, plat);
+        // Keterangan total ikut jujur: saat daftar tersaring, angkanya bukan lagi
+        // "seluruh yang tersimpan" melainkan "hasil saringan ini".
+        lblTotalCaption.setText(tersaring ? "Total hasil saring" : "Total tersimpan");
+        // Dua keadaan kosong yang berbeda butuh penjelasan berbeda: belum punya data
+        // sama sekali, versus ada data tetapi tidak ada yang lolos saringan. Pesan
+        // yang sama untuk keduanya membuat pengguna menduga aplikasinya rusak.
+        riwayatTable.setEmptyMessage(baris.isEmpty()
+                ? (tersaring
+                        ? "Tidak ada pengiriman yang cocok dengan saringan ini."
+                        : "Belum ada transaksi tersimpan. Catatan yang sudah disimpan muncul di sini.")
+                : "");
+    }
+
+    /**
+     * Benar kalau saringan yang tertulis lebih sempit daripada keadaan tanpa
+     * saringan: rental dipilih, plat diketik, atau salah satu batas tanggal
+     * digeser dari bawaannya. Batas yang tidak terbaca dihitung TIDAK menyaring —
+     * batasnya memang dikirim tanpa batas.
+     */
+    private boolean saringanAktif(LocalDate dari, LocalDate sampai, String rental, String plat) {
+        return rental != null
+                || !plat.trim().isEmpty()
+                || (dari != null && !dari.equals(tanggalAwalSaringan()))
+                || (sampai != null && !sampai.equals(tanggalAkhirSaringan()));
+    }
+
+    /**
+     * Tanggal transaksi paling awal, untuk batas awal saringan bawaan. Kalau belum
+     * ada data sama sekali, atau databasenya sedang tidak terbaca, dipakai hari ini.
+     */
+    private LocalDate tanggalAwalSaringan() {
+        try {
+            LocalDate awal = transactionDao.earliestDate();
+            return awal == null ? LocalDate.now() : awal;
+        } catch (Exception e) {
+            return LocalDate.now();
+        }
+    }
+
+    /**
+     * Batas akhir saringan bawaan: hari ini, atau tanggal catatan terakhir kalau ada
+     * yang lebih jauh. Dulu batasnya selalu hari ini, dan catatan bertanggal setelah
+     * hari ini jadi tidak terlihat sama sekali setelah disimpan - terbaca sebagai
+     * simpanan yang gagal, padahal catatannya ada.
+     */
+    private LocalDate tanggalAkhirSaringan() {
+        LocalDate akhir = LocalDate.now();
+        try {
+            LocalDate terakhir = transactionDao.latestDate();
+            if (terakhir != null && terakhir.isAfter(akhir)) {
+                akhir = terakhir;
+            }
+        } catch (Exception e) {
+            // Database tidak terbaca: batas akhir tetap hari ini, saringan tidak
+            // boleh gagal karena ini.
+        }
+        return akhir;
+    }
+
+    /**
+     * Kembalikan saringan ke keadaan tanpa saringan, lalu muat ulang daftarnya:
+     * dari tanggal transaksi terawal sampai hari ini, semua rental, plat kosong.
+     *
+     * <p>Bawaan sengaja menampilkan SEMUA catatan, bukan hanya periode terdekat:
+     * saringan yang sejak dibuka menyembunyikan catatan lama terlihat seperti data
+     * hilang, padahal catatannya hanya tersaring.
+     */
+    private void bersihkanSaringan() {
+        spFilterFrom.setValue(toDate(tanggalAwalSaringan()));
+        spFilterTo.setValue(toDate(tanggalAkhirSaringan()));
+        cmbFilterRental.setSelectedIndex(0);
+        txtFilterPlat.setText("");
+        muatRiwayat();
+    }
+
+    /**
+     * Isi ulang daftar rental pada saringan dari data master. Pilihan yang sedang
+     * dipakai operator dipulihkan setelahnya: menyegarkan daftarnya tidak boleh
+     * menggeser saringan yang sedang berjalan; kalau pilihannya sudah tidak ada di
+     * data master, kembali ke "Semua rental".
+     */
+    private void muatDaftarRentalSaringan() {
+        Rental dipilih = cmbFilterRental.getSelectedItem() instanceof Rental
+                ? (Rental) cmbFilterRental.getSelectedItem() : null;
+        cmbFilterRental.removeAllItems();
+        cmbFilterRental.addItem(SEMUA_RENTAL);
+        try {
+            for (Rental r : masterDao.listRental()) {
+                cmbFilterRental.addItem(r);
+            }
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+        cmbFilterRental.setSelectedIndex(0);
+        if (dipilih != null) {
+            for (int i = 1; i < cmbFilterRental.getItemCount(); i++) {
+                if (((Rental) cmbFilterRental.getItemAt(i)).getRentalId() == dipilih.getRentalId()) {
+                    cmbFilterRental.setSelectedIndex(i);
+                    break;
+                }
+            }
+        }
     }
 
     /** Id catatan pengiriman dari tiap baris yang dipilih, dibaca dari modelnya. */
@@ -617,10 +789,12 @@ public class PanelTransaction extends JPanel {
 
         // Totalnya adalah jumlah uang seluruh pengiriman yang sedang terdaftar di
         // daftar — sama persis dengan apa yang terlihat di tabel, bukan seluruh
-        // data sepanjang masa.
+        // data sepanjang masa. Karena saringannya dijalankan di database, jumlah
+        // ini selalu sepadan dengan baris yang tampil; keterangannya ikut menulis
+        // "Total hasil saring" saat daftarnya sedang tersaring (lihat muatRiwayat).
         JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
         left.setOpaque(false);
-        left.add(Theme.label("Total tersimpan"));
+        left.add(lblTotalCaption);
         left.add(lblTotal);
 
         p.add(left, BorderLayout.WEST);
@@ -719,7 +893,11 @@ public class PanelTransaction extends JPanel {
                 spPaid.setValue(new Date());
             }
         }
-        // Pengiriman yang barusan disimpan langsung terlihat di daftar.
+        // Daftar rental pada saringan ikut disegarkan, tanpa menggeser pilihan yang
+        // sedang dipakai — sama seperti plat dan rental di form atas.
+        muatDaftarRentalSaringan();
+        // Pengiriman yang barusan disimpan langsung terlihat di daftar, menurut
+        // saringan yang sedang berlaku.
         muatRiwayat();
     }
 
@@ -1022,6 +1200,17 @@ public class PanelTransaction extends JPanel {
             // sedangProses tetap terpasang sampai dialognya ditutup (klik kedua yang
             // terkirim oleh putaran kejadian dialog ditolak di paling atas).
             kembaliKeTambah();
+            // Catatan yang baru disimpan tidak boleh jatuh di luar saringan yang
+            // sedang terpasang: hasilnya terlihat seperti simpanan yang gagal.
+            // Batasnya dilebarkan seperlunya saja, saringan lain dibiarkan apa adanya.
+            LocalDate awalSaring = bacaTanggal(spFilterFrom);
+            if (awalSaring == null || tanggal.isBefore(awalSaring)) {
+                spFilterFrom.setValue(toDate(tanggal));
+            }
+            LocalDate akhirSaring = bacaTanggal(spFilterTo);
+            if (akhirSaring == null || tanggal.isAfter(akhirSaring)) {
+                spFilterTo.setValue(toDate(tanggal));
+            }
             muatRiwayat();
 
             JOptionPane.showMessageDialog(this,
@@ -1124,6 +1313,11 @@ public class PanelTransaction extends JPanel {
         // dari tanggal yang tertulis, bukan dari tanggal lama yang tertinggal.
         sp.setValue(Date.from(t.atStartOfDay(ZoneId.systemDefault()).toInstant()));
         return t;
+    }
+
+    /** Ubah LocalDate ke Date untuk ditulis ke kotak tanggal (modelnya memakai Date). */
+    private static Date toDate(LocalDate t) {
+        return Date.from(t.atStartOfDay(ZoneId.systemDefault()).toInstant());
     }
 
     private static JSpinner dateSpinner() {

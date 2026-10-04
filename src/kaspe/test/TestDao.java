@@ -9,6 +9,8 @@ import kaspe.model.*;
 
 import java.math.BigDecimal;
 import java.sql.Connection;
+import java.sql.Date;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
@@ -578,6 +580,133 @@ public class TestDao {
                 + ", rental=" + (tanpaTruk == null ? "-" : tanpaTruk.getRentalName()));
         record(tanpaTruk != null && tanpaTruk.getPlate() == null && tanpaTruk.getRentalName() == null,
                 "riwayat: truk kosong tampil plat null dan rental null tanpa galat");
+        System.out.println();
+        System.out.println("10. Saringan riwayat: rental & plat di listDeliveries ...");
+        int dasar = transactionDao.listDeliveries(null, null).size();
+
+        // Fixture: tiga rental (satu namanya awalan nama yang lain), truknya, dan
+        // pengiriman di beberapa tanggal supaya setiap saringan bisa diasingkan.
+        Truck trukMitraA;
+        Truck trukMitraB;
+        Truck trukMitraC;
+        Truck trukTani;
+        Truck trukSejahtera;
+        try (Connection c = Db.get()) {
+            trukMitraA = master.pastikanTruk(c, "BM 1100 AA", "CV Mitra");
+            trukMitraB = master.pastikanTruk(c, "BM 2200 BB", "CV Mitra");
+            trukMitraC = master.pastikanTruk(c, "BM 3300 CC", "CV Mitra");
+            trukTani = master.pastikanTruk(c, "BN 4400 DD", "CV Mitra Tani");
+            trukSejahtera = master.pastikanTruk(c, "BM 2500 EE", "Rental Sejahtera");
+        }
+        int idM0 = simpanPengiriman(transactionDao, trukMitraB, LocalDate.of(2026, 4, 20), 5000, 4900, 15, 1150);
+        int idM1 = simpanPengiriman(transactionDao, trukMitraA, LocalDate.of(2026, 5, 1), 5100, 5000, 15, 1150);
+        int idM2 = simpanPengiriman(transactionDao, trukMitraB, LocalDate.of(2026, 5, 2), 5200, 5100, 15, 1150);
+        int idM3 = simpanPengiriman(transactionDao, trukMitraC, LocalDate.of(2026, 5, 3), 5300, 5200, 15, 1150);
+        int idT1 = simpanPengiriman(transactionDao, trukTani, LocalDate.of(2026, 5, 2), 5400, 5300, 15, 1150);
+        int idS1 = simpanPengiriman(transactionDao, trukSejahtera, LocalDate.of(2026, 5, 3), 5500, 5400, 15, 1150);
+        int idN1 = simpanPengiriman(transactionDao, new Truck(), LocalDate.of(2026, 5, 4), 4000, 3900, 15, 1150);
+        List<ReportRow> semua = transactionDao.listDeliveries(null, null);
+        System.out.println("   dasar " + dasar + " + fixture 7 = " + semua.size());
+        record(semua.size() == dasar + 7, "saringan: fixture 7 pengiriman siap");
+
+        // Rental memilih hanya pengirimannya sendiri; rental lain dan truk kosong tertutup.
+        List<ReportRow> mitra = transactionDao.listDeliveries(null, null, "CV Mitra", null);
+        List<Integer> idMitra = new ArrayList<>();
+        boolean mitraBersih = mitra.size() == 4;
+        for (ReportRow b : mitra) {
+            idMitra.add(b.getDetailId());
+            if (!"CV Mitra".equals(b.getRentalName())) {
+                mitraBersih = false;
+            }
+        }
+        System.out.println("   'CV Mitra' -> " + gabungId(mitra));
+        record(mitraBersih && !idMitra.contains(idT1) && !idMitra.contains(idS1) && !idMitra.contains(idN1),
+                "saringan: rental hanya membawa pengirimannya sendiri, rental lain tertutup");
+
+        // "CV Mitra" adalah awalan "CV Mitra Tani": kalau pencocokannya LIKE, pengiriman
+        // Tani ikut terbawa - harusnya tidak.
+        List<ReportRow> tani = transactionDao.listDeliveries(null, null, "CV Mitra Tani", null);
+        System.out.println("   'CV Mitra Tani' -> " + gabungId(tani));
+        record(mitra.size() == 4 && tani.size() == 1 && tani.get(0).getDetailId() == idT1,
+                "saringan: nama rental dicocok persis, bukan sebagian");
+
+        record(transactionDao.listDeliveries(null, null, null, null).size() == dasar + 7
+                        && transactionDao.listDeliveries(null, null, "   ", null).size() == dasar + 7,
+                "saringan: rental null atau kosong berarti tanpa saringan");
+
+        List<ReportRow> platTengah = transactionDao.listDeliveries(null, null, null, "4400");
+        List<ReportRow> platAwal = transactionDao.listDeliveries(null, null, null, "BM 22");
+        System.out.println("   '4400' -> " + gabungId(platTengah) + ", 'BM 22' -> " + gabungId(platAwal));
+        record(platTengah.size() == 1 && platTengah.get(0).getDetailId() == idT1
+                        && gabungId(platAwal).equals(idM2 + "," + idM0),
+                "saringan: plat dicocok sebagian, dari tengah maupun dari awal");
+
+        record(gabungId(transactionDao.listDeliveries(null, null, null, "bm 22")).equals(idM2 + "," + idM0),
+                "saringan: huruf besar-kecil plat pencari diabaikan");
+
+        record(gabungId(transactionDao.listDeliveries(null, null, null, "  bm   2200  bb "))
+                        .equals(idM2 + "," + idM0),
+                "saringan: ejaan plat pencari diseragamkan dulu (spasi berlebih dirapatkan)");
+
+        record(transactionDao.listDeliveries(null, null, null, "   ").size() == dasar + 7,
+                "saringan: plat null atau kosong berarti tanpa saringan");
+
+        // Truk kosong tidak punya nama rental (LEFT JOIN -> NULL), jadi jangan sampai
+        // ikut ke hasil saringan rental mana pun.
+        List<ReportRow> sejahtera = transactionDao.listDeliveries(null, null, "Rental Sejahtera", null);
+        boolean tanpaTrukTampil = false;
+        for (ReportRow b : semua) {
+            if (b.getDetailId() == idN1) {
+                tanpaTrukTampil = true;
+            }
+        }
+        System.out.println("   'Rental Sejahtera' -> " + gabungId(sejahtera)
+                + ", tanpa truk tampil tanpa saringan=" + tanpaTrukTampil);
+        record(sejahtera.size() == 1 && sejahtera.get(0).getDetailId() == idS1 && tanpaTrukTampil,
+                "saringan: pengiriman tanpa truk tertutup saringan rental, tampil kalau tanpa saringan");
+
+        List<ReportRow> jendelaSaring = transactionDao.listDeliveries(
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 3), "CV Mitra", null);
+        System.out.println("   2026-05-01..2026-05-03 'CV Mitra' -> " + gabungId(jendelaSaring));
+        record(jendelaSaring.size() == 3
+                        && gabungId(jendelaSaring).equals(idM3 + "," + idM2 + "," + idM1),
+                "saringan: batas tanggal inclusif di kedua ujung walau ada saringan rental");
+
+        record(transactionDao.listDeliveries(null, LocalDate.of(2026, 4, 19), null, null).size() == dasar
+                        && transactionDao.listDeliveries(LocalDate.of(2026, 5, 4), null, null, null).size() == 1,
+                "saringan: batas tanggal null berarti tanpa batas di ujung itu");
+
+        List<ReportRow> ketat = transactionDao.listDeliveries(
+                LocalDate.of(2026, 5, 2), LocalDate.of(2026, 5, 3), "CV Mitra", "BM 2");
+        System.out.println("   ketat (tanggal+rental+plat) -> " + gabungId(ketat));
+        record(ketat.size() == 1 && ketat.get(0).getDetailId() == idM2,
+                "saringan: tanggal + rental + plat bekerja bersama (DAN)");
+        record(gabungId(transactionDao.listDeliveries(
+                        LocalDate.of(2026, 5, 2), LocalDate.of(2026, 5, 3), "CV Mitra", null))
+                        .equals(idM3 + "," + idM2)
+                        && gabungId(transactionDao.listDeliveries(
+                        LocalDate.of(2026, 5, 2), LocalDate.of(2026, 5, 3), null, "BM 2"))
+                        .equals(idS1 + "," + idM2)
+                        && gabungId(transactionDao.listDeliveries(null, null, "CV Mitra", "BM 2"))
+                        .equals(idM2 + "," + idM0),
+                "saringan: melonggarkan satu saringan menambah baris kembali");
+
+        // Daftar yang diterima pemanggil harus utuh: jumlah baris dan SUM uangnya sama
+        // dengan agregat SQL yang memakai saringan persis sama.
+        List<ReportRow> ujiSum = transactionDao.listDeliveries(
+                LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 3), "CV Mitra", "BM 2");
+        BigDecimal uangBaris = BigDecimal.ZERO;
+        for (ReportRow b : ujiSum) {
+            uangBaris = uangBaris.add(b.getTotalAmount());
+        }
+        String potretBaris = ujiSum.size() + "/" + plain(uangBaris);
+        String potretSql = potretSaringan(LocalDate.of(2026, 4, 1), LocalDate.of(2026, 5, 3), "CV Mitra", "BM 2");
+        System.out.println("   baris " + potretBaris + " = SQL " + potretSql);
+        record(potretBaris.equals(potretSql),
+                "saringan: jumlah baris dan uangnya sama dengan SUM database saringan yang sama");
+
+        record(gabungId(mitra).equals(idM3 + "," + idM2 + "," + idM1 + "," + idM0),
+                "saringan: hasil tetap diurut dari yang paling baru");
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
@@ -645,6 +774,56 @@ public class TestDao {
                      "SELECT COUNT(*), COALESCE(SUM(jumlah_uang), 0) FROM transaksi_detail")) {
             rs.next();
             return rs.getInt(1) + "/" + rs.getBigDecimal(2).stripTrailingZeros().toPlainString();
+        }
+    }
+
+    /** Gabung id_detail baris riwayat menjadi "a,b,c" menurut urutan datanya. */
+    private static String gabungId(List<ReportRow> baris) {
+        StringBuilder sb = new StringBuilder();
+        for (ReportRow b : baris) {
+            if (sb.length() > 0) {
+                sb.append(',');
+            }
+            sb.append(b.getDetailId());
+        }
+        return sb.toString();
+    }
+
+    /** Potret hasil saringan langsung dari SQL (jumlah baris + SUM uang) memakai
+     *  saringan yang sama seperti listDeliveries - untuk membuktikan daftar yang
+     *  diterima pemanggil utuh dan cocok dengan agregat database. */
+    private static String potretSaringan(LocalDate from, LocalDate to, String rental, String plat)
+            throws SQLException {
+        StringBuilder sql = new StringBuilder(
+                "SELECT COUNT(*), COALESCE(SUM(d.jumlah_uang), 0) FROM transaksi_detail d "
+                        + "JOIN transaksi t ON t.id_transaksi = d.id_transaksi "
+                        + "LEFT JOIN truk tr ON tr.id_truk = d.id_truk "
+                        + "LEFT JOIN rental r ON r.id_rental = tr.id_rental WHERE 1=1 ");
+        List<Object> param = new ArrayList<>();
+        if (from != null) {
+            sql.append("AND t.tanggal >= ? ");
+            param.add(Date.valueOf(from));
+        }
+        if (to != null) {
+            sql.append("AND t.tanggal <= ? ");
+            param.add(Date.valueOf(to));
+        }
+        if (rental != null && !rental.trim().isEmpty()) {
+            sql.append("AND r.nama_rental = ? ");
+            param.add(rental.trim());
+        }
+        if (plat != null && !plat.trim().isEmpty()) {
+            sql.append("AND UPPER(tr.plat) LIKE ? ");
+            param.add("%" + Truck.normalizePlate(plat).toUpperCase() + "%");
+        }
+        try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(sql.toString())) {
+            for (int i = 0; i < param.size(); i++) {
+                ps.setObject(i + 1, param.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1) + "/" + rs.getBigDecimal(2).stripTrailingZeros().toPlainString();
+            }
         }
     }
 

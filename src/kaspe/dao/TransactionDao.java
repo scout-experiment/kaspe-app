@@ -281,6 +281,25 @@ public class TransactionDao {
         return null;
     }
 
+    /**
+     * Tanggal transaksi paling akhir, atau null kalau belum ada data sama sekali.
+     *
+     * <p>Dipakai batas akhir saringan bawaan. Tanpa ini batas akhirnya dipaku pada
+     * hari ini, dan catatan bertanggal setelah hari ini - misalnya tanggal yang
+     * salah ketik, atau tanggal yang memang direncanakan - tidak muncul sama sekali
+     * di daftar. Operator membacanya sebagai catatan yang gagal tersimpan.
+     */
+    public LocalDate latestDate() throws SQLException {
+        try (Connection c = Db.get(); Statement s = c.createStatement();
+             ResultSet rs = s.executeQuery("SELECT MAX(tanggal) FROM transaksi")) {
+            if (rs.next()) {
+                Date d = rs.getDate(1);
+                return d == null ? null : d.toLocalDate();
+            }
+        }
+        return null;
+    }
+
     /** Daftar baris laporan dengan filter tanggal (null = semua). */
     public List<ReportRow> listReport(LocalDate from, LocalDate to) throws SQLException {
         List<ReportRow> result = new ArrayList<>();
@@ -336,6 +355,25 @@ public class TransactionDao {
      * riwayat transaksi, diurut dari yang paling baru. Null berarti tanpa batas.
      */
     public List<ReportRow> listDeliveries(LocalDate from, LocalDate to) throws SQLException {
+        return listDeliveries(from, to, null, null);
+    }
+
+    /**
+     * Daftar catatan pengiriman dengan saringan: rentang tanggal, nama rental, dan
+     * sepenggal plat.
+     *
+     * <p>Saringan dikerjakan oleh database, bukan disaring di layar sesudah datanya
+     * dimuat. Kalau disaring di layar, total uang di bawah daftar tetap jumlah seluruh
+     * catatan sementara tabelnya hanya menampilkan sebagian - dan yang membaca akan
+     * menyangka totalnya salah, bukan menyangka daftarnya sedang disaring.
+     *
+     * @param from   batas tanggal paling awal, atau null kalau tanpa batas
+     * @param to     batas tanggal paling akhir, atau null kalau tanpa batas
+     * @param rental nama rental yang dicari (cocok persis), atau null untuk semua rental
+     * @param plat   sepenggal plat yang dicari (cocok sebagian), atau null untuk semua plat
+     */
+    public List<ReportRow> listDeliveries(LocalDate from, LocalDate to, String rental, String plat)
+            throws SQLException {
         List<ReportRow> result = new ArrayList<>();
         StringBuilder sql = new StringBuilder(
                 "SELECT t.id_transaksi, t.tanggal, " +
@@ -353,6 +391,17 @@ public class TransactionDao {
         if (to != null) {
             sql.append("AND t.tanggal <= ? ");
             param.add(Date.valueOf(to));
+        }
+        if (rental != null && !rental.trim().isEmpty()) {
+            sql.append("AND r.nama_rental = ? ");
+            param.add(rental.trim());
+        }
+        if (plat != null && !plat.trim().isEmpty()) {
+            // Pencocokan sebagian, dan huruf besar-kecil diabaikan. Ejaan plat sudah
+            // diseragamkan saat disimpan, jadi yang diketik operator diseragamkan dulu
+            // di sini supaya "kb 8234" tetap menemukan "KB 8234 HD".
+            sql.append("AND UPPER(tr.plat) LIKE ? ");
+            param.add("%" + Truck.normalizePlate(plat).toUpperCase() + "%");
         }
         sql.append("ORDER BY t.tanggal DESC, t.id_transaksi DESC, d.id_detail DESC");
 
