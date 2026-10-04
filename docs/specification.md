@@ -15,15 +15,15 @@ pengelola di satu komputer.
 
 | Kode | Kebutuhan |
 |------|-----------|
-| F-01 | Sistem mengelola data rental (tambah, ubah, hapus, lihat) |
-| F-02 | Sistem mengelola data truk beserta rental pemiliknya |
+| F-01 | Sistem mengelola data rental (tambah, ubah, hapus, lihat). Penghapusan ditolak selama rentalnya masih punya truk |
+| F-02 | Sistem mengelola data truk beserta rental pemiliknya. Penghapusan ditolak selama truknya masih dipakai catatan pengiriman, karena penghapusan itu akan menghilangkan platnya dari catatan yang sudah ada |
 | F-02a | Sistem dapat menerima plat truk yang belum pernah tercatat, langsung dari layar transaksi, tanpa mendaftarkannya lebih dulu di data master. Ejaan plat diseragamkan supaya satu truk tidak terpecah menjadi beberapa |
 | F-03 | Sistem mencatat setiap pengiriman sebagai satu catatan tersendiri, berisi tanggal, plat, rental, bobot lapak, bobot pabrik, refraksi, tanggal lunas, dan harga. Dua pengiriman dengan truk dan tanggal yang sama tetap menjadi dua catatan terpisah |
 | F-04 | Sistem menghitung berat bersih dan jumlah uang secara otomatis |
 | F-05 | Sistem menampilkan total uang dan total berat bersih pada form input |
 | F-06 | Sistem menyimpan satu pengiriman secara utuh (tersimpan seluruhnya atau dibatalkan seluruhnya, termasuk truk dan rental yang baru pertama kali tercatat) |
 | F-06a | Sistem dapat mengubah dan menghapus catatan pengiriman yang sudah tersimpan, satu per satu maupun beberapa sekaligus. Penghapusan sekaligus bersifat tuntas: kalau satu catatan gagal dihapus, tidak ada yang terhapus |
-| F-06b | Sistem dapat menyaring daftar catatan pengiriman menurut rentang tanggal, nama rental, dan sepenggal plat. Penyaringan dikerjakan oleh database sehingga total uang yang ditampilkan selalu merupakan jumlah catatan yang sedang tampil |
+| F-06b | Sistem dapat menyaring daftar catatan pengiriman menurut rentang tanggal, nama rental, dan sepenggal plat. Rentang tanggal disaring oleh database, sedangkan nama rental dan plat dicocokkan memakai aturan penyeragaman aplikasi supaya ejaan lama tetap ditemukan. Apa pun saringannya, total uang yang ditampilkan selalu merupakan jumlah catatan yang sedang tampil |
 | F-07 | Sistem menampilkan laporan dengan filter rentang tanggal |
 | F-08 | Sistem mencetak laporan |
 | F-09 | Sistem menampilkan susut (selisih bobot lapak dan bobot pabrik) |
@@ -96,6 +96,8 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 | 2 | Tambah truk | plat, dengan pemilik yang sedang disorot di kiri | data muncul di bawah pemiliknya |
 | 2a | Tambah truk tanpa memilih pemilik | plat saja | ditolak, ada keterangan untuk memilih pemilik dulu |
 | 2b | Pindah pemilik truk | truk yang disorot, pemilik tujuan | truk berpindah pemilik, plat dan barisnya tetap satu |
+| 2c | Hapus truk yang sudah dipakai | truk yang punya catatan pengiriman | ditolak, disertai jumlah catatan yang terdampak; riwayatnya tetap utuh |
+| 2d | Hapus rental yang masih punya truk | rental yang punya truk | ditolak, disertai jumlah truknya |
 | 3 | Input transaksi | bobot pabrik, refraksi, harga | berat bersih dan jumlah uang terhitung otomatis |
 | 4 | Simpan pengiriman | bobot, plat, rental, harga | tersimpan sebagai satu catatan, muncul di daftar dan di laporan |
 | 4a | Simpan dua pengiriman truk dan tanggal yang sama | form yang sama dua kali | tersimpan sebagai DUA catatan terpisah |
@@ -116,7 +118,7 @@ Seluruh uji dijalankan lewat `./test.sh` dan lulus tanpa kegagalan:
 |------------|---------|-------|
 | TestCalculator | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | TestDatabase | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama menjadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman dijalankan berulang) | 56 lulus |
-| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil) | 77 lulus |
+| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat | 88 lulus |
 | TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 24 lulus |
-| TestAlur | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (total ikut berubah mengikuti baris yang tampil, rental baru langsung muncul, batas dirapikan), rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 111 lulus |
-| **Total** | | **275 lulus, 0 gagal** |
+| TestAlur | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (total ikut berubah mengikuti baris yang tampil, rental baru langsung muncul, batas dirapikan), rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 121 lulus |
+| **Total** | | **296 lulus, 0 gagal** |

@@ -105,10 +105,42 @@ public class MasterDao {
         return ketemu;
     }
 
+    /**
+     * Hapus rental.
+     *
+     * <p>Ditolak kalau masih ada truk miliknya. Kunci tamunya {@code ON DELETE SET NULL},
+     * jadi DELETE tidak gagal — diam-diam mengosongkan id_rental di setiap truknya,
+     * dan listReport membaca pemiliknya lewat LEFT JOIN, sehingga rekap per pemilik
+     * untuk seluruh riwayat truk-truk itu hilang tanpa jalan kembali. Karena
+     * pengiriman menempel di truk, rental tanpa truk tidak mungkin punya riwayat,
+     * jadi hanya itu yang boleh dihapus.
+     */
     public void deleteRental(int id) throws SQLException {
+        int truk = countTrucksForRental(id);
+        if (truk > 0) {
+            throw new IllegalStateException("Rental ini masih memiliki " + truk
+                    + " truk. Menghapusnya akan melepaskan semua truknya dari pemiliknya, "
+                    + "sehingga rekap per pemilik untuk seluruh riwayatnya hilang dan tidak "
+                    + "bisa dikembalikan. Pindahkan dulu truknya ke pemilik lain lewat "
+                    + "Pindah Pemilik, atau hapus truknya satu per satu kalau memang salah "
+                    + "catat dan tidak punya catatan pengiriman.");
+        }
         try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement("DELETE FROM rental WHERE id_rental=?")) {
             ps.setInt(1, id);
             ps.executeUpdate();
+        }
+    }
+
+    /** Jumlah truk milik rental ini — dipakai untuk menolak penghapusan rental
+     *  yang masih memiliki truk. */
+    public int countTrucksForRental(int rentalId) throws SQLException {
+        try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(
+                "SELECT COUNT(*) FROM truk WHERE id_rental = ?")) {
+            ps.setInt(1, rentalId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
         }
     }
 
@@ -175,10 +207,42 @@ public class MasterDao {
         }
     }
 
+    /**
+     * Hapus truk.
+     *
+     * <p>Ditolak kalau truk ini sudah dipakai catatan pengiriman mana pun. Kunci tamunya
+     * {@code ON DELETE SET NULL}, jadi DELETE tidak gagal — diam-diam mengosongkan
+     * id_truk di semua baris riwayatnya, dan listReport membaca plat lewat LEFT JOIN,
+     * sehingga laporan lama (termasuk kertas yang sudah dicetak) kehilangan platnya
+     * tanpa jalan kembali. Alasan sah melepas pemilik — truk berganti tangan — sudah
+     * dilayani tombol Pindah Pemilik. Truk yang salah catat tetap bisa dibersihkan:
+     * hapus dulu catatan pengirimannya di layar transaksi, baru truknya.
+     */
     public void deleteTruck(int id) throws SQLException {
+        int dipakai = countDeliveriesForTruck(id);
+        if (dipakai > 0) {
+            throw new IllegalStateException("Truk ini dipakai oleh " + dipakai
+                    + " catatan pengiriman. Menghapusnya akan menghilangkan platnya dari "
+                    + "catatan yang sudah ada, termasuk laporan yang sudah dicetak. "
+                    + "Kalau pemiliknya berganti, pakai Pindah Pemilik. Kalau truknya "
+                    + "memang salah catat, hapus dulu catatan pengirimannya.");
+        }
         try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement("DELETE FROM truk WHERE id_truk=?")) {
             ps.setInt(1, id);
             ps.executeUpdate();
+        }
+    }
+
+    /** Jumlah catatan pengiriman yang memakai truk ini — dipakai untuk menolak
+     *  penghapusan truk yang masih punya riwayat. */
+    public int countDeliveriesForTruck(int truckId) throws SQLException {
+        try (Connection c = Db.get(); PreparedStatement ps = c.prepareStatement(
+                "SELECT COUNT(*) FROM transaksi_detail WHERE id_truk = ?")) {
+            ps.setInt(1, truckId);
+            try (ResultSet rs = ps.executeQuery()) {
+                rs.next();
+                return rs.getInt(1);
+            }
         }
     }
 

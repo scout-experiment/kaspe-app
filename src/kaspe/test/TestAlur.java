@@ -48,6 +48,11 @@ public class TestAlur {
     private static int passed = 0;
     private static int failed = 0;
 
+    /** Database uji. Disimpan sebagai konstanta supaya bisa dipulihkan setelah
+     *  sengaja dirusak untuk menguji jalur "jangkauan data tidak terbaca". */
+    private static final String URL_UJI =
+            "jdbc:h2:mem:alur;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1";
+
     public static void main(String[] args) throws Exception {
         // Dipaksa tanpa layar sebelum AWT dipakai. Uji ini menyentuh tombol Simpan, dan
         // jalur suksesnya menampilkan jendela pesan yang MODAL. Di komputer berlayar,
@@ -59,8 +64,7 @@ public class TestAlur {
         System.out.println("=== UJI ALUR LAYAR TRANSAKSI ===\n");
 
         Theme.install();
-        Db.setConfiguration("org.h2.Driver",
-                "jdbc:h2:mem:alur;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "sa", "");
+        Db.setConfiguration("org.h2.Driver", URL_UJI, "sa", "");
         createSchema();
         isiMaster();
 
@@ -84,6 +88,8 @@ public class TestAlur {
         belumLunasTersimpan();
         hapusTransaksiLewatDao();
         saringanDaftarTersimpan();
+        catatanTersembunyiDiberitahu();
+        batasTidakDigerakkanSaatJangkauanTidakTerbaca();
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
@@ -1127,6 +1133,116 @@ public class TestAlur {
                         && "Total tersimpan".equals(keterangan.getText()),
                 "batas di luar jangkauan data dirapikan, keterangannya jujur lagi");
         System.out.println();
+    }
+
+    /**
+     * Catatan yang tersimpan tetapi tidak cocok dengan saringan rental/plat yang
+     * sedang aktif harus DIKETAHUI operator, bukan dibiarkan seolah simpanannya gagal.
+     *
+     * <p>Yang diperiksa keputusannya, bukan dialognya: dialog tidak bisa tampil tanpa
+     * layar, sedangkan keputusan itulah yang menentukan pesannya.
+     */
+    private static void catatanTersembunyiDiberitahu() throws Exception {
+        System.out.println("20. Catatan tersembunyi oleh saringan diberitahu ...");
+        // Kedua rental dibuat lebih dulu: kotak saringan hanya memuat rental yang
+        // benar-benar ada di data master, jadi tanpa ini saringannya tidak bisa dipasang.
+        MasterDao master = new MasterDao();
+        for (String nama : new String[]{"Rental Uji Sembunyi A", "Rental Uji Sembunyi B"}) {
+            Rental r = new Rental();
+            r.setRentalName(nama);
+            master.saveRental(r);
+        }
+
+        PanelTransaction p = new PanelTransaction();
+        p.refreshMaster();
+
+        // Tanpa saringan apa pun, catatan baru selalu terlihat.
+        record(tampilDiSaringan(p, "SC 3000 SC", "Rental Uji Sembunyi A"),
+                "tanpa saringan: catatan baru terlihat");
+
+        // Saringan rental dipasang, lalu dicatat pengiriman rental lain.
+        JComboBox<?> cmb = (JComboBox<?>) field(p, "cmbFilterRental");
+        for (int i = 0; i < cmb.getItemCount(); i++) {
+            Object isi = cmb.getItemAt(i);
+            if (isi instanceof Rental && "Rental Uji Sembunyi A".equals(((Rental) isi).getRentalName())) {
+                cmb.setSelectedIndex(i);
+            }
+        }
+        record(!tampilDiSaringan(p, "SC 3000 SC", "Rental Uji Sembunyi B"),
+                "saringan rental lain: catatan itu diketahui tidak tampil");
+        record(tampilDiSaringan(p, "SC 3000 SC", "Rental Uji Sembunyi A"),
+                "saringan rental yang cocok: catatan tetap terlihat");
+
+        // Saringan plat.
+        cmb.setSelectedIndex(0);
+        isi(p, "txtFilterPlat", "9999");
+        record(!tampilDiSaringan(p, "SC 3000 SC", "Rental Uji Sembunyi A"),
+                "saringan plat yang tidak cocok: catatan diketahui tidak tampil");
+        isi(p, "txtFilterPlat", "3000");
+        record(tampilDiSaringan(p, "SC 3000 SC", "Rental Uji Sembunyi A"),
+                "saringan plat yang cocok: catatan terlihat");
+        System.out.println();
+    }
+
+    /**
+     * Jangkauan data yang tidak terbaca TIDAK boleh menggeser batas saringan ke hari ini.
+     *
+     * <p>Kalau digeser, batas awal yang tadinya 06-07-2026 menjadi hari ini dan seluruh
+     * catatan lama hilang dari layar tanpa satu pun pesan - persis "kelihatan seperti
+     * data hilang" yang paling dihindari. Karena itu pembacaan yang gagal mengembalikan
+     * null, dan batasnya dibiarkan apa adanya.
+     */
+    private static void batasTidakDigerakkanSaatJangkauanTidakTerbaca() throws Exception {
+        System.out.println("21. Jangkauan tidak terbaca: batas saringan tidak digeser ...");
+        PanelTransaction p = new PanelTransaction();
+        klik(p, "bersihkanSaringan");
+        String dariSebelum = kotakTanggal(p, "spFilterFrom").getText();
+        String sampaiSebelum = kotakTanggal(p, "spFilterTo").getText();
+        record(!dariSebelum.isEmpty(), "batas awal terisi sebelum kerusakan (" + dariSebelum + ")");
+
+        // Rusakkan dengan sengaja: arahkan ke database lain, lalu buang tabel transaksi
+        // supaya pembacaan jangkauan benar-benar gagal.
+        Db.setConfiguration("org.h2.Driver",
+                "jdbc:h2:mem:rusak;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1", "sa", "");
+        try (Connection c = Db.get(); Statement st = c.createStatement()) {
+            // View-nya dibuang lebih dulu: DROP TABLE ditolak selama masih ada view
+            // yang bergantung padanya.
+            st.execute("DROP VIEW IF EXISTS v_transaksi");
+            st.execute("DROP TABLE IF EXISTS transaksi_detail");
+            st.execute("DROP TABLE IF EXISTS transaksi");
+        }
+
+        record(null == panggilTanggal(p, "tanggalAwalSaringan"),
+                "jangkauan yang gagal dibaca menghasilkan null, bukan hari ini");
+        record(null == panggilTanggal(p, "tanggalAkhirSaringan"),
+                "batas akhir yang gagal dibaca juga null");
+
+        klik(p, "rapikanBatasSaringan");
+        record(dariSebelum.equals(kotakTanggal(p, "spFilterFrom").getText())
+                        && sampaiSebelum.equals(kotakTanggal(p, "spFilterTo").getText()),
+                "batas saringan TIDAK digeser saat jangkauannya tidak terbaca");
+
+        // Pulihkan, lalu pastikan panelnya kembali bekerja seperti semula.
+        Db.setConfiguration("org.h2.Driver", URL_UJI, "sa", "");
+        klik(p, "bersihkanSaringan");
+        DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
+        record(riwayat.getRowCount() > 0, "setelah dipulihkan, daftarnya terisi lagi");
+        System.out.println();
+    }
+
+    /** Panggil salah satu helper tanggal saringan lewat pantulan. */
+    private static LocalDate panggilTanggal(PanelTransaction p, String nama) throws Exception {
+        java.lang.reflect.Method m = p.getClass().getDeclaredMethod(nama);
+        m.setAccessible(true);
+        return (LocalDate) m.invoke(p);
+    }
+
+    /** Panggil keputusan "apakah catatan ini tampil di saringan". */
+    private static boolean tampilDiSaringan(PanelTransaction p, String plat, String rental) throws Exception {
+        java.lang.reflect.Method m = p.getClass()
+                .getDeclaredMethod("tampilDiSaringan", String.class, String.class);
+        m.setAccessible(true);
+        return (Boolean) m.invoke(p, plat, rental);
     }
 
     private static void record(boolean ok, String name) {

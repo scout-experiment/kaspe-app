@@ -741,10 +741,121 @@ public class TestDao {
         record(transactionDao.listDeliveries(null, null, "cv mitra", null).size()
                         == transactionDao.listDeliveries(null, null, "CV Mitra", null).size(),
                 "saringan: rental tanpa beda huruf besar-kecil");
+
+        // Penghapusan master yang masih dipakai riwayat harus ditolak sebelum DELETE
+        // sempat jalan: tanpa penolakan, plat dan pemiliknya lenyap diam-diam dari
+        // catatan lama (kuncinya ON DELETE SET NULL, bukan gagal).
+        System.out.println("\n11. Hapus truk/rental yang masih dipakai riwayat ditolak ...");
+        ujiHapusMaster(master, transactionDao);
+
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
         }
+    }
+
+
+    /**
+     * Uji penolakan penghapusan data master yang masih dipakai riwayat.
+     *
+     * <p>Kunci tamu transaksi_detail.id_truk dan truk.id_rental sama-sama
+     * ON DELETE SET NULL, jadi tanpa penolakan DELETE tidak gagal — hanya diam-diam
+     * mengosongkan id tersebut, dan plat/pemilik hilang dari laporan lama selamanya.
+     * Yang diperiksa: penolakannya sendiri, isi database yang tidak berubah sedikit
+     * pun, dan penghapusan yang tetap boleh untuk data tanpa riwayat.
+     */
+    private static void ujiHapusMaster(MasterDao master, TransactionDao transactionDao) throws Exception {
+        Truck trukRiwayat;
+        Truck trukBebas;
+        try (Connection c = Db.get()) {
+            trukRiwayat = master.pastikanTruk(c, "BR 1010 AA", "Rental Uji Hapus");
+            trukBebas = master.pastikanTruk(c, "BR 2020 BB", "Rental Uji Hapus");
+        }
+        int idRentalSibuk = trukRiwayat.getRentalId();
+
+        // Rental tanpa satu truk pun: satu-satunya keadaan yang boleh dihapus.
+        Rental rentalKosong = new Rental();
+        rentalKosong.setRentalName("Rental Uji Hapus Kosong");
+        master.saveRental(rentalKosong);
+        int idRentalKosong = 0;
+        for (Rental r : master.listRental()) {
+            if ("Rental Uji Hapus Kosong".equals(r.getRentalName())) {
+                idRentalKosong = r.getRentalId();
+            }
+        }
+
+        int idRiwayat = simpanPengiriman(transactionDao, trukRiwayat,
+                LocalDate.of(2026, 6, 1), 5000, 4900, 15, 1150);
+
+        record(master.countDeliveriesForTruck(trukRiwayat.getTruckId()) == 1
+                        && master.countDeliveriesForTruck(trukBebas.getTruckId()) == 0,
+                "hapus master: jumlah pengiriman per truk terhitung tepat");
+        record(master.countTrucksForRental(idRentalSibuk) == 2
+                        && master.countTrucksForRental(idRentalKosong) == 0,
+                "hapus master: jumlah truk per rental terhitung tepat");
+
+        // Truk berriwayat: ditolak, dan inilah intinya — platnya tidak boleh hilang
+        // dari riwayat. Tanpa penolakan, LEFT JOIN membawa NULL dan uangnya pindah
+        // ke ember "(tanpa rental)".
+        String pesanTruk = null;
+        String potretSebelum = potretDetail();
+        try {
+            master.deleteTruck(trukRiwayat.getTruckId());
+        } catch (IllegalStateException e) {
+            pesanTruk = e.getMessage();
+        }
+        System.out.println("   pesan: " + (pesanTruk == null ? "-" : pesanTruk));
+        record(pesanTruk != null && !pesanTruk.isEmpty(),
+                "hapus master: truk berriwayat ditolak dengan pesan");
+        record(findTruck(master.listTrucks(), "BR 1010 AA") != null,
+                "hapus master: truk yang ditolak tetap ada");
+        ReportRow barisRiwayat = cariBaris(transactionDao, idRiwayat);
+        record(barisRiwayat != null && "BR 1010 AA".equals(barisRiwayat.getPlate()),
+                "hapus master: plat masih terbaca di riwayat setelah penolakan");
+        record(barisRiwayat != null && "Rental Uji Hapus".equals(barisRiwayat.getRentalName()),
+                "hapus master: pemilik masih terbaca di riwayat setelah penolakan truk");
+        record(potretDetail().equals(potretSebelum),
+                "hapus master: penolakan tidak mengubah jumlah baris dan total uang");
+
+        // Truk tanpa riwayat: tetap boleh dihapus (salah catat -> bersihkan truknya).
+        master.deleteTruck(trukBebas.getTruckId());
+        boolean trukBebasMasih = false;
+        for (Truck t : master.listTrucks()) {
+            if (t.getTruckId() == trukBebas.getTruckId()) {
+                trukBebasMasih = true;
+            }
+        }
+        record(!trukBebasMasih, "hapus master: truk tanpa riwayat terhapus");
+
+        // Rental yang masih memiliki truk: ditolak, truknya tetap miliknya.
+        String pesanRental = null;
+        try {
+            master.deleteRental(idRentalSibuk);
+        } catch (IllegalStateException e) {
+            pesanRental = e.getMessage();
+        }
+        System.out.println("   pesan: " + (pesanRental == null ? "-" : pesanRental));
+        boolean rentalMasihAda = false;
+        for (Rental r : master.listRental()) {
+            if (r.getRentalId() == idRentalSibuk) {
+                rentalMasihAda = true;
+            }
+        }
+        record(pesanRental != null && !pesanRental.isEmpty() && rentalMasihAda,
+                "hapus master: rental yang masih punya truk ditolak dan tetap ada");
+        barisRiwayat = cariBaris(transactionDao, idRiwayat);
+        record(barisRiwayat != null && "Rental Uji Hapus".equals(barisRiwayat.getRentalName()),
+                "hapus master: truk tetap melaporkan pemiliknya setelah rental ditolak");
+
+        // Rental tanpa truk: tetap boleh dihapus.
+        master.deleteRental(idRentalKosong);
+        boolean rentalKosongMasih = false;
+        for (Rental r : master.listRental()) {
+            if (r.getRentalId() == idRentalKosong) {
+                rentalKosongMasih = true;
+            }
+        }
+        record(!rentalKosongMasih, "hapus master: rental tanpa truk terhapus");
     }
 
     private static TransactionDetail makeDetail(Truck truck, long fieldWeight, long factoryWeight, int refraction, long price) {

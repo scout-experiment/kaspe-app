@@ -549,22 +549,37 @@ public class PanelTransaction extends JPanel {
      * batasnya memang dikirim tanpa batas.
      */
     private boolean saringanAktif(LocalDate dari, LocalDate sampai, String rental, String plat) {
+        // Batas tanggal hanya dihitung menyaring kalau jangkauan datanya benar-benar
+        // terbaca. Tanpa penjagaan itu, jangkauan yang gagal dibaca akan membuat
+        // batas bawaan tampak "berbeda" dan keterangannya menulis "Total hasil saring"
+        // padahal tidak ada yang disaring.
+        LocalDate awal = tanggalAwalSaringan();
+        LocalDate akhir = tanggalAkhirSaringan();
         return rental != null
                 || !plat.trim().isEmpty()
-                || (dari != null && !dari.equals(tanggalAwalSaringan()))
-                || (sampai != null && !sampai.equals(tanggalAkhirSaringan()));
+                || (awal != null && dari != null && !dari.equals(awal))
+                || (akhir != null && sampai != null && !sampai.equals(akhir));
     }
 
     /**
-     * Tanggal transaksi paling awal, untuk batas awal saringan bawaan. Kalau belum
-     * ada data sama sekali, atau databasenya sedang tidak terbaca, dipakai hari ini.
+     * Tanggal transaksi paling awal, untuk batas awal saringan bawaan. Tabel yang
+     * masih kosong berarti hari ini.
+     *
+     * <p>Database yang tidak terbaca mengembalikan null, BUKAN hari ini. Bedanya
+     * penting: "hari ini" adalah jawaban yang masuk akal untuk tabel kosong, tetapi
+     * salah besar kalau dipakai saat pembacaan gagal - batas awal yang tadinya
+     * 06-07-2026 akan dirapikan jadi hari ini dan seluruh catatan lama hilang dari
+     * layar tanpa satu pun pesan. Pemanggil yang memutuskan apa yang aman dilakukan
+     * saat jangkauannya tidak diketahui.
+     *
+     * @return tanggal terawal, atau null kalau jangkauannya tidak terbaca
      */
     private LocalDate tanggalAwalSaringan() {
         try {
             LocalDate awal = transactionDao.earliestDate();
             return awal == null ? LocalDate.now() : awal;
         } catch (Exception e) {
-            return LocalDate.now();
+            return null;
         }
     }
 
@@ -582,10 +597,38 @@ public class PanelTransaction extends JPanel {
                 akhir = terakhir;
             }
         } catch (Exception e) {
-            // Database tidak terbaca: batas akhir tetap hari ini, saringan tidak
-            // boleh gagal karena ini.
+            // Sama seperti batas awal: jangkauan yang tidak terbaca dikembalikan
+            // sebagai null, bukan sebagai "hari ini".
+            return null;
         }
         return akhir;
+    }
+
+    /**
+     * Apakah pengiriman dengan plat dan rental ini akan terlihat di daftar dengan
+     * saringan yang sedang terpasang.
+     *
+     * <p>Batas tanggalnya tidak diperiksa: {@link #save()} sudah melebarkannya supaya
+     * catatan yang baru disimpan pasti masuk. Yang tersisa adalah saringan rental dan
+     * plat, dan keduanya sengaja TIDAK direset - operator yang sedang menyaring satu
+     * rental tidak boleh kehilangan saringannya hanya karena mencatat pengiriman lain.
+     * Karena itu catatan yang tersembunyi diberi tahu, bukan dipaksa tampil.
+     */
+    private boolean tampilDiSaringan(String plat, String rental) {
+        Object pilihan = cmbFilterRental.getSelectedItem();
+        if (pilihan instanceof Rental
+                && !Rental.matchKey(((Rental) pilihan).getRentalName()).equals(Rental.matchKey(rental))) {
+            return false;
+        }
+        String cariPlat = txtFilterPlat.getText();
+        if (cariPlat != null && !cariPlat.trim().isEmpty()) {
+            String kunci = Truck.normalizePlate(cariPlat);
+            String punya = Truck.normalizePlate(plat);
+            if (punya == null || kunci == null || !punya.contains(kunci)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -598,13 +641,22 @@ public class PanelTransaction extends JPanel {
      * mencegah salah baca seperti itu, jadi batasnya dirapikan dulu.
      */
     private void rapikanBatasSaringan() {
+        LocalDate awal = tanggalAwalSaringan();
+        LocalDate akhir = tanggalAkhirSaringan();
+        if (awal == null || akhir == null) {
+            // Jangkauan datanya tidak terbaca, jadi batas yang "di luar jangkauan" tidak
+            // bisa ditentukan. Membiarkannya apa adanya jauh lebih aman daripada
+            // menggesernya ke hari ini: penggeseran itu akan menyembunyikan seluruh
+            // catatan lama tanpa satu pun pesan, dan itu justru yang paling dihindari.
+            return;
+        }
         LocalDate dari = bacaTanggal(spFilterFrom);
-        if (dari != null && dari.isBefore(tanggalAwalSaringan())) {
-            spFilterFrom.setValue(toDate(tanggalAwalSaringan()));
+        if (dari != null && dari.isBefore(awal)) {
+            spFilterFrom.setValue(toDate(awal));
         }
         LocalDate sampai = bacaTanggal(spFilterTo);
-        if (sampai != null && sampai.isAfter(tanggalAkhirSaringan())) {
-            spFilterTo.setValue(toDate(tanggalAkhirSaringan()));
+        if (sampai != null && sampai.isAfter(akhir)) {
+            spFilterTo.setValue(toDate(akhir));
         }
     }
 
@@ -617,8 +669,16 @@ public class PanelTransaction extends JPanel {
      * hilang, padahal catatannya hanya tersaring.
      */
     private void bersihkanSaringan() {
-        spFilterFrom.setValue(toDate(tanggalAwalSaringan()));
-        spFilterTo.setValue(toDate(tanggalAkhirSaringan()));
+        LocalDate awal = tanggalAwalSaringan();
+        LocalDate akhir = tanggalAkhirSaringan();
+        // Jangkauan yang tidak terbaca dibiarkan: batasnya tidak disentuh, dan
+        // kegagalan membaca datanya sendiri sudah dilaporkan oleh muatRiwayat().
+        if (awal != null) {
+            spFilterFrom.setValue(toDate(awal));
+        }
+        if (akhir != null) {
+            spFilterTo.setValue(toDate(akhir));
+        }
         cmbFilterRental.setSelectedIndex(0);
         txtFilterPlat.setText("");
         muatRiwayat();
@@ -1242,9 +1302,16 @@ public class PanelTransaction extends JPanel {
             }
             muatRiwayat();
 
+            // Catatan yang tersimpan tetapi tidak muncul di daftar karena saringan
+            // rental/plat terbaca sebagai simpanan yang gagal. Dikatakan terus terang
+            // di dialognya, karena dialog inilah yang dibaca operator.
+            String tersembunyi = tampilDiSaringan(plat, rental) ? ""
+                    : "\n\nCatatan ini tidak tampil di daftar karena saringan rental "
+                            + "atau plat sedang aktif. Tekan Semua untuk melihatnya.";
             JOptionPane.showMessageDialog(this,
                     "Pengiriman " + plat + " tanggal " + Dates.format(tanggal)
-                            + " tersimpan.\nRp " + Calculator.formatCurrency(amount),
+                            + " tersimpan.\nRp " + Calculator.formatCurrency(amount)
+                            + tersembunyi,
                     "Tersimpan", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             Theme.showError(this, e);

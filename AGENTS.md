@@ -35,6 +35,13 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   **synchronously on the EDT**. There is no `SwingWorker`, no background thread, no service layer.
 - Every DAO method opens its own `DriverManager` connection via `Db.get()` and closes it with
   try-with-resources. No pool, no `DataSource`, autocommit except in `TransactionDao.save`.
+- Deleting a truck or rental is REFUSED while it still has history
+  (`MasterDao.deleteTruck`/`deleteRental` throw `IllegalStateException` naming the affected
+  count). Both foreign keys are `ON DELETE SET NULL`, so a delete would not fail — it would
+  silently null `transaksi_detail.id_truk` / `truk.id_rental` on historical rows, and
+  `listReport` reads plate and owner through LEFT JOINs, so past reports and their printed
+  paper lose them permanently. `PanelMaster` shows the refusal as an information dialog, not
+  through `Theme.showError`.
 - Rental and truck rows are created by `MasterDao.pastikanTruk(Connection, plate, name)`
   **inside** the transaction of `TransactionDao.save`/`updateDelivery` — never while a form is
   still being typed. Creating them earlier, from the transaction screen as the operator typed,
@@ -278,7 +285,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 77, `TestAlur` 111, `TestUi` 24 — **275 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 88, `TestAlur` 121, `TestUi` 24 — **296 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

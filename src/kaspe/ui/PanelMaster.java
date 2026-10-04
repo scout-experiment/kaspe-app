@@ -417,25 +417,19 @@ public class PanelMaster extends JPanel {
             return;
         }
         try {
-            // Jumlah truknya disebut lebih dulu. Truk tidak ikut terhapus, hanya jadi
-            // tanpa pemilik — dan itu perlu diketahui sebelum menekan Ya, bukan sesudah.
-            int truk = 0;
-            for (Truck t : dao.listTrucks()) {
-                if (t.getRentalId() != null && t.getRentalId() == rentalId) {
-                    truk++;
-                }
-            }
-            String pesan = truk == 0
-                    ? "Hapus rental ini?"
-                    : "Hapus rental ini?\n" + truk + " truknya tidak ikut terhapus, "
-                            + "hanya menjadi tanpa pemilik.";
-            if (JOptionPane.showConfirmDialog(this, pesan, "Konfirmasi",
+            if (JOptionPane.showConfirmDialog(this, "Hapus rental ini?", "Konfirmasi",
                     JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
                 return;
             }
             dao.deleteRental(rentalId);
             rentalId = 0;
             load();
+        } catch (IllegalStateException e) {
+            // Ini penolakan yang disengaja, bukan galat: database sehat dan tidak ada
+            // yang berubah, jadi prefiks "Gagal: " dari Theme.showError akan terbaca
+            // seperti programnya rusak. Penjelasan lengkapnya dibawa pesan DAO.
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
+                    JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             Theme.showError(this, e);
         }
@@ -514,6 +508,12 @@ public class PanelMaster extends JPanel {
         try {
             dao.deleteTruck(truckId);
             load();
+        } catch (IllegalStateException e) {
+            // Penolakan yang disengaja: truknya masih dipakai riwayat, dan DAO sudah
+            // menolaknya sebelum ada yang terhapus. Bukan galat, jadi jangan pakai
+            // prefiks "Gagal: ".
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
+                    JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             Theme.showError(this, e);
         }
