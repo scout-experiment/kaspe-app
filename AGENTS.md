@@ -257,7 +257,7 @@ CP="build:lib/*"
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestCalculator
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestDatabase
 "$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestDao
-"$JAVA_HOME/bin/java" -cp "$CP" kaspe.test.TestAlur
+"$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestAlur
 "$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestUi
 ```
 

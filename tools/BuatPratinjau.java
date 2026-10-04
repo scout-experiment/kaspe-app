@@ -140,6 +140,14 @@ public class BuatPratinjau {
         Method baru = PanelTransaction.class.getDeclaredMethod("newTransaction");
         baru.setAccessible(true);
         baru.invoke(p);
+
+        // Daftar "Transaksi Tersimpan" disegarkan juga. Di aplikasi sungguhan hal ini
+        // dikerjakan save(), tetapi gambar ini menyimpan lewat DAO langsung - tanpa
+        // baris ini kartu riwayatnya tergambar KOSONG, dan gambar pratinjau justru
+        // membantah fitur yang baru saja dibuat.
+        Method riwayat = PanelTransaction.class.getDeclaredMethod("muatRiwayat");
+        riwayat.setAccessible(true);
+        riwayat.invoke(p);
     }
 
     static void isiDataContoh() throws Exception {

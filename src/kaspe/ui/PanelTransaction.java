@@ -87,7 +87,6 @@ public class PanelTransaction extends JPanel {
         setLayout(new BorderLayout(0, 12));
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
-        add(buildHeader(), BorderLayout.NORTH);
         add(buildCenter(), BorderLayout.CENTER);
         add(buildBottom(), BorderLayout.SOUTH);
         cmbPlate.setEditable(true);
@@ -164,27 +163,6 @@ public class PanelTransaction extends JPanel {
         return c;
     }
 
-    private JPanel buildHeader() {
-        JPanel card = Theme.card();
-
-        JPanel row = new JPanel(new GridBagLayout());
-        row.setOpaque(false);
-        GridBagConstraints g = new GridBagConstraints();
-        g.gridy = 0;
-        g.fill = GridBagConstraints.HORIZONTAL;
-        g.anchor = GridBagConstraints.WEST;
-
-        g.gridx = 0;
-        g.insets = new Insets(0, 0, 0, 14);
-        row.add(Theme.field("Tanggal", sized(spDate, 150)), g);
-        // Penyerap sisa lebar: tanpa ini isian ikut melar memenuhi kartu.
-        g.gridx = 1;
-        g.weightx = 1;
-        row.add(new JLabel(), g);
-
-        card.add(row, BorderLayout.CENTER);
-        return card;
-    }
 
     private JPanel buildCenter() {
         JPanel outer = new JPanel(new BorderLayout(0, 12));
@@ -251,29 +229,37 @@ public class PanelTransaction extends JPanel {
         Theme.placeholder(txtRefraction, "%");
         Theme.placeholder(txtPrice, "Rp/kg");
 
-        // baris 1 — truk dan dua angka timbangan
+        // baris 1 — tanggal nota, lalu truk dan dua angka timbangan.
+        //
+        // Tanggal nota dulu punya kartu sendiri di atas form. Kartu itu tingginya 79
+        // piksel hanya untuk satu kotak isian, dan tinggi itu diambil dari jatah dua
+        // tabel di bawahnya - sampai kartu "Transaksi Tersimpan" terdorong ke bawah
+        // lipatan, padahal justru itu yang dicari operator. Dipindahkan ke sini, tidak
+        // ada isian yang hilang dan dua tabelnya sama-sama muat tanpa menggulir.
         g.gridy = 0;
-        g.insets = new Insets(0, 0, 14, 14);
+        g.insets = new Insets(0, 0, 8, 14);
         g.gridx = 0;
-        grid.add(Theme.field("Plat / Truk", sized(cmbPlate, 200)), g);
+        grid.add(Theme.field("Tanggal Nota", sized(spDate, 150)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Rental", sized(cmbRental, 170)), g);
+        grid.add(Theme.field("Plat / Truk", sized(cmbPlate, 200)), g);
         g.gridx = 2;
-        grid.add(Theme.field("Bobot Lapak (kg)", sized(txtFieldWeight, 120)), g);
+        grid.add(Theme.field("Rental", sized(cmbRental, 170)), g);
         g.gridx = 3;
-        g.insets = new Insets(0, 0, 14, 0);
+        grid.add(Theme.field("Bobot Lapak (kg)", sized(txtFieldWeight, 120)), g);
+        g.gridx = 4;
+        g.insets = new Insets(0, 0, 8, 0);
         grid.add(Theme.field("Bobot Pabrik (kg)", sized(txtFactoryWeight, 120)), g);
-        addSpacer(grid, g, 4);
+        addSpacer(grid, g, 5);
 
         // baris 2 — potongan dan harga
         g.gridy = 1;
-        g.insets = new Insets(0, 0, 14, 14);
+        g.insets = new Insets(0, 0, 8, 14);
         g.gridx = 0;
         grid.add(Theme.field("Refraksi (%)", sized(txtRefraction, 120)), g);
         g.gridx = 1;
         grid.add(Theme.field("Harga (Rp/kg)", sized(txtPrice, 120)), g);
         g.gridx = 2;
-        g.insets = new Insets(0, 0, 14, 0);
+        g.insets = new Insets(0, 0, 8, 0);
         // Centang "Sudah dibayar" + tanggal lunasnya dalam satu kotak yang sama:
         // keadaan "belum dibayar" adalah bagian dari isian tanggal lunas, bukan isian lain.
         JPanel kotakLunas = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
@@ -283,7 +269,7 @@ public class PanelTransaction extends JPanel {
         grid.add(Theme.field("Tanggal Lunas", kotakLunas), g);
         addSpacer(grid, g, 3);
 
-        // baris 3 — hasil hitungan dan tombol, sebaris.
+        // baris 4 — hasil hitungan dan tombol, sebaris.
         //
         // Sebelumnya keduanya dua baris terpisah, dan tingginya menghabiskan ruang yang
         // justru dibutuhkan dua tabel di bawahnya. Digabung, formulirnya lebih pendek
@@ -291,7 +277,7 @@ public class PanelTransaction extends JPanel {
         // masing-masing tetap dapat ruang.
         g.gridy = 2;
         g.gridx = 0;
-        g.gridwidth = 4;
+        g.gridwidth = 5;
         g.insets = new Insets(0, 0, 0, 0);
         JPanel hasilDanTombol = new JPanel(new BorderLayout(18, 0));
         hasilDanTombol.setOpaque(false);
@@ -377,7 +363,7 @@ public class PanelTransaction extends JPanel {
         // Tinggi yang diminta menentukan pembagian awal ruang dengan kartu riwayat di
         // bawahnya; batas bawahnya menjaga tabel ini tidak pernah bisa menyusut sampai
         // tinggal headernya saja.
-        card.setPreferredSize(new Dimension(0, 200));
+        card.setPreferredSize(new Dimension(0, 150));
         card.setMinimumSize(new Dimension(0, 120));
         return card;
     }
@@ -412,7 +398,7 @@ public class PanelTransaction extends JPanel {
         isi.add(tombol, BorderLayout.SOUTH);
 
         card.add(isi, BorderLayout.CENTER);
-        card.setPreferredSize(new Dimension(0, 230));
+        card.setPreferredSize(new Dimension(0, 215));
         card.setMinimumSize(new Dimension(0, 110));
         return card;
     }
@@ -443,7 +429,12 @@ public class PanelTransaction extends JPanel {
         }
         riwayatModel.setRowCount(0);
         riwayatNota.clear();
-        for (Nota nota : perNota.values()) {
+        // Terbaru di atas. Daftar ini dipakai untuk menghapus nota yang barusan salah
+        // dicatat, dan itu nota yang paling akhir tersimpan - kalau yang lama di atas,
+        // yang dicari justru ada di baris paling bawah dan harus digulir dulu.
+        List<Nota> urut = new ArrayList<>(perNota.values());
+        java.util.Collections.reverse(urut);
+        for (Nota nota : urut) {
             riwayatNota.add(nota);
             riwayatModel.addRow(new Object[]{
                     Dates.format(nota.tanggal), nota.baris,

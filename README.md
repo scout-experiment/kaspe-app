@@ -292,7 +292,6 @@ cukup nyalakan server MySQL-nya.
   uang, serta cetak.
 - **Pratinjau cetak** — laporan diperiksa di layar dulu sebelum kertas dipakai, jadi kelihatan
   berapa halaman dan di mana halamannya terpotong.
-- **Pemantauan susut** — selisih bobot lapak dan bobot pabrik ditampilkan sebagai pengawasan.
 - **Tampilan seragam** — memakai tema FlatLaf, jadi bentuk jendela sama di Windows maupun Linux,
   tidak ikut berganti mengikuti sistem operasi.
 
@@ -557,7 +556,7 @@ pemasangan apa pun.
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, validasi | 7 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji) | 21 lulus |
 | `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus | 35 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi tabel baris, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 23 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi tabel baris dan daftar riwayat, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 23 lulus |
 | `TestAlur` | menekan Tambah Baris tidak menulis data master, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, baris tidak hilang saat pindah halaman, pekerjaan belum disimpan terdeteksi, belum lunas tersimpan, hapus transaksi, simpan tidak tercatat dua kali | 63 lulus |
 | **Total** | | **149 lulus, 0 gagal** |
 

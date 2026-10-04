@@ -201,11 +201,25 @@ public class TestUi {
             System.out.println("        halaman transaksi tidak tergambar");
             return false;
         }
-        JTable t = tabel(p);
-        int tinggi = t.getParent() == null ? 0 : t.getParent().getHeight();
+        // Dua-duanya diperiksa. Daftar riwayat justru yang paling sering terhimpit -
+        // ia di bawah - dan itulah yang dipakai mencari lalu menghapus nota yang salah
+        // dicatat. Menjaga tabel baris saja membiarkan bentuk regresi yang sama lolos
+        // lewat riwayat.
+        if (!cukupTinggi((JTable) field(p, "table"), "tabel baris")) {
+            return false;
+        }
+        return cukupTinggi((JTable) field(p, "riwayatTable"), "daftar riwayat");
+    }
+
+    /** Benar kalau tabelnya benar-benar dapat tinggi yang terpakai, bukan hanya headernya. */
+    private static boolean cukupTinggi(JTable t, String nama) {
+        java.awt.Container induk = t.getParent();
+        int tinggi = induk instanceof javax.swing.JViewport
+                ? ((javax.swing.JViewport) induk).getExtentSize().height
+                : (induk == null ? 0 : induk.getHeight());
         if (tinggi < TINGGI_MIN_TABEL_BARIS) {
-            System.out.println("        tabel baris hanya " + tinggi + "px, butuh paling tidak "
-                    + TINGGI_MIN_TABEL_BARIS + "px - barisnya tidak akan terlihat");
+            System.out.println("        " + nama + " hanya " + tinggi + "px, butuh paling tidak "
+                    + TINGGI_MIN_TABEL_BARIS + "px - isinya tidak akan terlihat");
             return false;
         }
         return true;

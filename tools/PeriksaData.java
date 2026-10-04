@@ -121,10 +121,15 @@ public class PeriksaData {
             // IFEXISTS=TRUE membuat H2 MENOLAK membuka database yang belum ada, alih-alih
             // membuatnya. Tanpa ini, alat pemeriksa akan membuat berkas database kosong
             // lalu melaporkan "tidak ada tanda kerusakan" untuk database yang salah.
-            url = url + (url.indexOf(';') >= 0 ? ";" : ";") + "IFEXISTS=TRUE";
+            url = url + ";IFEXISTS=TRUE";
         }
         try {
-            Class.forName("org.h2.Driver");
+            // Hanya driver H2 yang didaftarkan sendiri. Driver lain (mis. MySQL) sudah
+            // terdaftar otomatis oleh JDBC 4 begitu jar-nya ada di classpath, jadi
+            // memaksakan nama kelas H2 di sini justru menggagalkan mode MySQL.
+            if (h2) {
+                Class.forName("org.h2.Driver");
+            }
             return DriverManager.getConnection(url, Db.infoUser(), Db.infoPass());
         } catch (Exception e) {
             System.out.println();

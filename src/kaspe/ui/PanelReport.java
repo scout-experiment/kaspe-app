@@ -265,6 +265,9 @@ public class PanelReport extends JPanel {
         if (!tanggalFilterSah()) {
             return;
         }
+        if (!tanggalSiapCetak("Pratinjau")) {
+            return;
+        }
         if (table.getRowCount() == 0) {
             JOptionPane.showMessageDialog(this, "Tidak ada baris untuk dicetak pada rentang tanggal ini.",
                     "Pratinjau", JOptionPane.INFORMATION_MESSAGE);
@@ -277,6 +280,9 @@ public class PanelReport extends JPanel {
 
     private void print() {
         if (!tanggalFilterSah()) {
+            return;
+        }
+        if (!tanggalSiapCetak("Cetak")) {
             return;
         }
 
@@ -361,6 +367,49 @@ public class PanelReport extends JPanel {
     /** Benar kalau kedua tanggal filter tertulis dengan benar. */
     private boolean tanggalFilterSah() {
         return bacaTanggal(spFrom, "\"Dari\"") != null && bacaTanggal(spTo, "\"Sampai\"") != null;
+    }
+
+    /**
+     * Benar kalau tanggal di kotak berbeda dari rentang yang sedang ditampilkan tabel.
+     *
+     * <p>Keadaan ini yang paling mudah terjadi: operator mengubah tanggal lalu langsung
+     * menekan Cetak tanpa menekan "Tampilkan". Kertasnya sudah benar - ia menuliskan
+     * periode yang sama dengan baris dan totalnya - tetapi periodenya yang LAMA, sehingga
+     * maksudnya tetap tidak terlayani dan ia tidak tahu kenapa. Karena itu keadaannya
+     * ditanyakan lebih dulu, bukan dibiarkan lewat diam-diam.
+     */
+    private boolean tanggalBelumDiterapkan() {
+        LocalDate dari = bacaTanggal(spFrom, "\"Dari\"");
+        LocalDate sampai = bacaTanggal(spTo, "\"Sampai\"");
+        if (dari == null || sampai == null) {
+            return false;
+        }
+        return !dari.equals(fromTabel) || !sampai.equals(toTabel);
+    }
+
+    /**
+     * Tanyakan dulu kalau tanggal di kotak belum diterapkan ke tabel.
+     *
+     * @return true kalau pencetakan boleh diteruskan, false kalau dibatalkan operator
+     */
+    private boolean tanggalSiapCetak(String judul) {
+        if (!tanggalBelumDiterapkan()) {
+            return true;
+        }
+        Date dariTabel = fromTabel == null ? null : toDate(fromTabel);
+        Date sampaiTabel = toTabel == null ? null : toDate(toTabel);
+        int pilih = JOptionPane.showConfirmDialog(this,
+                "Tanggal sudah diubah, tetapi tabelnya belum ditampilkan ulang.\n"
+                        + "Yang akan dicetak masih periode " + periodeRingkas(dariTabel, sampaiTabel) + ".\n\n"
+                        + "Tampilkan dulu dengan tanggal yang baru?",
+                judul, JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
+        if (pilih == JOptionPane.YES_OPTION) {
+            reload();
+            // Setelah dimuat ulang, rentangnya sudah sepadan; kalau ternyata tidak ada
+            // baris, pemanggil yang memutuskan pesannya lewat pemeriksaan rowCount.
+            return true;
+        }
+        return pilih == JOptionPane.NO_OPTION;
     }
 
     private static JSpinner dateSpinner() {
