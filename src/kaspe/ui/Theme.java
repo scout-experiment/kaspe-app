@@ -645,8 +645,9 @@ public final class Theme {
      * lebih kecil hanya karena tulisannya lebih pendek. Angkanya tetap terbaca benar satu
      * per satu, jadi tidak ada tanda apa pun bahwa urutannya salah.
      *
-     * <p>Dipakai bersama {@link #sortTanggal}; keduanya perlu dipanggil setelah
-     * {@code setAutoCreateRowSorter(true)}, karena pembandingnya dipasang ke pengurutnya.
+     * <p>Dipakai bersama {@link #sortTanggal}. Pengurutnya dibuat sendiri kalau tabelnya
+     * belum punya — lihat {@link #pengurut} — jadi urutan pemanggilan tidak berpengaruh:
+     * pembandingnya tidak bisa lagi hilang karena dipasang ke pengurut yang belum ada.
      */
     public static void sortAngka(JTable t, int... columns) {
         TableRowSorter<?> pengurut = pengurut(t);

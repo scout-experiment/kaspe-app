@@ -279,8 +279,8 @@ starts with `DELETE`, so it wipes the target database.
   it. `sortTeks` exists because that same locale dependence makes Plat/Rental order differ between
   computers — the reason `Dates` writes its own day/month names. Two further traps: an empty cell is
   real (an unpaid row has no Tgl Lunas) and must not blow up the comparator, and
-  `setAutoCreateRowSorter(true)` must come BEFORE the comparator calls — `Theme.pengurut` now creates
-  the sorter itself so that order cannot silently drop the comparators, and any code reading
+  `Theme.pengurut` creates the sorter itself, so the comparator calls no longer depend on
+  `setAutoCreateRowSorter(true)` having run first — that order used to drop them silently — and any code reading
   `getSelectedRow()` / table row indexes must go through `convertRowIndexToModel`. That is why
   `Theme.styleTable` keeps `setAutoCreateRowSorter(false)` and the two panels opt in individually.
 - **Column widths include room for the sort arrow.** The arrow icon is 10px and lives inside the
@@ -306,7 +306,8 @@ starts with `DELETE`, so it wipes the target database.
   The row count is deliberately NOT sized up: it would read as a third total. The Simpan button is
   indented by `Theme.STRIP_INSET` so its left edge lines up with the *text* in the strip above it.
 - **Laporan's "Ekspor CSV" and "Rekap per rental" sit in the totals row, not the filter row.** The
-  filter row is already 1042px of a 1052px budget at `LEBAR_MINIMUM`; a button added there wraps and
+  filter row already asks for 1008px of the 1070px the card gives it at `LEBAR_MINIMUM`, leaving ~62px; a
+  button added there wraps and
   gets clipped. Quick date ranges therefore live on a *second* row of the filter card, never appended
   to the first. The CSV carries raw numbers (no "Rp", no thousands separator, `;` delimiter for
   Indonesian Excel) taken from the raw `ReportRow` list in current view order — the table cells hold
@@ -410,7 +411,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 55 — **325 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 57 — **327 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

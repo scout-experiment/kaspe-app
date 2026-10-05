@@ -251,6 +251,12 @@ public class TestUi {
         // senyap: kotak tanggalnya berubah tetapi tabelnya tidak dimuat ulang, jadi
         // baris dan totalnya masih periode lama padahal kotaknya menulis bulan ini.
         check("tombol 'Bulan ini' memasang rentang bulan berjalan", rentangCepatBulanIni());
+        // Dua tombol rentang cepat lainnya. Ketiganya memasang periode yang dibaca orang
+        // untuk mencocokkan uang, dan salah rentang di situ tidak berbunyi: kotaknya tetap
+        // berisi tanggal yang masuk akal, hanya bukan rentang yang dimaksud. Menguji satu
+        // tombol saja membuat dua jalur lainnya bebas melenceng tanpa ada yang tahu.
+        check("tombol 'Hari ini' memasang rentang hari ini", rentangCepatHariIni());
+        check("tombol 'Semua' memasang rentang seluruh data", rentangCepatSemua());
         // Pembanding teks yang mengikuti aturan abjad komputer mengurut nama yang
         // sama dengan hasil berbeda di komputer yang berbeda, sehingga laporan dari
         // dua komputer tidak bisa dicocokkan. Diurutkan menaik lalu diperiksa
@@ -1549,6 +1555,17 @@ public class TestUi {
                     return false;
                 }
             }
+            // Kolom 7 (Susut) harus bobot lapak dikurangi bobot pabrik. Tidak ada kolom
+            // lain yang bisa dipakai menebaknya, jadi tanpa pemeriksaan ini kolomnya bisa
+            // tertukar dengan salah satu bobot atau tandanya terbalik - dan angkanya tetap
+            // terlihat masuk akal, padahal angka itulah alasan kolomnya ada.
+            java.math.BigDecimal lapak = new java.math.BigDecimal(kolom[3]);
+            java.math.BigDecimal pabrik = new java.math.BigDecimal(kolom[4]);
+            if (new java.math.BigDecimal(kolom[7]).compareTo(lapak.subtract(pabrik)) != 0) {
+                System.out.println("        susut baris " + i + " = " + kolom[7]
+                        + ", seharusnya bobot lapak - bobot pabrik = " + lapak.subtract(pabrik));
+                return false;
+            }
             jumlah = jumlah.add(new java.math.BigDecimal(kolom[10]));
         }
 
@@ -2142,6 +2159,55 @@ public class TestUi {
             ok = false;
         }
         return ok;
+    }
+
+    /**
+     * Tombol rentang cepat memasang rentangnya ke kedua kotak tanggal.
+     *
+     * <p>Diperiksa untuk tiap tombol, bukan hanya salah satu: ketiganya memasang periode
+     * yang dipakai orang mencocokkan uang, dan salah rentang di situ tidak berbunyi -
+     * kotaknya tetap berisi tanggal yang masuk akal, hanya bukan rentang yang dimaksud.
+     */
+    private static boolean rentangCepat(String nama, java.time.LocalDate harapDari,
+            java.time.LocalDate harapSampai) throws Exception {
+        PanelReport p = new PanelReport();
+        JButton tombol = tombolBerteks(p, nama);
+        if (tombol == null) {
+            System.out.println("        tombol '" + nama + "' tidak ada di halaman laporan");
+            return false;
+        }
+        tombol.doClick();
+        java.time.LocalDate dari = tanggalSpinner(p, "spFrom");
+        java.time.LocalDate sampai = tanggalSpinner(p, "spTo");
+        if (!harapDari.equals(dari)) {
+            System.out.println("        '" + nama + "' memasang Dari " + dari
+                    + ", seharusnya " + harapDari);
+            return false;
+        }
+        if (!harapSampai.equals(sampai)) {
+            System.out.println("        '" + nama + "' memasang Sampai " + sampai
+                    + ", seharusnya " + harapSampai);
+            return false;
+        }
+        return true;
+    }
+
+    /** "Hari ini" harus memasang kedua kotak tanggal ke tanggal hari ini. */
+    private static boolean rentangCepatHariIni() throws Exception {
+        java.time.LocalDate hariIni = java.time.LocalDate.now();
+        return rentangCepat("Hari ini", hariIni, hariIni);
+    }
+
+    /** "Semua" harus memasang rentang dari transaksi terawal sampai yang terakhir. */
+    private static boolean rentangCepatSemua() throws Exception {
+        kaspe.dao.TransactionDao dao = new kaspe.dao.TransactionDao();
+        java.time.LocalDate terawal = dao.earliestDate();
+        java.time.LocalDate terakhir = dao.latestDate();
+        if (terawal == null || terakhir == null) {
+            System.out.println("        data uji tidak punya transaksi, pemeriksaan ini tidak berlaku");
+            return false;
+        }
+        return rentangCepat("Semua", terawal, terakhir);
     }
 
     /** Tanggal yang tertulis di nilai model sebuah kotak tanggal. */

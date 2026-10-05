@@ -477,10 +477,10 @@ public class PanelTransaction extends JPanel {
         // itu syarat mutlak sebelum pengurutan dinyalakan di sini: tanpa itu, mengurut
         // lalu menghapus akan menghapus catatan yang salah.
         //
-        // Dinyalakan SEBELUM pembandingnya dipasang. Urutan sebaliknya membuat
-        // pembandingnya dipasang ke pengurut yang belum ada - pemasangannya diam-diam
-        // tidak terjadi, lalu baris ini membuat pengurut baru yang kosong, sehingga
-        // tabelnya mengurut menurut tulisan lagi tanpa satu pun tanda.
+        // Pengurutnya dinyalakan di sini. Theme.sortTanggal/sortAngka/sortTeks juga
+        // membuatnya sendiri kalau belum ada, jadi urutan pemanggilan tidak berpengaruh -
+        // dulu urutan yang salah membuat pembandingnya dipasang ke pengurut yang belum ada
+        // dan hilang tanpa suara, sehingga tabelnya diam-diam mengurut menurut tulisan lagi.
         riwayatTable.setAutoCreateRowSorter(true);
         // Angka dan tanggal dibandingkan menurut nilainya, bukan menurut tulisannya -
         // sama seperti tabel laporan. Nomor kolomnya bergeser satu karena kolom id
