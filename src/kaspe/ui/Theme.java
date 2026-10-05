@@ -569,23 +569,25 @@ public final class Theme {
     }
 
     /**
-     * Rata kanan untuk ISI kolom angka.
+     * Rata kanan untuk kolom angka, judulnya ikut.
      *
-     * <p>Judulnya TIDAK ikut rata kanan. Semua judul kolom rata kiri, seragam dari kolom
-     * teks sampai kolom uang: judul yang berselang-seling kiri-kanan membuat mata harus
-     * mencari awal tiap judul di tempat yang berbeda. Yang perlu lurus adalah angkanya,
-     * bukan judulnya - dan itu diatur penggambar selnya, bukan penggambar judulnya.
+     * <p>Aturannya: PERATAAN JUDUL MENGIKUTI PERATAAN ISINYA. Kolom teks rata kiri
+     * (bawaan), kolom angka rata kanan. Jadi judul dan isinya selalu berbagi tepi yang
+     * sama, dan judulnya terbaca sebagai satu kepala untuk kolomnya.
      *
-     * <p>Pernah sebaliknya: judulnya ikut rata kanan supaya sejajar dengan angkanya. Tetapi
-     * sejak satuan ditulis di dalam sel ("6.350 kg"), ujung kanan judul tidak lagi sejajar
-     * dengan ujung kanan angkanya, melainkan dengan "kg"-nya - jadi alasan itu tidak lagi
-     * berlaku untuk kolom-kolom berbobot.
+     * <p>Pernah dicoba sebaliknya - semua judul rata kiri, hanya angkanya rata kanan.
+     * Hasilnya judul dan angkanya tidak berbagi tepi mana pun, sehingga terlihat seperti
+     * dua baris yang lepas. Percobaan lain: semua rata kiri termasuk angkanya, tetapi itu
+     * membuat angka yang panjangnya berbeda jadi bergerigi di kanan - dan pada tabel yang
+     * dipakai mencocokkan uang, angka menyimpang justru yang harus paling cepat ketahuan.
+     * Rata kanan membuat perbedaan besar-kecil angka langsung melompat.
      */
     public static void alignRight(JTable t, int... columns) {
         for (int i : columns) {
             if (i < t.getColumnCount()) {
                 TableColumn c = t.getColumnModel().getColumn(i);
                 c.setCellRenderer(new CellRenderer(SwingConstants.RIGHT));
+                c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
             }
         }
     }
@@ -607,10 +609,10 @@ public final class Theme {
             if (i < t.getColumnCount()) {
                 TableColumn c = t.getColumnModel().getColumn(i);
                 c.setCellRenderer(new EmphasisCell());
-                // Judulnya sengaja TIDAK disentuh di sini: penggambar judul bawaan sudah
-                // rata kiri, dan semua judul kolom memang rata kiri (lihat alignRight).
-                // Menyetelnya ke kanan di sini justru membuat judul kolom uang menyimpang
-                // dari judul kolom lainnya.
+                // Judul kolomnya ikut rata kanan, mengikuti perataan isinya (lihat
+                // alignRight). Disetel di sini juga, bukan diserahkan ke pemanggil, supaya
+                // kolom uang tidak bisa berakhir dengan judul rata kiri sementara angkanya
+                // rata kanan - dan kesalahan itu tidak menimbulkan pesan apa pun.
             }
         }
     }

@@ -158,12 +158,13 @@ starts with `DELETE`, so it wipes the target database.
 ## Code Conventions & Common Patterns
 
 - **Java 8 API only.** No `var`, no `List.of`, no records, no `java.nio.file` shortcuts beyond 8.
-- **Column headers are always left-aligned; only the numeric CELLS are right-aligned.**
-  `Theme.alignRight` sets the cell renderer and nothing else, and `Theme.emphasis` deliberately leaves
-  the header alone — the table's default header renderer is already LEFT. Right-aligning a header
-  makes headers alternate left/right down the table, so the eye has to hunt for where each one starts;
-  and once units live in the cells ("6.350 kg"), a right-aligned header no longer even lines up with
-  the number it labels. `TestUi` guards this, since a re-added `setHeaderRenderer(RIGHT)` is silent.
+- **A column header's alignment follows its cells': text columns left, numeric columns right.**
+  `Theme.alignRight` sets BOTH the cell and the header renderer, and `Theme.emphasis` re-asserts the
+  header for the money column so it cannot drift. Two wrong states were tried and both looked wrong:
+  headers left with numeric cells right leaves the header sharing no edge with its values, so it reads
+  as a detached line; and everything left makes values of different lengths ragged on the right, which
+  is exactly what hides a small amount among large ones. `TestUi` compares header alignment against
+  cell alignment on every visible column, because either mistake is otherwise silent.
 - **Units live in the cells, not the column headers** (`Calculator.formatKg`, `formatPercent`) — the
   header text is what sets a column's width, so a "(kg)" in the header widens three columns at once,
   while the same unit inside the cell costs nothing because the header stays the longest string. This

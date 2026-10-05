@@ -185,14 +185,17 @@ public class TestUi {
         check("halaman transaksi muat tanpa digulir pada ukuran jendela minimum",
                 muatTanpaGulir(new PanelTransaction(), "Transaksi",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM, kaspe.ui.MainFrame.TINGGI_MINIMUM));
-        // Semua judul kolom rata kiri, sedangkan ISI kolom angka tetap rata kanan. Pernah
-        // sebaliknya: judul kolom angka ikut diratakan ke kanan supaya sejajar dengan
-        // angkanya, sehingga judul berselang-seling kiri-kanan dan mata harus mencari awal
-        // tiap judul di tempat yang berbeda. Perubahan seperti itu tidak menimbulkan pesan
-        // apa pun dan tidak terlihat di pemeriksaan lain, jadi dikunci di sini.
-        check("judul kolom rata kiri di semua tabel", judulKolomRataKiri(new PanelTransaction(), "Transaksi"));
-        check("judul kolom rata kiri di tabel laporan", judulKolomRataKiri(new PanelReport(), "Laporan"));
-        check("judul kolom rata kiri di tabel data master", judulKolomRataKiri(new PanelMaster(), "Data Master"));
+        // Aturan perataan: PERATAAN JUDUL MENGIKUTI PERATAAN ISINYA. Kolom teks rata kiri,
+        // kolom angka rata kanan, dan judulnya selalu sepasang dengan isinya.
+        //
+        // Dua keadaan yang pernah terjadi dan sama-sama tidak menimbulkan pesan apa pun:
+        // judul kolom angka diratakan kiri sementara angkanya rata kanan (judul dan angkanya
+        // tidak berbagi tepi, terlihat lepas), dan seluruh kolom diratakan kiri termasuk
+        // angkanya (angka dengan panjang berbeda jadi bergerigi di kanan, sehingga beda
+        // besar-kecil uang tidak lagi melompat). Keduanya dikunci di sini.
+        check("perataan judul kolom mengikuti isinya", perataanJudulIkutIsi(new PanelTransaction(), "Transaksi"));
+        check("perataan judul kolom laporan mengikuti isinya", perataanJudulIkutIsi(new PanelReport(), "Laporan"));
+        check("perataan judul kolom data master mengikuti isinya", perataanJudulIkutIsi(new PanelMaster(), "Data Master"));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -305,13 +308,13 @@ public class TestUi {
     }
 
     /**
-     * Benar kalau semua judul kolom yang tampil rata KIRI, dan isi kolom angka rata KANAN.
+     * Benar kalau setiap judul kolom sejajar dengan isi kolomnya.
      *
      * <p>Penggambar per kolom bisa kosong, dan yang dipakai tabel adalah penggambar
      * bawaannya. Karena itu yang dibaca di sini adalah penggambar yang benar-benar dipakai
-     * JTable saat menggambar — bukan hanya yang dipasang per kolom.
+     * JTable saat menggambar - bukan hanya yang dipasang per kolom.
      */
-    private static boolean judulKolomRataKiri(JPanel panel, String nama) {
+    private static boolean perataanJudulIkutIsi(JPanel panel, String nama) {
         java.util.List<String> salah = new java.util.ArrayList<String>();
         for (JTable t : semuaTabel(panel)) {
             for (int c = 0; c < t.getColumnCount(); c++) {
@@ -321,10 +324,15 @@ public class TestUi {
                 }
                 javax.swing.table.TableCellRenderer hr = col.getHeaderRenderer() != null
                         ? col.getHeaderRenderer() : t.getTableHeader().getDefaultRenderer();
-                int rata = hr instanceof JLabel
+                javax.swing.table.TableCellRenderer cr = col.getCellRenderer() != null
+                        ? col.getCellRenderer() : t.getDefaultRenderer(Object.class);
+                int rataJudul = hr instanceof JLabel
                         ? ((JLabel) hr).getHorizontalAlignment() : SwingConstants.LEFT;
-                if (rata != SwingConstants.LEFT) {
-                    salah.add("kolom \"" + col.getHeaderValue() + "\" judulnya tidak rata kiri");
+                int rataIsi = cr instanceof JLabel
+                        ? ((JLabel) cr).getHorizontalAlignment() : SwingConstants.LEFT;
+                if (rataJudul != rataIsi) {
+                    salah.add("kolom \"" + col.getHeaderValue() + "\": judul "
+                            + sebut(rataJudul) + " tetapi isinya " + sebut(rataIsi));
                 }
             }
         }
@@ -332,6 +340,19 @@ public class TestUi {
             System.out.println("        " + nama + ": " + p);
         }
         return salah.isEmpty();
+    }
+
+    private static String sebut(int rata) {
+        if (rata == SwingConstants.RIGHT) {
+            return "rata kanan";
+        }
+        if (rata == SwingConstants.LEFT) {
+            return "rata kiri";
+        }
+        if (rata == SwingConstants.CENTER) {
+            return "rata tengah";
+        }
+        return "perataan lain (" + rata + ")";
     }
 
     /** Semua tabel di dalam wadah ini, sedalam apa pun. */
