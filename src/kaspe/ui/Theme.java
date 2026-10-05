@@ -73,6 +73,15 @@ public final class Theme {
      * terbaca sebagai pemisah di kertas.
      */
     public static final Color HEADER_BG = new Color(0xE7EDF3);
+    /**
+     * Warna angka uang di dalam tabel.
+     *
+     * <p>Lebih gelap daripada {@link #MONEY}. Tabel laporan ikut dicetak ke kertas, dan
+     * hijau yang terang berubah menjadi abu-abu muda di sana — kolom terpenting justru
+     * akan tampak paling pudar. Hijau tua ini tetap terbaca sebagai hijau di layar,
+     * tetapi di kertas mendekati kegelapan teks biasa.
+     */
+    public static final Color MONEY_TABLE = new Color(0x14532D);
     /** Latar kotak sorot angka hasil hitungan. */
     public static final Color STRIP = new Color(0xEDF4EF);
     /** Tepi kotak sorot angka hasil hitungan. */
@@ -419,9 +428,19 @@ public final class Theme {
         p.setOpaque(true);
         p.setBorder(BorderFactory.createCompoundBorder(
                 new FlatLineBorder(new Insets(1, 1, 1, 1), STRIP_LINE, 1f, 10),
-                BorderFactory.createEmptyBorder(10, 14, 10, 14)));
+                BorderFactory.createEmptyBorder(10, STRIP_INSET - 1, 10, STRIP_INSET - 1)));
         return p;
     }
+
+    /**
+     * Jarak tepi luar kotak sorot ke tulisannya, dalam piksel.
+     *
+     * <p>Dipakai bersama oleh kotak sorot dan tombol yang duduk di bawahnya: tombol
+     * dipasang sejajar dengan TULISAN di kotaknya, bukan dengan tepi kotaknya. Kalau
+     * angkanya ditulis dua kali di dua tempat, keduanya bisa berbeda tanpa ada yang
+     * menyadari, dan tombolnya kembali tidak sejajar.
+     */
+    public static final int STRIP_INSET = 15;
 
     // ---------- tombol ----------
 
@@ -580,6 +599,58 @@ public final class Theme {
                 c.setCellRenderer(new CellRenderer(SwingConstants.RIGHT));
                 c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
             }
+        }
+    }
+
+    /**
+     * Tegaskan kolom angka penting — biasanya kolom jumlah uang.
+     *
+     * <p>Isinya dibuat setengah tebal dan berwarna hijau tua. Ketebalan huruf inilah yang
+     * menonjolkan kolomnya; warnanya hanya penguat di layar, karena di kertas warnanya
+     * menjadi abu-abu dan yang tersisa hanyalah ketebalannya. Itu sebabnya kolom uang
+     * tetap terbaca di hasil cetak walaupun warnanya tidak ikut tercetak.
+     *
+     * <p>Penggambar sel bawaan digantikan untuk kolom ini, jadi selang-seling barisnya
+     * digambar ulang di dalamnya — tanpa itu kolom ini akan kehilangan pitanya dan
+     * terlihat sebagai satu lajur yang berbeda dari barisnya.
+     */
+    public static void emphasis(JTable t, int... columns) {
+        for (int i : columns) {
+            if (i < t.getColumnCount()) {
+                TableColumn c = t.getColumnModel().getColumn(i);
+                c.setCellRenderer(new EmphasisCell());
+                // Judulnya DISETEL DI SINI, bukan diserahkan ke pemanggil. Sebelumnya
+                // komentar di sini mengatakan hal itu padahal panggilannya tidak ada -
+                // kolomnya hanya benar karena pemanggilnya kebetulan memanggil alignRight
+                // lebih dulu untuk kolom yang sama. Dipanggil sendirian, kolomnya akan
+                // berakhir dengan judul rata kiri di atas angka rata kanan: judul dan
+                // angkanya tidak berbagi tepi, dan kesalahan itu tidak menimbulkan pesan
+                // apa pun. Panggilannya sekarang benar-benar ada.
+                c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
+            }
+        }
+    }
+
+    /** Isi kolom yang ditegaskan: setengah tebal, hijau tua, tetap mengikuti selang-seling baris. */
+    private static class EmphasisCell extends DefaultTableCellRenderer {
+
+        EmphasisCell() {
+            setHorizontalAlignment(SwingConstants.RIGHT);
+        }
+
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value, boolean selected,
+                                                       boolean focused, int row, int column) {
+            super.getTableCellRendererComponent(table, value, selected, focused, row, column);
+            if (selected) {
+                setForeground(INK);
+            } else {
+                Color alt = UIManager.getColor("Table.alternateRowColor");
+                setBackground(row % 2 == 1 && alt != null ? alt : table.getBackground());
+                setForeground(MONEY_TABLE);
+            }
+            setFont(semibold(FONT_SIZE));
+            return this;
         }
     }
 

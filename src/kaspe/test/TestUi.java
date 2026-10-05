@@ -196,6 +196,12 @@ public class TestUi {
         check("perataan judul kolom mengikuti isinya", perataanJudulIkutIsi(new PanelTransaction(), "Transaksi"));
         check("perataan judul kolom laporan mengikuti isinya", perataanJudulIkutIsi(new PanelReport(), "Laporan"));
         check("perataan judul kolom data master mengikuti isinya", perataanJudulIkutIsi(new PanelMaster(), "Data Master"));
+        // Tombol Simpan dipasang sejajar dengan TULISAN di kotak hasil di atasnya, dan
+        // kedua angka di kotak itu memakai huruf yang sama. Keduanya mudah melenceng tanpa
+        // pesan apa pun: jarak tepinya dulu ditulis di dua tempat sehingga tombolnya
+        // menggantung keluar dari kotaknya, dan jumlah uang dulu lebih besar daripada berat
+        // bersih sehingga satu angka terlihat lebih penting padahal keduanya sederajat.
+        check("tombol Simpan sejajar dengan angka hasil di atasnya", simpanSejajarAngkaHasil());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -353,6 +359,53 @@ public class TestUi {
             return "rata tengah";
         }
         return "perataan lain (" + rata + ")";
+    }
+
+    /**
+     * Benar kalau tombol Simpan mulai dari tepi kiri yang sama dengan tulisan di kotak hasil
+     * di atasnya, dan kedua angka di kotak itu berhuruf sama.
+     */
+    private static boolean simpanSejajarAngkaHasil() throws Exception {
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        PanelTransaction p = new PanelTransaction();
+        halaman.showPanel(p, "Transaksi", "Catat pengiriman per truk.");
+        layar.setSize(1320, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        JButton simpan = (JButton) field(p, "btnSimpan");
+        JLabel netto = (JLabel) field(p, "lblNetWeight");
+        JLabel uang = (JLabel) field(p, "lblTotalAmount");
+
+        boolean ok = true;
+        int kiriSimpan = kiriAbsolut(simpan);
+        int kiriNetto = kiriAbsolut(netto);
+        if (kiriSimpan != kiriNetto) {
+            System.out.println("        tombol Simpan mulai di x=" + kiriSimpan
+                    + ", tetapi angka hasil di atasnya mulai di x=" + kiriNetto
+                    + " - tombolnya menggantung keluar dari kotaknya");
+            ok = false;
+        }
+        if (!netto.getFont().equals(uang.getFont())) {
+            System.out.println("        berat bersih berhuruf " + netto.getFont().getSize()
+                    + " " + netto.getFont().getStyle() + ", jumlah uang "
+                    + uang.getFont().getSize() + " " + uang.getFont().getStyle()
+                    + " - dua angka sederajat di satu kotak harus sama");
+            ok = false;
+        }
+        return ok;
+    }
+
+    /** Jarak tepi kiri sebuah komponen dari akar susunannya. */
+    private static int kiriAbsolut(Component c) {
+        int x = 0;
+        for (Component k = c; k != null; k = k.getParent()) {
+            x += k.getX();
+        }
+        return x;
     }
 
     /** Semua tabel di dalam wadah ini, sedalam apa pun. */

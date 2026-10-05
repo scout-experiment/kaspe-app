@@ -57,7 +57,7 @@ public class PanelTransaction extends JPanel {
     private final JCheckBox chkPaid = new JCheckBox("Sudah dibayar", true);
     private final JSpinner spPaid = dateSpinner();
     private final JLabel lblNetWeight = valueLabel();
-    private final JLabel lblTotalAmount = moneyLabel();
+    private final JLabel lblTotalAmount = valueLabel();
     private final JLabel lblStatus = new JLabel();
     /** Judul kartu form: "Catat Pengiriman" saat menambah, "Ubah Pengiriman" saat mengubah. */
     private final JLabel judulKartu = new JLabel("Catat Pengiriman");
@@ -187,7 +187,14 @@ public class PanelTransaction extends JPanel {
         return (JTextField) combo.getEditor().getEditorComponent();
     }
 
-    /** Label hasil hitungan: berat bersih dan jumlah uang. */
+    /**
+     * Label hasil hitungan: berat bersih dan jumlah uang.
+     *
+     * <p>Keduanya memakai ukuran dan ketebalan huruf yang SAMA. Jumlah uang sempat lebih
+     * besar (tebal 17) daripada berat bersih (setengah tebal 16), sehingga satu angka di
+     * dalam satu kotak yang sama terlihat lebih penting daripada angka di sebelahnya -
+     * padahal keduanya sederajat: yang satu beratnya, yang satu uangnya.
+     */
     private static JLabel valueLabel() {
         JLabel l = new JLabel(EMPTY);
         l.setFont(Theme.semibold(16f));
@@ -203,14 +210,6 @@ public class PanelTransaction extends JPanel {
         boolean kosong = text == null || EMPTY.equals(text);
         label.setText(kosong ? EMPTY : text);
         label.setForeground(kosong ? Theme.INK_SOFT : Theme.MONEY);
-    }
-
-    /** Label jumlah uang: angka terbesar di kartu, dibaca sebelum menekan Simpan. */
-    private static JLabel moneyLabel() {
-        JLabel l = new JLabel(EMPTY);
-        l.setFont(Theme.bold(17f));
-        l.setForeground(Theme.INK_SOFT);
-        return l;
     }
 
     /** Samakan tinggi semua kotak isian supaya barisnya lurus. */
@@ -363,6 +362,11 @@ public class PanelTransaction extends JPanel {
 
         JPanel tombol = new JPanel(new BorderLayout());
         tombol.setOpaque(false);
+        // Tombol Simpan dipasang sejajar dengan TULISAN di kotak hasil di atasnya, bukan
+        // dengan tepi kotaknya. Sebelumnya tombolnya menempel di tepi kotak, sehingga
+        // tepinya 15px lebih kiri daripada "Berat Bersih" dan "Jumlah Uang" - terlihat
+        // menggantung keluar dari kotaknya sendiri.
+        tombol.setBorder(BorderFactory.createEmptyBorder(0, Theme.STRIP_INSET, 0, 0));
         tombol.add(buildActions(), BorderLayout.NORTH);
         kanan.add(tombol, BorderLayout.CENTER);
         return kanan;
@@ -400,6 +404,17 @@ public class PanelTransaction extends JPanel {
         g.gridy = 3;
         g.insets = new Insets(0, 0, 0, 0);
         p.add(lblTotalAmount, g);
+
+        // Penyerap sisa lebar. Kotak ini melebar mengikuti kolomnya, dan GridBagLayout
+        // MENENGAHKAN isinya di kelebihan lebar itu - jadi tulisan "Berat Bersih" bergeser
+        // mengikuti lebar kotak, bukan menempel di jarak tepinya. Akibatnya tombol di
+        // bawahnya tidak bisa dipasang sejajar dengan tulisan itu: begitu lebar kolomnya
+        // berubah, tulisan ikut bergeser sementara tombolnya tidak. Dengan penyerap ini,
+        // tulisannya terpaku di jarak tepi yang tetap.
+        g.gridy = 0;
+        g.gridx = 1;
+        g.weightx = 1;
+        p.add(new JLabel(), g);
         return p;
     }
 
@@ -448,6 +463,7 @@ public class PanelTransaction extends JPanel {
         // Semua nomor kolom bergeser satu karena kolom id tersembunyi di depannya.
         // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
         Theme.alignRight(riwayatTable, 4, 5, 6, 7, 9, 10);
+        Theme.emphasis(riwayatTable, 10);
         // Theme.styleTable memasang pilihan tunggal untuk semua tabel; daftar ini
         // justru harus bisa memilih beberapa baris sekaligus untuk hapus sekali jalan.
         riwayatTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);

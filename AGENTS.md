@@ -159,12 +159,18 @@ starts with `DELETE`, so it wipes the target database.
 
 - **Java 8 API only.** No `var`, no `List.of`, no records, no `java.nio.file` shortcuts beyond 8.
 - **A column header's alignment follows its cells': text columns left, numeric columns right.**
-  `Theme.alignRight` sets BOTH the cell and the header renderer. Two wrong states were tried and both
-  looked wrong:
+  `Theme.alignRight` sets BOTH the cell and the header renderer, and `Theme.emphasis` re-asserts the
+  header for the money column so it cannot drift. Two wrong states were tried and both looked wrong:
   headers left with numeric cells right leaves the header sharing no edge with its values, so it reads
   as a detached line; and everything left makes values of different lengths ragged on the right, which
   is exactly what hides a small amount among large ones. `TestUi` compares header alignment against
   cell alignment on every visible column, because either mistake is otherwise silent.
+- **The result strip and the Simpan button are one unit.** Both live in `buildRightColumn`; the strip
+  is `Theme.strip()` and the button sits below it indented by `Theme.STRIP_INSET`, so the button's left
+  edge lines up with the *text* in the strip rather than with the strip's box. The two numbers in the
+  strip (Berat Bersih, Jumlah Uang) use the SAME label helper and therefore the same size and weight —
+  one of them being larger made a single figure look more important than its neighbour inside the same
+  box, which they are not. `TestUi` checks both the alignment and the font equality.
 - **Units live in the cells, not the column headers** (`Calculator.formatKg`, `formatPercent`) — the
   header text is what sets a column's width, so a "(kg)" in the header widens three columns at once,
   while the same unit inside the cell costs nothing because the header stays the longest string. This
@@ -333,7 +339,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 38 — **308 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 39 — **309 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real
