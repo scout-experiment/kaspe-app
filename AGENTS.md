@@ -230,6 +230,14 @@ starts with `DELETE`, so it wipes the target database.
 - **Forms**: `GridBagLayout` with `anchor = WEST`, fields declared as `final` class fields prefixed
   `txt`/`cmb`/`sp`/`lbl`, labels always `Theme.label(text)`. Live recalculation uses a shared
   `DocumentListener` → `recalculate()` (no calculate button).
+- **`PanelTransaction` input card layout**: the grid is TWO rows of FOUR columns, and the left edge
+  of every field lines up top to bottom — so adding a field means adding a column to both rows, not
+  appending to one. Inputs live in the grid; the live result strip (Berat Bersih, Jumlah Uang) and
+  the Simpan/Batal buttons sit in a right-hand column (`buildRightColumn`) whose width is set by its
+  contents, so a longer button label ("Simpan Perubahan") can never be clipped. Simpan is the only
+  wide action button there; Batal is hidden outside edit mode. Do not add a button to a row that can
+  overflow — a `FlowLayout` row that runs out of width wraps its last button to a second line that
+  the card then clips, and `TestUi`'s "tombol tidak terpotong" check exists to catch exactly that.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -300,7 +308,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 121, `TestUi` 26 — **301 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 29 — **298 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

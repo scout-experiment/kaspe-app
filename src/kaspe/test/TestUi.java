@@ -138,6 +138,15 @@ public class TestUi {
         // Tanggal di bilah atas harus ditulis ulang setiap kali halaman dibuka/dipindah,
         // bukan hanya sekali saat aplikasi dijalankan.
         check("tanggal bilah atas segar saat pindah halaman", tanggalHeaderSegarSaatPindah());
+        // Tidak boleh ada tombol yang tergambar keluar dari wadahnya. Pernah terjadi:
+        // tombol "Cadangkan Database" ikut ditempel di baris tombol rental, dan di lebar
+        // jendela bawaan baris itu kelebihan muatan sehingga tombolnya terlipat ke baris
+        // kedua lalu terpotong - ada di kode, tidak terlihat di layar, dan tidak satu pun
+        // pemeriksaan lain menangkapnya. Pemeriksaan lebar kolom dan hitungan piksel tetap
+        // lolos, karena bagian halaman yang lain tergambar wajar.
+        check("tombol tidak terpotong di halaman transaksi", tombolTidakTerpotong(new PanelTransaction(), "Transaksi"));
+        check("tombol tidak terpotong di data master", tombolTidakTerpotong(new PanelMaster(), "Data Master"));
+        check("tombol tidak terpotong di laporan", tombolTidakTerpotong(new PanelReport(), "Laporan"));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -704,6 +713,53 @@ public class TestUi {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Benar kalau tidak ada tombol yang tergambar keluar dari batas wadahnya.
+     *
+     * <p>Yang diperiksa batas wadah, bukan lebar teksnya: cara tombol menghilang di sini
+     * adalah terlipat ke baris berikutnya oleh susunan yang kelebihan muatan, sehingga
+     * posisinya jatuh di luar tinggi wadahnya. Karena itu tombol yang benar-benar tidak
+     * ada tidak dianggap masalah - menghapus sebuah tombol dengan sengaja bukan kesalahan -
+     * sedangkan tombol yang ada tetapi tidak terjangkau selalu ketahuan.
+     */
+    private static boolean tombolTidakTerpotong(JPanel panel, String nama) {
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(panel, nama, "keterangan");
+        layar.setSize(1320, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        java.util.List<String> terpotong = new java.util.ArrayList<String>();
+        cariTombolTerpotong(layar, terpotong);
+        for (String t : terpotong) {
+            System.out.println("        " + t);
+        }
+        return terpotong.isEmpty();
+    }
+
+    private static void cariTombolTerpotong(Container c, java.util.List<String> hasil) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof javax.swing.AbstractButton && anak.isVisible()) {
+                Container induk = anak.getParent();
+                if (induk != null && induk.getWidth() > 0
+                        && (anak.getX() + anak.getWidth() > induk.getWidth()
+                            || anak.getY() + anak.getHeight() > induk.getHeight())) {
+                    hasil.add("tombol \"" + ((javax.swing.AbstractButton) anak).getText()
+                            + "\" di " + induk.getClass().getSimpleName()
+                            + " pos=(" + anak.getX() + "," + anak.getY() + ") ukuran="
+                            + anak.getWidth() + "x" + anak.getHeight()
+                            + " keluar dari wadah " + induk.getWidth() + "x" + induk.getHeight());
+                }
+            }
+            if (anak instanceof Container) {
+                cariTombolTerpotong((Container) anak, hasil);
+            }
+        }
     }
 
     /** Benar kalau ada tombol berteks itu di dalam wadah ini. */

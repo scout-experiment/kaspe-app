@@ -57,8 +57,7 @@ public class PanelTransaction extends JPanel {
     private final JCheckBox chkPaid = new JCheckBox("Sudah dibayar", true);
     private final JSpinner spPaid = dateSpinner();
     private final JLabel lblNetWeight = valueLabel();
-    private final JLabel lblTotalAmount = valueLabel();
-    private final JLabel lblTotal = totalLabel();
+    private final JLabel lblTotalAmount = moneyLabel();
     private final JLabel lblStatus = new JLabel();
     /** Judul kartu form: "Catat Pengiriman" saat menambah, "Ubah Pengiriman" saat mengubah. */
     private final JLabel judulKartu = new JLabel("Catat Pengiriman");
@@ -78,7 +77,6 @@ public class PanelTransaction extends JPanel {
     private final JButton btnFilterTampilkan = Theme.primary("Tampilkan");
     private final JButton btnFilterSemua = Theme.plain("Semua");
     /** Keterangan total di bawah; teksnya berubah saat daftar sedang tersaring. */
-    private final JLabel lblTotalCaption = Theme.label("Total tersimpan");
     /** Pilihan pertama kotak rental saringan: tanpa penyaring rental. */
     private static final String SEMUA_RENTAL = "Semua rental";
 
@@ -120,7 +118,11 @@ public class PanelTransaction extends JPanel {
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
         add(buildCenter(), BorderLayout.CENTER);
-        add(buildBottom(), BorderLayout.SOUTH);
+        // Keterangan sesudah menyimpan ditaruh selebar halaman di bawah, bukan di dalam
+        // kolom kanan: pesannya bisa panjang ("bobot pabrik dan refraksi wajib diisi")
+        // dan kolom sempit akan memotongnya.
+        lblStatus.setForeground(Theme.DANGER);
+        add(lblStatus, BorderLayout.SOUTH);
         cmbPlate.setEditable(true);
         // Nama rental juga bisa diketik langsung, sama seperti plat: rental yang belum
         // pernah masuk tidak perlu didaftarkan dulu di halaman data master.
@@ -208,11 +210,11 @@ public class PanelTransaction extends JPanel {
         label.setForeground(kosong ? Theme.INK_SOFT : Theme.MONEY);
     }
 
-    /** Label total di bagian bawah. */
-    private static JLabel totalLabel() {
-        JLabel l = new JLabel("Rp 0");
-        l.setFont(Theme.bold(19f));
-        l.setForeground(Theme.MONEY);
+    /** Label jumlah uang: angka terbesar di kartu, dibaca sebelum menekan Simpan. */
+    private static JLabel moneyLabel() {
+        JLabel l = new JLabel(EMPTY);
+        l.setFont(Theme.bold(20f));
+        l.setForeground(Theme.INK_SOFT);
         return l;
     }
 
@@ -282,7 +284,13 @@ public class PanelTransaction extends JPanel {
         Theme.placeholder(txtRefraction, "%");
         Theme.placeholder(txtPrice, "Rp/kg");
 
-        // baris 1 — tanggal nota, lalu truk dan dua angka timbangan.
+        // Dua baris, empat kolom. Dulu baris pertama berisi lima isian dan baris kedua
+        // tiga, sehingga kolomnya tidak lurus: "Refraksi" jatuh di bawah "Tanggal Nota"
+        // dan "Harga" di bawah "Plat / Truk", bukan di bawah isian yang sejenis. Dengan
+        // empat kolom di kedua baris, tepi kiri setiap isian lurus dari atas ke bawah.
+        //
+        // Urutan isian tetap mengikuti urutan pengisian, jadi jalur Tab tidak berubah:
+        // tanggal, plat (rental ikut sendiri), dua timbangan, potongan, harga, lunas.
         g.gridy = 0;
         g.insets = new Insets(0, 0, 8, 14);
         g.gridx = 0;
@@ -292,43 +300,60 @@ public class PanelTransaction extends JPanel {
         g.gridx = 2;
         grid.add(Theme.field("Rental", sized(cmbRental, 170)), g);
         g.gridx = 3;
+        g.insets = new Insets(0, 0, 8, 0);
         grid.add(Theme.field("Bobot Lapak (kg)", sized(txtFieldWeight, 120)), g);
-        g.gridx = 4;
-        g.insets = new Insets(0, 0, 8, 0);
-        grid.add(Theme.field("Bobot Pabrik (kg)", sized(txtFactoryWeight, 120)), g);
-        addSpacer(grid, g, 5);
+        addSpacer(grid, g, 4);
 
-        // baris 2 — potongan dan harga
+        // baris 2 — sisa timbangan, potongan, harga, dan pembayarannya.
         g.gridy = 1;
-        g.insets = new Insets(0, 0, 8, 14);
+        g.insets = new Insets(0, 0, 0, 14);
         g.gridx = 0;
-        grid.add(Theme.field("Refraksi (%)", sized(txtRefraction, 120)), g);
+        grid.add(Theme.field("Bobot Pabrik (kg)", sized(txtFactoryWeight, 120)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Harga (Rp/kg)", sized(txtPrice, 120)), g);
+        grid.add(Theme.field("Refraksi (%)", sized(txtRefraction, 120)), g);
         g.gridx = 2;
-        g.insets = new Insets(0, 0, 8, 0);
+        grid.add(Theme.field("Harga (Rp/kg)", sized(txtPrice, 120)), g);
+        g.gridx = 3;
+        g.insets = new Insets(0, 0, 0, 0);
         // Centang "Sudah dibayar" + tanggal lunasnya dalam satu kotak yang sama:
         // keadaan "belum dibayar" adalah bagian dari isian tanggal lunas, bukan isian lain.
+        // Dulu kotak ini duduk di bawah kolom "Rental", sehingga pembayaran terlihat
+        // seperti bagian dari pemilik truk; sekarang ia menutup barisnya sendiri.
         JPanel kotakLunas = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         kotakLunas.setOpaque(false);
         kotakLunas.add(chkPaid);
         kotakLunas.add(sized(spPaid, 130));
         grid.add(Theme.field("Tanggal Lunas", kotakLunas), g);
-        addSpacer(grid, g, 3);
+        addSpacer(grid, g, 4);
 
-        // baris 3 — hasil hitungan dan tombol, sebaris.
-        g.gridy = 2;
-        g.gridx = 0;
-        g.gridwidth = 5;
-        g.insets = new Insets(0, 0, 0, 0);
-        JPanel hasilDanTombol = new JPanel(new BorderLayout(18, 0));
-        hasilDanTombol.setOpaque(false);
-        hasilDanTombol.add(buildResult(), BorderLayout.WEST);
-        hasilDanTombol.add(buildActions(), BorderLayout.CENTER);
-        grid.add(hasilDanTombol, g);
+        // Isian di kiri, hasil hitungan dan tombol simpan di kanan.
+        JPanel isi = new JPanel(new BorderLayout(28, 0));
+        isi.setOpaque(false);
+        isi.add(grid, BorderLayout.CENTER);
+        isi.add(buildRightColumn(), BorderLayout.EAST);
 
-        card.add(grid, BorderLayout.CENTER);
+        card.add(isi, BorderLayout.CENTER);
         return card;
+    }
+
+    /**
+     * Kolom kanan kartu: hasil hitungan berdiri di atas tombol simpannya.
+     *
+     * <p>Ditaruh di sini supaya angka yang dibaca sebelum menyimpan dan tombol yang
+     * ditekan sesudahnya berdampingan, dan supaya sisi kanan kartu yang tadinya kosong
+     * terpakai. Lebar kolom ini ditentukan isinya sendiri, jadi tulisan tombol yang
+     * berubah panjang ("Simpan" menjadi "Simpan Perubahan") tidak pernah terpotong.
+     */
+    private JPanel buildRightColumn() {
+        JPanel kanan = new JPanel(new BorderLayout(0, 12));
+        kanan.setOpaque(false);
+        kanan.add(buildResult(), BorderLayout.NORTH);
+
+        JPanel tombol = new JPanel(new BorderLayout());
+        tombol.setOpaque(false);
+        tombol.add(buildActions(), BorderLayout.NORTH);
+        kanan.add(tombol, BorderLayout.CENTER);
+        return kanan;
     }
 
     /** Kolom kosong penyerap sisa lebar, supaya isian tetap menempel ke kiri. */
@@ -346,48 +371,40 @@ public class PanelTransaction extends JPanel {
         JPanel p = Theme.strip();
         GridBagConstraints g = new GridBagConstraints();
         g.anchor = GridBagConstraints.WEST;
-
-        g.gridy = 0;
         g.gridx = 0;
+
+        // Bertumpuk tegak, bukan berdampingan: kolom kanan ini sempit, dan
+        // "Jumlah Uang" adalah angka yang paling sering dibaca sebelum menyimpan.
+        g.gridy = 0;
         g.insets = new Insets(0, 0, 2, 0);
         p.add(Theme.caption("Berat Bersih"), g);
-        g.gridx = 1;
-        g.insets = new Insets(0, 32, 2, 0);
-        p.add(Theme.caption("Jumlah Uang"), g);
-
         g.gridy = 1;
-        g.gridx = 0;
-        g.insets = new Insets(0, 0, 0, 0);
+        g.insets = new Insets(0, 0, 10, 0);
         p.add(lblNetWeight, g);
-        g.gridx = 1;
-        g.insets = new Insets(0, 32, 0, 0);
-        p.add(lblTotalAmount, g);
 
-        // penyerap sisa lebar
-        g.gridx = 2;
-        g.weightx = 1;
-        p.add(new JLabel(), g);
+        g.gridy = 2;
+        g.insets = new Insets(0, 0, 2, 0);
+        p.add(Theme.caption("Jumlah Uang"), g);
+        g.gridy = 3;
+        g.insets = new Insets(0, 0, 0, 0);
+        p.add(lblTotalAmount, g);
         return p;
     }
 
-    /** Baris tombol, terpisah dari kotak isian. */
+    /**
+     * Tombol simpan, bertumpuk tegak supaya lebarnya mengikuti kolom kanannya.
+     *
+     * <p>Batal hanya ada saat mengubah catatan lama; di keadaan menambah tidak ada
+     * artinya (mengosongkan form saja sudah mengembalikan keadaan tambah). GridLayout
+     * hanya menghitung komponen yang tampak, jadi barisnya tidak menyisakan lubang
+     * saat Batal disembunyikan.
+     */
     private JPanel buildActions() {
-        JPanel p = new JPanel(new BorderLayout(14, 0));
-        p.setOpaque(false);
-
-        // Batal hanya ada saat mengubah catatan lama; di keadaan menambah tidak ada
-        // artinya (mengosongkan form saja sudah mengembalikan keadaan tambah).
         btnBatal.setVisible(false);
-
-        JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        buttons.setOpaque(false);
-        buttons.add(btnSimpan);
-        buttons.add(btnBatal);
-
-        lblStatus.setForeground(Theme.DANGER);
-
-        p.add(buttons, BorderLayout.WEST);
-        p.add(lblStatus, BorderLayout.CENTER);
+        JPanel p = new JPanel(new GridLayout(0, 1, 0, 8));
+        p.setOpaque(false);
+        p.add(btnSimpan);
+        p.add(btnBatal);
         return p;
     }
 
@@ -513,7 +530,6 @@ public class PanelTransaction extends JPanel {
             return;
         }
         riwayatModel.setRowCount(0);
-        BigDecimal total = BigDecimal.ZERO;
         for (ReportRow b : baris) {
             riwayatModel.addRow(new Object[]{
                     b.getDetailId(),
@@ -523,15 +539,8 @@ public class PanelTransaction extends JPanel {
                     Calculator.formatCurrency(b.getRefractionPercent()), Calculator.formatCurrency(b.getNetWeight()),
                     Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
                     "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
-            if (b.getTotalAmount() != null) {
-                total = total.add(b.getTotalAmount());
-            }
         }
-        lblTotal.setText("Rp " + Calculator.formatCurrency(total));
         boolean tersaring = saringanAktif(dari, sampai, rental, plat);
-        // Keterangan total ikut jujur: saat daftar tersaring, angkanya bukan lagi
-        // "seluruh yang tersimpan" melainkan "hasil saringan ini".
-        lblTotalCaption.setText(tersaring ? "Total hasil saring" : "Total tersimpan");
         // Dua keadaan kosong yang berbeda butuh penjelasan berbeda: belum punya data
         // sama sekali, versus ada data tetapi tidak ada yang lolos saringan. Pesan
         // yang sama untuk keduanya membuat pengguna menduga aplikasinya rusak.
@@ -551,7 +560,7 @@ public class PanelTransaction extends JPanel {
     private boolean saringanAktif(LocalDate dari, LocalDate sampai, String rental, String plat) {
         // Batas tanggal hanya dihitung menyaring kalau jangkauan datanya benar-benar
         // terbaca. Tanpa penjagaan itu, jangkauan yang gagal dibaca akan membuat
-        // batas bawaan tampak "berbeda" dan keterangannya menulis "Total hasil saring"
+        // batas bawaan tampak "berbeda" dan daftarnya berlaku seperti tersaring
         // padahal tidak ada yang disaring.
         LocalDate awal = tanggalAwalSaringan();
         LocalDate akhir = tanggalAkhirSaringan();
@@ -636,9 +645,9 @@ public class PanelTransaction extends JPanel {
      *
      * <p>Batas bawaan dihitung dari isi database. Kalau catatan paling awal dihapus,
      * batas "Dari" yang tadinya sama dengan catatan terawal itu tidak lagi sama -
-     * dan keterangan di bawah daftar akan menulis "Total hasil saring" padahal
-     * saringannya tidak menyempitkan apa pun. Keterangan itu justru ada untuk
-     * mencegah salah baca seperti itu, jadi batasnya dirapikan dulu.
+     * sehingga daftarnya berlaku seperti tersaring dan sebagian catatan lama tidak
+     * ikut tampil, padahal saringannya tidak menyempitkan apa pun. Karena itu
+     * batasnya dirapikan lebih dulu.
      */
     private void rapikanBatasSaringan() {
         LocalDate awal = tanggalAwalSaringan();
@@ -865,24 +874,6 @@ public class PanelTransaction extends JPanel {
         rapikanBatasSaringan();
         muatRiwayat();
         setStatus(ids.size() + " catatan pengiriman dihapus.");
-    }
-
-    private JPanel buildBottom() {
-        JPanel p = new JPanel(new BorderLayout());
-        p.setOpaque(false);
-
-        // Totalnya adalah jumlah uang seluruh pengiriman yang sedang terdaftar di
-        // daftar — sama persis dengan apa yang terlihat di tabel, bukan seluruh
-        // data sepanjang masa. Karena saringannya dijalankan di database, jumlah
-        // ini selalu sepadan dengan baris yang tampil; keterangannya ikut menulis
-        // "Total hasil saring" saat daftarnya sedang tersaring (lihat muatRiwayat).
-        JPanel left = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        left.setOpaque(false);
-        left.add(lblTotalCaption);
-        left.add(lblTotal);
-
-        p.add(left, BorderLayout.WEST);
-        return p;
     }
 
     private void loadMaster() {

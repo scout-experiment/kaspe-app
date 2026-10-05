@@ -1055,17 +1055,9 @@ public class TestAlur {
         record(adaA && adaB, "rental baru langsung muncul di kotak saringan");
 
         DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
-        JLabel total = (JLabel) field(p, "lblTotal");
-        JLabel keterangan = (JLabel) field(p, "lblTotalCaption");
         int semua = riwayat.getRowCount();
 
         record(semua > 0, "tanpa saringan: daftar terisi (" + semua + " baris)");
-        record("Total tersimpan".equals(keterangan.getText()),
-                "tanpa saringan: keterangannya \"Total tersimpan\"");
-        String totalSemua = total.getText();
-        record(totalSemua.equals("Rp " + Calculator.formatCurrency(
-                        desimal("SELECT COALESCE(SUM(jumlah_uang),0) FROM transaksi_detail"))),
-                "tanpa saringan: totalnya jumlah seluruh catatan");
 
         // --- saringan rental ---
         JComboBox<?> cmb = (JComboBox<?>) field(p, "cmbFilterRental");
@@ -1084,16 +1076,6 @@ public class TestAlur {
             }
         }
         record(hanyaA, "saringan rental: hanya pengiriman rental itu yang tampil");
-        record(total.getText().equals("Rp " + Calculator.formatCurrency(
-                        desimal("SELECT COALESCE(SUM(d.jumlah_uang),0) FROM transaksi_detail d "
-                                + "JOIN truk t ON t.id_truk = d.id_truk "
-                                + "JOIN rental r ON r.id_rental = t.id_rental "
-                                + "WHERE r.nama_rental = 'Rental Uji Saring A'"))),
-                "saringan rental: totalnya ikut berubah, bukan total seluruh catatan");
-        record(!total.getText().equals(totalSemua),
-                "saringan rental: totalnya memang beda dari total tanpa saringan");
-        record("Total hasil saring".equals(keterangan.getText()),
-                "saringan rental: keterangannya berubah jadi \"Total hasil saring\"");
 
         // --- saringan plat sebagian ---
         cmb.setSelectedIndex(0);
@@ -1111,27 +1093,22 @@ public class TestAlur {
         // --- saringan yang tidak menemukan apa pun ---
         isi(p, "txtFilterPlat", "ZZZZ TIDAK ADA");
         klik(p, "muatRiwayat");
-        record(riwayat.getRowCount() == 0 && "Rp 0".equals(total.getText()),
-                "saringan tanpa hasil: daftar kosong dan totalnya Rp 0");
+        record(riwayat.getRowCount() == 0, "saringan tanpa hasil: daftarnya kosong");
 
         // --- tombol Semua ---
         klik(p, "bersihkanSaringan");
-        record(riwayat.getRowCount() == semua && total.getText().equals(totalSemua),
-                "tombol Semua: seluruh catatan dan totalnya kembali");
-        record("Total tersimpan".equals(keterangan.getText()),
-                "tombol Semua: keterangannya kembali \"Total tersimpan\"");
+        record(riwayat.getRowCount() == semua, "tombol Semua: seluruh catatan kembali");
 
         // Batas yang sudah di luar jangkauan data dirapikan kembali ke bawaannya.
         // Tanpa ini, menghapus catatan terawal membuat batas "Dari" tidak lagi sama
-        // dengan catatan terawal yang baru - dan keterangan di bawah daftar menulis
-        // "Total hasil saring" padahal saringannya tidak menyempitkan apa pun.
+        // dengan catatan terawal yang baru - sehingga daftarnya berlaku seperti
+        // tersaring dan sebagian catatan tidak ikut tampil.
         setTanggal(p, "spFilterFrom", "01-01-2000");
         setTanggal(p, "spFilterTo", "31-12-2030");
         klik(p, "rapikanBatasSaringan");
         klik(p, "muatRiwayat");
-        record(riwayat.getRowCount() == semua && total.getText().equals(totalSemua)
-                        && "Total tersimpan".equals(keterangan.getText()),
-                "batas di luar jangkauan data dirapikan, keterangannya jujur lagi");
+        record(riwayat.getRowCount() == semua,
+                "batas di luar jangkauan data dirapikan, seluruh catatan kembali tampil");
         System.out.println();
     }
 
