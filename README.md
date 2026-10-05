@@ -460,13 +460,9 @@ python3 -m http.server 8000 --directory preview
 
 Lalu buka `http://localhost:8000` di browser.
 
-Halaman itu dibuat ulang dari file PNG di folder yang sama:
+### Urutan pembuatannya penting
 
-```bash
-python3 preview/build-preview.py
-```
-
-Gambar PNG-nya sendiri dibuat dengan menyusun ulang tampilan aplikasi:
+Gambar PNG-nya dibuat lebih dulu, dengan menyusun ulang tampilan aplikasi:
 
 ```bash
 ./build.sh
@@ -477,6 +473,18 @@ java -Djava.awt.headless=true -cp "build:lib/*:/tmp/tools" BuatPratinjau
 Program itu memasang data contoh dari `docs/data-contoh.sql`, menyusun bilah samping, bilah nama
 halaman, dan halamannya memakai susunan yang sama dengan jendela aplikasi, lalu menggambar
 hasilnya ke `preview/*.png`. Jadi gambarnya sama dengan aplikasi yang dijalankan.
+
+**Baru sesudah itu** halaman `index.html` dibuat ulang dari gambar-gambar tersebut:
+
+```bash
+python3 preview/build-preview.py
+```
+
+Urutannya tidak boleh dibalik: `index.html` menyimpan gambarnya sebagai teks di dalam berkasnya
+(base64), jadi halaman itu memuat gambar apa adanya **saat ia dibuat**. Kalau ia dibuat sebelum
+gambarnya digambar ulang, halaman itu tetap memuat gambar yang lama sementara berkas PNG di
+sebelahnya sudah baru - dan yang terlihat di browser bukan yang terakhir kamu ubah. Kalau
+gambarnya tidak berubah, membuat ulang halamannya saja sudah cukup.
 
 > [!NOTE]
 > Pembuat pratinjau berjalan tanpa layar (`-Djava.awt.headless=true`), jadi bisa dijalankan
