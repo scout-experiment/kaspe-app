@@ -34,7 +34,7 @@ public class PanelReport extends JPanel {
 
     private final DefaultTableModel model = new DefaultTableModel(
             new Object[]{"Tanggal", "Plat", "Rental", "Bobot Lapak", "Bobot Pabrik",
-                    "Refraksi (%)", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
+                    "Refraksi", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
         @Override
         public boolean isCellEditable(int r, int c) {
             return false;
@@ -88,7 +88,7 @@ public class PanelReport extends JPanel {
         // Batasnya: nama rental di atas ~18 huruf akan terpotong, dan angka di atas
         // 100 juta juga. Kalau suatu saat itu terjadi, tambah kolom atau pendekkan judulnya,
         // jangan kecilkan kolom yang lain.
-        Theme.widths(table, 105, 96, 127, 95, 97, 93, 93, 105, 88, 120);
+        Theme.widths(table, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
         Theme.alignRight(table, 3, 4, 5, 6, 8, 9);
         // Kolom uang ditegaskan. Ketebalan huruf yang menonjolkannya, bukan warnanya -
         // di kertas warnanya menjadi abu-abu dan yang tersisa hanya ketebalannya.
@@ -231,8 +231,8 @@ public class PanelReport extends JPanel {
                 model.addRow(new Object[]{
                         Dates.format(b.getDate()),
                         b.getPlate(), b.getRentalName(),
-                        Calculator.formatCurrency(b.getFieldWeight()), Calculator.formatCurrency(b.getFactoryWeight()),
-                        Calculator.formatCurrency(b.getRefractionPercent()), Calculator.formatCurrency(b.getNetWeight()),
+                        Calculator.formatKg(b.getFieldWeight()), Calculator.formatKg(b.getFactoryWeight()),
+                        Calculator.formatPercent(b.getRefractionPercent()), Calculator.formatKg(b.getNetWeight()),
                         Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
                         "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
                 totalAmount = totalAmount.add(b.getTotalAmount() == null ? BigDecimal.ZERO : b.getTotalAmount());

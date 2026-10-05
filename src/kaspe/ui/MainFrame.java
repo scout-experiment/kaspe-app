@@ -18,14 +18,29 @@ public class MainFrame extends JFrame {
      * dan isinya terpotong; pada tabel laporan pemotongan itu ikut ke kertas, karena
      * pencetakan memakai {@code FIT_WIDTH} yang memperkecil tabel apa adanya.
      *
-     * <p>Yang paling menuntut adalah tabel-tabel itu: 1264px adalah lebar terkecil yang
+     * <p>Yang paling menuntut adalah tabel-tabel itu: 1241px adalah lebar terkecil yang
      * masih menampilkan seluruh kolomnya utuh. Diberi kelonggaran sedikit supaya perubahan
      * lebar kolom yang wajar tidak langsung menggagalkan pengujian, tetapi tidak lebih -
      * lebar ini membatasi berapa kecil jendelanya boleh dikecilkan.
+     *
+     * <p>Angkanya diukur, bukan diperkirakan: batasnya dicari dengan menguji satu per satu
+     * sampai pengujiannya berhenti gagal. Mengubah lebar kolom tabel atau lebar isian form
+     * menggeser angka ini, dan {@code TestUi} menguji seluruh halaman persis pada lebar ini.
      */
-    public static final int LEBAR_MINIMUM = 1272;
+    public static final int LEBAR_MINIMUM = 1248;
 
-    /** Tinggi jendela terkecil yang masih menyisakan ruang untuk daftar di bawah form. */
+    /**
+     * Tinggi jendela terkecil yang masih memuat seluruh halaman transaksi tanpa digulir.
+     *
+     * <p>Batasnya 660px: di bawah itu halaman luarnya mulai menggulir, sehingga tombol dan
+     * baris paling bawah hanya bisa dicapai dengan menggulir. Diberi kelonggaran supaya
+     * halaman masih terasa lega, bukan pas-pasan.
+     *
+     * <p>Perhatikan apa yang TIDAK terjadi di bawah batas ini: daftar pengiriman tersimpan
+     * tidak pernah terhimpit. Di bawah sekitar 620px tingginya berhenti di 175px dan halaman
+     * luarnya yang menggulir. Karena itu "daftarnya cukup tinggi" bukan pemeriksaan yang
+     * berarti di sini - ia tidak pernah bisa gagal. Yang diperiksa adalah "muat tanpa digulir".
+     */
     public static final int TINGGI_MINIMUM = 700;
 
     private final PagePanel page = new PagePanel();

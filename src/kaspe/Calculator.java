@@ -80,4 +80,21 @@ public final class Calculator {
         }
         return String.format("%,.0f", value).replace(',', '.');
     }
+
+    /**
+     * Angka bobot beserta satuannya, mis. {@code 7.530 kg}.
+     *
+     * <p>Satuannya ditulis di selnya, bukan di judul kolomnya. Judul kolom yang menentukan
+     * lebar kolom - menambahkan "(kg)" di judul melebarkan tiga kolom sekaligus, sedangkan
+     * di dalam sel muat tanpa menambah lebar sama sekali karena judulnya tetap yang
+     * terpanjang. Ini juga sejalan dengan kolom uang, yang sudah menulis "Rp" di selnya.
+     */
+    public static String formatKg(BigDecimal value) {
+        return formatCurrency(value) + " kg";
+    }
+
+    /** Angka refraksi beserta tanda persennya, mis. {@code 15%}. */
+    public static String formatPercent(BigDecimal value) {
+        return formatCurrency(value) + "%";
+    }
 }

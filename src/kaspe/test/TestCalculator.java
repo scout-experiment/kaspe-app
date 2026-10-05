@@ -27,6 +27,11 @@ public class TestCalculator {
         System.out.println("\n--- uji tambahan ---");
         checkShrinkage(7200, 7050, 150);
         checkCurrency(new BigDecimal("6888500"), "6.888.500");
+        // Satuan ditulis di dalam sel tabel, bukan di judul kolomnya: judul kolom yang
+        // menentukan lebar kolom, jadi menaruh "(kg)" di judul melebarkan tiga kolom
+        // sekaligus. Diperiksa di sini supaya kedua halaman yang memakainya - transaksi
+        // dan laporan - tidak bisa menampilkan satuan yang berbeda.
+        checkSatuan(new BigDecimal("7530"), "7.530 kg", new BigDecimal("15"), "15%");
         checkRefractionError();
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
@@ -62,6 +67,17 @@ public class TestCalculator {
         boolean ok = s.equals(expected);
         System.out.printf("format rupiah %s -> %s (harap %s) %s%n", v.toPlainString(), s, expected, ok ? "OK" : "SALAH");
         record(ok, "format rupiah");
+    }
+
+    private static void checkSatuan(BigDecimal berat, String harapBerat,
+                                   BigDecimal refraksi, String harapRefraksi) {
+        String b = Calculator.formatKg(berat);
+        String r = Calculator.formatPercent(refraksi);
+        boolean ok = b.equals(harapBerat) && r.equals(harapRefraksi);
+        System.out.printf("satuan: bobot %s -> \"%s\" (harap \"%s\"), refraksi %s -> \"%s\" (harap \"%s\") %s%n",
+                berat.toPlainString(), b, harapBerat, refraksi.toPlainString(), r, harapRefraksi,
+                ok ? "OK" : "SALAH");
+        record(ok, "satuan bobot dan refraksi");
     }
 
     private static void checkRefractionError() {

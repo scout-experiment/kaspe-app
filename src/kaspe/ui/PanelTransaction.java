@@ -88,7 +88,7 @@ public class PanelTransaction extends JPanel {
      */
     private final DefaultTableModel riwayatModel = new DefaultTableModel(
             new Object[]{"Id", "Tanggal", "Plat", "Rental", "Bobot Lapak", "Bobot Pabrik",
-                    "Refraksi (%)", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
+                    "Refraksi", "Berat Bersih", "Tgl Lunas", "Harga", "Jumlah Uang"}, 0) {
         @Override
         public boolean isCellEditable(int r, int c) {
             return false;
@@ -443,7 +443,7 @@ public class PanelTransaction extends JPanel {
         Theme.styleTable(riwayatTable);
         // Lebar kolom sama dengan tabel laporan — sudah teruji muat utuh di jendela
         // bawaan — dengan satu angka 0 di depan untuk kolom id yang disembunyikan.
-        Theme.widths(riwayatTable, 0, 105, 96, 127, 95, 97, 93, 93, 105, 88, 120);
+        Theme.widths(riwayatTable, 0, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
         sembunyikanKolomId();
         // Semua nomor kolom bergeser satu karena kolom id tersembunyi di depannya.
         // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
@@ -547,8 +547,8 @@ public class PanelTransaction extends JPanel {
                     b.getDetailId(),
                     Dates.format(b.getDate()),
                     b.getPlate(), b.getRentalName(),
-                    Calculator.formatCurrency(b.getFieldWeight()), Calculator.formatCurrency(b.getFactoryWeight()),
-                    Calculator.formatCurrency(b.getRefractionPercent()), Calculator.formatCurrency(b.getNetWeight()),
+                    Calculator.formatKg(b.getFieldWeight()), Calculator.formatKg(b.getFactoryWeight()),
+                    Calculator.formatPercent(b.getRefractionPercent()), Calculator.formatKg(b.getNetWeight()),
                     Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
                     "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
         }

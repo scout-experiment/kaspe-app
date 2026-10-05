@@ -158,6 +158,11 @@ starts with `DELETE`, so it wipes the target database.
 ## Code Conventions & Common Patterns
 
 - **Java 8 API only.** No `var`, no `List.of`, no records, no `java.nio.file` shortcuts beyond 8.
+- **Units live in the cells, not the column headers** (`Calculator.formatKg`, `formatPercent`) — the
+  header text is what sets a column's width, so a "(kg)" in the header widens three columns at once,
+  while the same unit inside the cell costs nothing because the header stays the longest string. This
+  matches the money columns, which already write "Rp" in each cell. `TestUi`'s worst-case map must
+  therefore hold the cell text *with* its unit, or it measures a shorter string than what is drawn.
 - **Money and weights are always `BigDecimal`**, never `double`; columns are `DECIMAL`.
   Display money with `Calculator.formatCurrency` (`6888500` → `"6.888.500"`).
 - **Dates**: `LocalDate` in code, `java.sql.Date` only at the JDBC boundary, `util.Dates.format/parse`
@@ -320,8 +325,8 @@ CP="build:lib/*"
 "$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestUi
 ```
 
-`set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 34 — **303 lulus, 0 gagal**.
+`set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 35 — **305 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

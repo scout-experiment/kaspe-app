@@ -172,6 +172,19 @@ public class TestUi {
                 kolomTabelUtuh(new PanelReport(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
         check("kolom daftar tersimpan utuh pada lebar jendela minimum",
                 kolomTabelUtuh(new PanelTransaction(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        // Tinggi minimum: yang diperiksa BUKAN "daftarnya cukup tinggi", karena daftarnya
+        // ternyata tidak pernah terhimpit - di bawah sekitar 620px halaman luarnya yang
+        // menggulir, dan tingginya berhenti di 175px. Pemeriksaan yang berbunyi "daftarnya
+        // paling sedikit 80px" karena itu tidak pernah bisa gagal, dan pemeriksaan yang
+        // tidak bisa gagal lebih buruk daripada tidak ada: ia terlihat seperti jaminan.
+        //
+        // Yang benar-benar diperiksa: pada tinggi minimum, seluruh halaman masih muat
+        // tanpa perlu digulir. Kalau tidak, tombol dan baris paling bawah hanya bisa
+        // dicapai dengan menggulir halaman - dan itu tidak terlihat di gambar pratinjau,
+        // yang selalu digambar pada tinggi bawaan.
+        check("halaman transaksi muat tanpa digulir pada ukuran jendela minimum",
+                muatTanpaGulir(new PanelTransaction(), "Transaksi",
+                        kaspe.ui.MainFrame.LEBAR_MINIMUM, kaspe.ui.MainFrame.TINGGI_MINIMUM));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -281,6 +294,39 @@ public class TestUi {
             return false;
         }
         return cukupTinggi((JTable) field(p, "riwayatTable"), "daftar pengiriman tersimpan");
+    }
+
+    /**
+     * Benar kalau seluruh isi halaman muat pada ukuran jendela ini tanpa perlu digulir.
+     *
+     * <p>Halaman transaksi menaruh form dan daftarnya di dalam satu gulungan. Kalau tingginya
+     * kurang, gulungan itu yang bekerja - isinya tidak terpotong, tetapi bagian bawah halaman
+     * hanya bisa dicapai dengan menggulir, dan tombol yang paling bawah jadi tidak terlihat
+     * begitu halaman dibuka.
+     */
+    private static boolean muatTanpaGulir(JPanel panel, String nama, int lebar, int tinggi) {
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(panel, nama, "keterangan");
+        layar.setSize(lebar, tinggi);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        java.awt.Component gulung = cariDi(layar, javax.swing.JScrollPane.class);
+        if (!(gulung instanceof javax.swing.JScrollPane)) {
+            System.out.println("        tidak menemukan gulungan halaman di " + nama);
+            return false;
+        }
+        javax.swing.JScrollPane sp = (javax.swing.JScrollPane) gulung;
+        if (sp.getVerticalScrollBar().isVisible()) {
+            System.out.println("        pada " + lebar + "x" + tinggi + " halaman " + nama
+                    + " perlu digulir: isinya " + sp.getViewport().getView().getPreferredSize().height
+                    + "px, ruangnya " + sp.getViewport().getExtentSize().height + "px");
+            return false;
+        }
+        return true;
     }
 
     /** Benar kalau tabelnya benar-benar dapat tinggi yang terpakai, bukan hanya headernya. */
@@ -462,10 +508,14 @@ public class TestUi {
         TERBURUK.put("Tanggal", "00-00-0000");
         TERBURUK.put("Plat", "BE 0000 ZZ");
         TERBURUK.put("Rental", "Rental Sinar Jaya");
-        TERBURUK.put("Bobot Lapak", "00.000");
-        TERBURUK.put("Bobot Pabrik", "00.000");
-        TERBURUK.put("Refraksi (%)", "000");
-        TERBURUK.put("Berat Bersih", "00.000");
+        // Angka terburuk ditulis PERSIS seperti yang muncul di sel, termasuk satuannya:
+        // yang diukur adalah teks yang benar-benar tampil, jadi satuan yang tertinggal
+        // dari daftar ini akan membuat pemeriksaan mengukur teks yang lebih pendek
+        // daripada kenyataannya - dan pemotongan yang sungguhan lolos.
+        TERBURUK.put("Bobot Lapak", "00.000 kg");
+        TERBURUK.put("Bobot Pabrik", "00.000 kg");
+        TERBURUK.put("Refraksi", "000%");
+        TERBURUK.put("Berat Bersih", "00.000 kg");
         TERBURUK.put("Tgl Lunas", "00-00-0000");
         TERBURUK.put("Harga", "Rp 00.000");
         TERBURUK.put("Jumlah Uang", "Rp 00.000.000");
