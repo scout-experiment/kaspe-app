@@ -112,9 +112,9 @@ public class PanelReport extends JPanel {
         // "Rp 00.000") - kurang 1 px pun terpotong. Tanggal cukup 105: isinya "00-00-0000"
         // dan judulnya jauh lebih pendek dari panahnya.
         //
-        // Jumlah seluruh kolom (1050) harus muat di ruang tabel pada jendela terkecil
-        // (1300 - bilah samping 230 - penggeser tegak 10 = 1060) supaya kolomnya tidak
-        // diperas; sisa 10 px itu cadangan kalau penggesernya lebih tebal di tema lain.
+        // Jumlah seluruh kolom (1050) harus muat di ruang tabel pada jendela terkecil:
+        // 1300 - bilah samping 160 - tepi halaman 36 - tepi kartu 34 - penggeser tegak 10
+        // = 1060. Sisa 10 px itu cadangan kalau penggesernya lebih tebal di tema lain.
         // ponytail: lebar ini pas untuk angka sampai Rp 99.999.999 dan bobot sampai
         // 99.999 kg - jauh di atas pemakaian nyata (truk engkel, harga sekitar Rp 1.150/kg).
         // Batasnya: nama rental di atas ~18 huruf akan terpotong, dan angka di atas

@@ -1555,15 +1555,22 @@ public class TestUi {
                     return false;
                 }
             }
-            // Kolom 7 (Susut) harus bobot lapak dikurangi bobot pabrik. Tidak ada kolom
-            // lain yang bisa dipakai menebaknya, jadi tanpa pemeriksaan ini kolomnya bisa
-            // tertukar dengan salah satu bobot atau tandanya terbalik - dan angkanya tetap
-            // terlihat masuk akal, padahal angka itulah alasan kolomnya ada.
-            java.math.BigDecimal lapak = new java.math.BigDecimal(kolom[3]);
-            java.math.BigDecimal pabrik = new java.math.BigDecimal(kolom[4]);
-            if (new java.math.BigDecimal(kolom[7]).compareTo(lapak.subtract(pabrik)) != 0) {
+            // Kolom 7 (Susut) harus bobot lapak dikurangi bobot pabrik. Pembandingnya
+            // adalah bobot yang TERTULIS DI LAYAR, bukan kolom 3 dan 4 berkas ini sendiri:
+            // menurunkan susut dari dua kolom yang sama-sama ada di berkas membuat
+            // pemeriksaannya ikut berpindah kalau kolomnya tertukar - menukar isi kolom 4
+            // dan 7 tetap lolos, karena susut yang salah dibandingkan dengan bobot yang
+            // sudah tertukar juga. Layar dan berkas harus menulis angka yang sama.
+            JTable layarTabel = tabel(p);
+            int barisLayar = i - judul - 1;
+            java.math.BigDecimal lapak = angkaSel(layarTabel, barisLayar, 3);
+            java.math.BigDecimal pabrik = angkaSel(layarTabel, barisLayar, 4);
+            java.math.BigDecimal susut = new java.math.BigDecimal(kolom[7]);
+            if (lapak != null && pabrik != null
+                    && susut.compareTo(lapak.subtract(pabrik)) != 0) {
                 System.out.println("        susut baris " + i + " = " + kolom[7]
-                        + ", seharusnya bobot lapak - bobot pabrik = " + lapak.subtract(pabrik));
+                        + ", seharusnya bobot lapak - bobot pabrik di layar = "
+                        + lapak.subtract(pabrik));
                 return false;
             }
             jumlah = jumlah.add(new java.math.BigDecimal(kolom[10]));
@@ -1577,6 +1584,19 @@ public class TestUi {
             ok = false;
         }
         return ok;
+    }
+
+    /** Angka sebuah sel tampilan ("7.200 kg" -> 7200), atau null kalau selnya kosong. */
+    private static java.math.BigDecimal angkaSel(JTable t, int baris, int kolom) {
+        if (t == null || baris < 0 || baris >= t.getRowCount() || kolom >= t.getColumnCount()) {
+            return null;
+        }
+        Object nilai = t.getValueAt(baris, kolom);
+        if (nilai == null) {
+            return null;
+        }
+        String teks = nilai.toString().replaceAll("[^0-9]", "");
+        return teks.isEmpty() ? null : new java.math.BigDecimal(teks);
     }
 
     /** Isian yang memuat pemisah, tanda petik, atau baris baru harus dibungkus tanda petik. */
