@@ -568,14 +568,24 @@ public final class Theme {
         c.setPreferredWidth(width);
     }
 
-    /** Rata kanan untuk kolom angka. */
+    /**
+     * Rata kanan untuk ISI kolom angka.
+     *
+     * <p>Judulnya TIDAK ikut rata kanan. Semua judul kolom rata kiri, seragam dari kolom
+     * teks sampai kolom uang: judul yang berselang-seling kiri-kanan membuat mata harus
+     * mencari awal tiap judul di tempat yang berbeda. Yang perlu lurus adalah angkanya,
+     * bukan judulnya - dan itu diatur penggambar selnya, bukan penggambar judulnya.
+     *
+     * <p>Pernah sebaliknya: judulnya ikut rata kanan supaya sejajar dengan angkanya. Tetapi
+     * sejak satuan ditulis di dalam sel ("6.350 kg"), ujung kanan judul tidak lagi sejajar
+     * dengan ujung kanan angkanya, melainkan dengan "kg"-nya - jadi alasan itu tidak lagi
+     * berlaku untuk kolom-kolom berbobot.
+     */
     public static void alignRight(JTable t, int... columns) {
         for (int i : columns) {
             if (i < t.getColumnCount()) {
                 TableColumn c = t.getColumnModel().getColumn(i);
                 c.setCellRenderer(new CellRenderer(SwingConstants.RIGHT));
-                // Judul kolom ikut rata kanan supaya sejajar dengan angkanya.
-                c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
             }
         }
     }
@@ -597,11 +607,10 @@ public final class Theme {
             if (i < t.getColumnCount()) {
                 TableColumn c = t.getColumnModel().getColumn(i);
                 c.setCellRenderer(new EmphasisCell());
-                // Judul kolomnya ikut diratakan ke kanan di sini, bukan diserahkan ke
-                // pemanggil. Kalau tidak, judul kolom uang tetap rata kiri sementara
-                // angkanya rata kanan - dan kesalahan itu tidak menimbulkan pesan apa pun,
-                // jadi mudah terlewat.
-                c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
+                // Judulnya sengaja TIDAK disentuh di sini: penggambar judul bawaan sudah
+                // rata kiri, dan semua judul kolom memang rata kiri (lihat alignRight).
+                // Menyetelnya ke kanan di sini justru membuat judul kolom uang menyimpang
+                // dari judul kolom lainnya.
             }
         }
     }

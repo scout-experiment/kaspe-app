@@ -158,6 +158,12 @@ starts with `DELETE`, so it wipes the target database.
 ## Code Conventions & Common Patterns
 
 - **Java 8 API only.** No `var`, no `List.of`, no records, no `java.nio.file` shortcuts beyond 8.
+- **Column headers are always left-aligned; only the numeric CELLS are right-aligned.**
+  `Theme.alignRight` sets the cell renderer and nothing else, and `Theme.emphasis` deliberately leaves
+  the header alone — the table's default header renderer is already LEFT. Right-aligning a header
+  makes headers alternate left/right down the table, so the eye has to hunt for where each one starts;
+  and once units live in the cells ("6.350 kg"), a right-aligned header no longer even lines up with
+  the number it labels. `TestUi` guards this, since a re-added `setHeaderRenderer(RIGHT)` is silent.
 - **Units live in the cells, not the column headers** (`Calculator.formatKg`, `formatPercent`) — the
   header text is what sets a column's width, so a "(kg)" in the header widens three columns at once,
   while the same unit inside the cell costs nothing because the header stays the longest string. This
@@ -326,7 +332,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 35 — **305 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 38 — **308 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

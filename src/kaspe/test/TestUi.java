@@ -185,6 +185,14 @@ public class TestUi {
         check("halaman transaksi muat tanpa digulir pada ukuran jendela minimum",
                 muatTanpaGulir(new PanelTransaction(), "Transaksi",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM, kaspe.ui.MainFrame.TINGGI_MINIMUM));
+        // Semua judul kolom rata kiri, sedangkan ISI kolom angka tetap rata kanan. Pernah
+        // sebaliknya: judul kolom angka ikut diratakan ke kanan supaya sejajar dengan
+        // angkanya, sehingga judul berselang-seling kiri-kanan dan mata harus mencari awal
+        // tiap judul di tempat yang berbeda. Perubahan seperti itu tidak menimbulkan pesan
+        // apa pun dan tidak terlihat di pemeriksaan lain, jadi dikunci di sini.
+        check("judul kolom rata kiri di semua tabel", judulKolomRataKiri(new PanelTransaction(), "Transaksi"));
+        check("judul kolom rata kiri di tabel laporan", judulKolomRataKiri(new PanelReport(), "Laporan"));
+        check("judul kolom rata kiri di tabel data master", judulKolomRataKiri(new PanelMaster(), "Data Master"));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -294,6 +302,50 @@ public class TestUi {
             return false;
         }
         return cukupTinggi((JTable) field(p, "riwayatTable"), "daftar pengiriman tersimpan");
+    }
+
+    /**
+     * Benar kalau semua judul kolom yang tampil rata KIRI, dan isi kolom angka rata KANAN.
+     *
+     * <p>Penggambar per kolom bisa kosong, dan yang dipakai tabel adalah penggambar
+     * bawaannya. Karena itu yang dibaca di sini adalah penggambar yang benar-benar dipakai
+     * JTable saat menggambar — bukan hanya yang dipasang per kolom.
+     */
+    private static boolean judulKolomRataKiri(JPanel panel, String nama) {
+        java.util.List<String> salah = new java.util.ArrayList<String>();
+        for (JTable t : semuaTabel(panel)) {
+            for (int c = 0; c < t.getColumnCount(); c++) {
+                javax.swing.table.TableColumn col = t.getColumnModel().getColumn(c);
+                if (col.getMaxWidth() == 0) {
+                    continue;
+                }
+                javax.swing.table.TableCellRenderer hr = col.getHeaderRenderer() != null
+                        ? col.getHeaderRenderer() : t.getTableHeader().getDefaultRenderer();
+                int rata = hr instanceof JLabel
+                        ? ((JLabel) hr).getHorizontalAlignment() : SwingConstants.LEFT;
+                if (rata != SwingConstants.LEFT) {
+                    salah.add("kolom \"" + col.getHeaderValue() + "\" judulnya tidak rata kiri");
+                }
+            }
+        }
+        for (String p : salah) {
+            System.out.println("        " + nama + ": " + p);
+        }
+        return salah.isEmpty();
+    }
+
+    /** Semua tabel di dalam wadah ini, sedalam apa pun. */
+    private static java.util.List<JTable> semuaTabel(java.awt.Container c) {
+        java.util.List<JTable> hasil = new java.util.ArrayList<JTable>();
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof JTable) {
+                hasil.add((JTable) anak);
+            }
+            if (anak instanceof java.awt.Container) {
+                hasil.addAll(semuaTabel((java.awt.Container) anak));
+            }
+        }
+        return hasil;
     }
 
     /**
