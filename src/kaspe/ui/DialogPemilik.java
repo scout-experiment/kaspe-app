@@ -1,0 +1,262 @@
+package kaspe.ui;
+
+import kaspe.dao.MasterDao;
+import kaspe.model.Rental;
+
+import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
+import java.awt.*;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Kelola pemilik truk: menambah, mengganti nama, dan menghapus rental.
+ *
+ * <p>Dipisah dari {@link DialogDataMaster} karena dua hal berbeda jangan berbagi satu
+ * tempat: di situ yang diurus truknya, di sini pemiliknya. Tombolnya dibuka dari kaki
+ * dialog utama, bukan dari baris tombol atasnya - baris itu sudah penuh, dan tombol
+ * tambahan di situ akan terlipat lalu terpotong.
+ *
+ * <p>Tanpa tempat ini, pemilik yang salah ketik dan sudah punya truk tidak bisa diganti
+ * namanya dan tidak bisa dihapus (penghapusan ditolak selama masih punya truk), sehingga
+ * rekap uang per pemiliknya terpecah permanen. Nama rental dibaca laporan lewat relasi,
+ * jadi mengganti namanya otomatis ikut di seluruh riwayat - tidak ada yang perlu
+ * disesuaikan.
+ *
+ * <p>Seperti {@link DialogDataMaster}, isinya kelas ini sendiri (sebuah {@link JPanel})
+ * supaya bisa diperiksa tanpa layar; jendelanya dibuat di {@link #buka}.
+ */
+public class DialogPemilik extends JPanel {
+
+    private final MasterDao dao = new MasterDao();
+
+    private final DefaultTableModel modelRental = new DefaultTableModel(
+            new Object[]{"Pemilik truk"}, 0) {
+        @Override
+        public boolean isCellEditable(int r, int c) {
+            return false;
+        }
+    };
+    private final Theme.Table tableRental = new Theme.Table(modelRental, "Belum ada pemilik.");
+    private final JTextField fNama = new JTextField();
+    private final JLabel lblStatus = new JLabel();
+
+    private final List<Rental> rental = new ArrayList<>();
+    /** Id rental baris yang sedang diubah, 0 kalau tidak ada. */
+    private int rentalId = 0;
+
+    public DialogPemilik() {
+        setLayout(new BorderLayout(0, 12));
+        setBackground(Theme.CARD);
+        setBorder(BorderFactory.createEmptyBorder(16, 16, 14, 16));
+
+        Theme.placeholder(fNama, "mis. Rental Sinar Jaya");
+        fNama.setPreferredSize(new Dimension(240, Theme.FIELD_HEIGHT));
+        lblStatus.setForeground(Theme.DANGER);
+
+        Theme.styleTable(tableRental);
+        Theme.widths(tableRental, 300);
+        tableRental.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                pilihBaris();
+            }
+        });
+
+        JPanel form = new JPanel(new BorderLayout(0, 8));
+        form.setOpaque(false);
+        JPanel kolom = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        kolom.setOpaque(false);
+        kolom.add(Theme.field("Nama Pemilik", fNama));
+        form.add(kolom, BorderLayout.NORTH);
+
+        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        tombol.setOpaque(false);
+        JButton btnTambah = Theme.primary("Tambah");
+        // "Tambah" dan "Simpan Perubahan" dipisah: satu tombol untuk dua maksud pernah
+        // MENIMPA baris yang kebetulan tersorot, beserta seluruh riwayat pemiliknya.
+        JButton btnSimpan = Theme.plain("Simpan Perubahan");
+        JButton btnHapus = Theme.plain("Hapus");
+        btnTambah.addActionListener(e -> tambah());
+        btnSimpan.addActionListener(e -> ubah());
+        btnHapus.addActionListener(e -> hapus());
+        tombol.add(btnTambah);
+        tombol.add(btnSimpan);
+        tombol.add(btnHapus);
+        form.add(tombol, BorderLayout.CENTER);
+
+        JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        status.setOpaque(false);
+        status.add(lblStatus);
+        form.add(status, BorderLayout.SOUTH);
+
+        JScrollPane scroll = new JScrollPane(tableRental);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+
+        add(form, BorderLayout.NORTH);
+        add(scroll, BorderLayout.CENTER);
+        add(buildKaki(), BorderLayout.SOUTH);
+        muat();
+    }
+
+    /** Susunan dialog lengkap; {@code setelahBerubah} dijalankan setiap kali data berubah. */
+    public static void buka(Window owner, Runnable setelahBerubah) {
+        JDialog dialog = new JDialog(owner, "Kelola Pemilik Truk", Dialog.ModalityType.APPLICATION_MODAL);
+        DialogPemilik isi = new DialogPemilik();
+        isi.setelahBerubah = setelahBerubah;
+        dialog.setContentPane(isi);
+        dialog.pack();
+        dialog.setSize(Math.max(460, isi.getPreferredSize().width), Math.max(420, isi.getPreferredSize().height));
+        dialog.setLocationRelativeTo(owner);
+        dialog.setVisible(true);
+    }
+
+    private Runnable setelahBerubah;
+
+    private JPanel buildKaki() {
+        JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        p.setOpaque(false);
+        JButton tutup = Theme.plain("Tutup");
+        tutup.addActionListener(e -> {
+            Window w = SwingUtilities.getWindowAncestor(this);
+            if (w instanceof JDialog) {
+                ((JDialog) w).dispose();
+            }
+        });
+        p.add(tutup);
+        return p;
+    }
+
+    // ---------- data ----------
+
+    /** Muat ulang daftar pemilik, tanpa kehilangan baris yang sedang disorot. */
+    final void muat() {
+        try {
+            int sebelumnya = rentalId;
+            modelRental.setRowCount(0);
+            rental.clear();
+            for (Rental r : dao.listRental()) {
+                rental.add(r);
+                modelRental.addRow(new Object[]{r.getRentalName()});
+            }
+            int baris = baris(sebelumnya);
+            if (baris < 0 && modelRental.getRowCount() > 0) {
+                baris = 0;
+            }
+            if (baris >= 0) {
+                tableRental.setRowSelectionInterval(baris, baris);
+            } else {
+                fNama.setText("");
+            }
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private int baris(int id) {
+        for (int i = 0; i < rental.size(); i++) {
+            if (rental.get(i).getRentalId() == id) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private void pilihBaris() {
+        int baris = tableRental.getSelectedRow();
+        if (baris < 0) {
+            rentalId = 0;
+            return;
+        }
+        Rental r = rental.get(tableRental.convertRowIndexToModel(baris));
+        rentalId = r.getRentalId();
+        fNama.setText(r.getRentalName());
+        setStatus("");
+    }
+
+    private void setStatus(String pesan) {
+        lblStatus.setText(pesan == null ? "" : pesan);
+    }
+
+    // ---------- aksi ----------
+
+    private void tambah() {
+        String nama = fNama.getText().trim();
+        if (nama.isEmpty()) {
+            setStatus("Nama pemilik wajib diisi.");
+            return;
+        }
+        try {
+            Rental r = new Rental();
+            r.setRentalName(nama);
+            dao.saveRental(r);
+            setStatus("");
+            rentalId = 0;
+            fNama.setText("");
+            muat();
+            beritahu();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private void ubah() {
+        if (rentalId == 0) {
+            setStatus("Pilih dulu pemilik yang mau diganti namanya.");
+            return;
+        }
+        String nama = fNama.getText().trim();
+        if (nama.isEmpty()) {
+            setStatus("Nama pemilik wajib diisi.");
+            return;
+        }
+        try {
+            Rental r = new Rental();
+            r.setRentalId(rentalId);
+            r.setRentalName(nama);
+            dao.saveRental(r);
+            setStatus("");
+            muat();
+            beritahu();
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private void hapus() {
+        if (rentalId == 0) {
+            setStatus("Pilih dulu pemilik yang mau dihapus.");
+            return;
+        }
+        try {
+            // Penolakan diperiksa SEBELUM konfirmasi: kalau pasti ditolak, meminta "Ya"
+            // lebih dulu hanya menjanjikan hal yang tidak bisa ditepati.
+            String penolakan = dao.rentalDeleteRefusal(rentalId);
+            if (penolakan != null) {
+                JOptionPane.showMessageDialog(this, penolakan, "Tidak bisa dihapus",
+                        JOptionPane.INFORMATION_MESSAGE);
+                return;
+            }
+            if (JOptionPane.showConfirmDialog(this, "Hapus pemilik ini?", "Konfirmasi",
+                    JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+                return;
+            }
+            dao.deleteRental(rentalId);
+            setStatus("");
+            rentalId = 0;
+            fNama.setText("");
+            muat();
+            beritahu();
+        } catch (IllegalStateException e) {
+            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
+                    JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    private void beritahu() {
+        if (setelahBerubah != null) {
+            setelahBerubah.run();
+        }
+    }
+}

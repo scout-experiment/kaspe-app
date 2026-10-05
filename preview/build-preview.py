@@ -26,8 +26,10 @@ GALERI = [
      "sengaja dibiarkan - pengisian biasanya beberapa pengiriman bertanggal sama, "
      "sedangkan plat hampir selalu berganti."),
     ("04-master.png", "Data master",
-     "Kiri daftar pemilik truk, kanan truk milik pemilik yang sedang disorot. Pemiliknya "
-     "tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang yang salah."),
+     "Satu dialog berisi tabel semua truk beserta pemiliknya dan satu baris isian. Pemilik "
+     "wajib dipilih (tidak ada nilai bawaan) supaya truk tidak tercatat milik orang yang "
+     "salah; menambah langsung tersimpan, mengubah lewat tombol Ubah, Hapus bisa massal, "
+     "dan Kelola Pemilik... untuk mengganti nama atau menghapus pemilik."),
     ("05-report.png", "Laporan",
      "Filter rentang tanggal, tabel rinci per baris, serta total berat bersih "
      "dan total uang."),
@@ -57,6 +59,7 @@ def kartu_dari(daftar: list) -> str:
       </figure>"""
         )
     return "\n".join(kartu)
+
 
 
 def main() -> None:
@@ -315,7 +318,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>327 lulus <span>0 gagal</span></dd>
+        <dd>328 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>

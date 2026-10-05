@@ -250,7 +250,8 @@ public class PeriksaData {
             }
             System.out.println("Artinya: baris laporan untuk truk ini tidak bisa masuk ke rekap uang");
             System.out.println("pemilik mana pun. Penyebab yang paling sering: rental pemiliknya pernah");
-            System.out.println("dihapus. Pemilik bisa diisi ulang lewat halaman Data Master.");
+            System.out.println("dihapus. Pemiliknya bisa diisi ulang lewat Pindah Pemilik");
+            System.out.println("di dialog Kelola Data Truk.");
             jumlahMasalah += tanpaPemilik.size();
         }
     }
@@ -348,7 +349,8 @@ public class PeriksaData {
             System.out.println("Artinya: nama-nama di atas besar kemungkinan rental yang sama, hanya");
             System.out.println("ditulis dengan besar-kecil huruf berbeda. Akibatnya rekap uang per");
             System.out.println("pemilik terpecah jadi dua. Perbaikannya: samakan tulisannya lewat");
-            System.out.println("halaman Data Master supaya uangnya menyatu kembali.");
+            System.out.println("Kelola Pemilik di dialog Kelola Data Truk, lalu hapus salah");
+            System.out.println("satunya, supaya uangnya menyatu kembali.");
             jumlahMasalah += jumlahKembar;
         }
     }

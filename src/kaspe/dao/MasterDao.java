@@ -143,9 +143,9 @@ public class MasterDao {
         return "Rental ini masih memiliki " + truk
                 + " truk. Menghapusnya akan melepaskan semua truknya dari pemiliknya, "
                 + "sehingga rekap per pemilik untuk seluruh riwayatnya hilang dan tidak "
-                + "bisa dikembalikan. Pindahkan dulu truknya ke pemilik lain lewat "
-                + "Pindah Pemilik, atau hapus truknya satu per satu kalau memang salah "
-                + "catat dan tidak punya catatan pengiriman.";
+                + "bisa dikembalikan. Pindahkan dulu truknya ke pemilik lain lewat menu "
+                + "Data Master > Pindah Pemilik, atau hapus truknya satu per satu kalau "
+                + "memang salah catat dan tidak punya catatan pengiriman.";
     }
 
     /** Jumlah truk milik rental ini — dipakai untuk menolak penghapusan rental
@@ -232,7 +232,8 @@ public class MasterDao {
      * id_truk di semua baris riwayatnya, dan listReport membaca plat lewat LEFT JOIN,
      * sehingga laporan lama (termasuk kertas yang sudah dicetak) kehilangan platnya
      * tanpa jalan kembali. Alasan sah melepas pemilik — truk berganti tangan — sudah
-     * dilayani tombol Pindah Pemilik. Truk yang salah catat tetap bisa dibersihkan:
+     * dilayani tombol Pindah Pemilik di dialog Data Master (menu bilah samping).
+     * Truk yang salah catat tetap bisa dibersihkan:
      * hapus dulu catatan pengirimannya di layar transaksi, baru truknya.
      */
     public void deleteTruck(int id) throws SQLException {
@@ -258,8 +259,8 @@ public class MasterDao {
         return "Truk ini dipakai oleh " + dipakai
                 + " catatan pengiriman. Menghapusnya akan menghilangkan platnya dari "
                 + "catatan yang sudah ada, termasuk laporan yang sudah dicetak. "
-                + "Kalau pemiliknya berganti, pakai Pindah Pemilik. Kalau truknya "
-                + "memang salah catat, hapus dulu catatan pengirimannya.";
+                + "Kalau pemiliknya berganti, pakai menu Data Master > Pindah Pemilik. "
+                + "Kalau truknya memang salah catat, hapus dulu catatan pengirimannya.";
     }
 
     /** Jumlah catatan pengiriman yang memakai truk ini — dipakai untuk menolak

@@ -64,8 +64,9 @@ public class NavBar extends JPanel {
         menu.add(gap(3));
         menu.add(entry(page, "Transaksi", "Catat pengiriman per truk.", Icons.NOTE));
         menu.add(gap(3));
-        // Data master ditaruh tepat di bawah Transaksi, bukan di bawah Laporan. Urutannya
-        // mengikuti alur pemakaian: catat pengiriman, lengkapi datanya, baru lihat laporan.
+        // Data master ditaruh tepat di bawah Transaksi, bukan di bawah Laporan. Ia bukan
+        // halaman lagi — kliknya membuka dialog — tapi urutannya tetap mengikuti alur
+        // pemakaian: catat pengiriman, lengkapi datanya, baru lihat laporan.
         menu.add(entry(page, "Data Master", "Kelola pemilik truk dan plat nomornya.", Icons.BUILDING));
         menu.add(gap(3));
         menu.add(entry(page, "Laporan", "Rekap penjualan per periode.", Icons.CHART));
@@ -103,9 +104,6 @@ public class NavBar extends JPanel {
         }
         if ("Laporan".equals(name)) {
             return new PanelReport();
-        }
-        if ("Data Master".equals(name)) {
-            return new PanelMaster();
         }
         return new PanelDashboard();
     }
@@ -185,6 +183,11 @@ public class NavBar extends JPanel {
         Item item = new Item(name, subtitle, icon);
         group.add(item);
         item.addActionListener(e -> {
+            if ("Data Master".equals(item.name)) {
+                // Bukan halaman: dialog di atas halaman yang sedang terbuka.
+                bukaDialogDataMaster();
+                return;
+            }
             if (!bolehTinggalkanTransaksi(item.name)) {
                 // Batal pindah: sorotan menu dikembalikan ke halaman yang masih terbuka.
                 setActive(halamanAktif);
@@ -195,6 +198,39 @@ public class NavBar extends JPanel {
         });
         items.add(item);
         return item;
+    }
+
+    /**
+     * Buka dialog data master tanpa berpindah halaman.
+     *
+     * <p>Data master bukan halaman lagi; dialognya muncul DI ATAS halaman yang sedang
+     * terbuka. Karena halamannya tidak berubah, sorotan menu tidak boleh berpindah —
+     * tapi klik pada tombol ganti sudah menandai entrinya terpilih, jadi setelah
+     * dialognya ditutup sorotan dikembalikan ke halaman yang benar-benar terbuka.
+     *
+     * <p>Pemeriksaan pekerjaan yang belum disimpan tetap dijalankan: dialog modal dari
+     * halaman Transaksi sama-sama menutupi pekerjaan yang sedang dikerjakan, sama
+     * seperti kalau pindah halaman.
+     */
+    private void bukaDialogDataMaster() {
+        if (!bolehTinggalkanTransaksi("Data Master")) {
+            setActive(halamanAktif);
+            return;
+        }
+        if (!GraphicsEnvironment.isHeadless()) {
+            // buka() modal: baris berikutnya jalan setelah dialognya ditutup. Tanpa
+            // layar (uji otomatis) dialog tidak bisa dibuat sama sekali, jadi
+            // dilewati saja supaya jalur kliknya tetap teruji.
+            DialogDataMaster.buka(SwingUtilities.getWindowAncestor(this));
+        }
+        setActive(halamanAktif);
+        // Plat atau pemilik yang baru ditambah lewat dialog harus langsung terlihat di
+        // halaman transaksi yang sedang dipakai ulang — operator yang membuka dialog
+        // dari halaman itu masih berdiri di halaman yang sama, dan daftar platnya sudah
+        // basi tanpa tanda apa pun kalau menunggu halaman dibuka ulang.
+        if (panelTransaksi != null) {
+            panelTransaksi.refreshMaster();
+        }
     }
 
     /** Nomor versi di kaki bilah. */

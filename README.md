@@ -95,8 +95,9 @@ Data disimpan sebagai satu file di folder pengguna:
 | Windows | `C:\Users\<nama kamu>\kaspe\db_kaspe.mv.db` |
 | Linux / macOS | `~/kaspe/db_kaspe.mv.db` |
 
-**Cara mencadangkan yang benar:** buka halaman **Data Master** lalu tekan
-**Cadangkan Database**. Aplikasi membuat satu berkas `.zip` bertanggal di folder
+**Cara mencadangkan yang benar:** di halaman **Transaksi**, pada kartu "Transaksi Tersimpan",
+tekan **Cadangkan Database** di ujung kanan baris tombolnya (baris yang memuat "Ubah" dan
+"Hapus"). Aplikasi membuat satu berkas `.zip` bertanggal di folder
 `cadangan` di sebelah file database, dan jalur lengkapnya diberitahukan setelah selesai.
 Cara ini memakai fasilitas cadangan bawaan H2, jadi isinya tetap utuh walau aplikasi
 sedang dipakai — dan cadangan kedua tidak menimpa yang pertama.
@@ -306,10 +307,13 @@ cukup nyalakan server MySQL-nya.
   lunas kosong (belum dibayar), bukan dipaksa lunas hari itu.
 - **Isian dijaga** — pindah halaman atau menutup jendela saat form masih terisi ditanya dulu,
   jadi ketikan yang belum disimpan tidak hilang diam-diam.
-- **Data master** — satu halaman berisi pemilik truk di kiri dan truk miliknya di kanan.
-  Pemiliknya tidak dipilih dari kotak pilihan, jadi truk tidak bisa tercatat milik orang
-  yang salah. Truk yang salah pemilik dipindahkan lewat tombol Pindah Pemilik, tanpa perlu
-  dihapus dan dicatat ulang.
+- **Data master** — dialog "Kelola Data Truk" (dibuka dari menu Data Master): satu tabel semua
+  truk beserta pemiliknya dan satu baris isian. Pemilik wajib dipilih — kotaknya sengaja
+  kosong, tidak ada pemilik bawaan — jadi truk tidak bisa tercatat milik orang yang salah.
+  Menambah langsung tersimpan; mengubah lewat tombol "Ubah"; "Hapus" bisa beberapa truk
+  sekaligus (semua diperiksa dulu, satu pun yang masih terpakai membatalkan semuanya); dan
+  truk yang salah pemilik dipindahkan lewat tombol Pindah Pemilik, tanpa perlu dihapus dan
+  dicatat ulang. Nama pemilik diganti atau pemilik dihapus lewat tombol "Kelola Pemilik...".
 - **Riwayat lama dijaga** — truk yang sudah dipakai catatan pengiriman tidak bisa dihapus,
   begitu juga rental yang masih punya truk. Menghapusnya akan menghilangkan plat dan
   pemiliknya dari catatan yang sudah ada, termasuk laporan yang sudah dicetak, dan itu
@@ -334,7 +338,8 @@ cukup nyalakan server MySQL-nya.
   tabel layar — menambahnya membuat jendela terkecil harus lebih lebar daripada jendela bawaan —
   sedangkan di berkas tidak ada batas lebar. Berkas yang sudah ada ditanyakan dulu sebelum
   ditimpa, karena jendela "simpan berkas" bawaan Java tidak menanyakannya sendiri.
-- **Cadangkan database** — tombol di halaman Data Master membuat berkas cadangan bertanggal
+- **Cadangkan database** — tombol di ujung kanan baris tombol kartu "Transaksi Tersimpan"
+  (halaman Transaksi) membuat berkas cadangan bertanggal
   dari database bawaan (H2), memakai fasilitas cadangan H2 sendiri sehingga isinya konsisten
   walau aplikasi sedang dipakai. Cadangan kedua tidak menimpa yang pertama. Pada MySQL/MariaDB
   tombolnya mengatakan terus terang bahwa pencadangan otomatis hanya berlaku untuk database
@@ -486,8 +491,10 @@ java -Djava.awt.headless=true -cp "build:lib/*:/tmp/tools" BuatPratinjau
 ```
 
 Program itu memasang data contoh dari `docs/data-contoh.sql`, menyusun bilah samping, bilah nama
-halaman, dan halamannya memakai susunan yang sama dengan jendela aplikasi, lalu menggambar
-hasilnya ke `preview/*.png`. Jadi gambarnya sama dengan aplikasi yang dijalankan.
+halaman, dan isinya memakai susunan yang sama dengan jendela aplikasi, lalu menggambar
+hasilnya ke `preview/*.png`. Jadi gambarnya sama dengan aplikasi yang dijalankan. Dialog
+Kelola Data Truk digambar sebagai panelnya — tanpa membuka jendela dialog, karena pembuatnya
+berjalan tanpa layar.
 
 **Baru sesudah itu** halaman `index.html` dibuat ulang dari gambar-gambar tersebut:
 
@@ -622,9 +629,9 @@ pemasangan apa pun.
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 56 lulus |
 | `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa) | 91 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 57 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 58 lulus |
 | `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul; batas di luar jangkauan data dirapikan; jangkauan yang gagal dibaca tidak menggeser batas), catatan tersembunyi oleh saringan diberitahu, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **327 lulus, 0 gagal** |
+| **Total** | | **328 lulus, 0 gagal** |
 
 ---
 
@@ -641,8 +648,8 @@ kaspe-app/
                            TransactionDetail, ReportRow)
     dao/                   akses database (MasterDao, TransactionDao)
     ui/                    tampilan (MainFrame, NavBar, PagePanel, HeaderBar, Icons,
-                           PanelDashboard, PanelTransaction, PanelMaster,
-                           PanelReport, Theme)
+                           PanelDashboard, PanelTransaction, DialogDataMaster,
+                           DialogPemilik, PanelReport, Theme)
     util/                  bantu (Dates)
     test/                  uji otomatis
   src/kaspe.properties     pengaturan database (bawaan: H2, tanpa install)

@@ -1,6 +1,7 @@
 package kaspe.ui;
 
 import kaspe.Calculator;
+import kaspe.dao.BackupDao;
 import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
 import kaspe.model.*;
@@ -14,6 +15,7 @@ import javax.swing.table.TableColumn;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.io.File;
 import java.math.BigDecimal;
 import java.sql.SQLException;
 import java.time.LocalDate;
@@ -505,14 +507,30 @@ public class PanelTransaction extends JPanel {
         scroll.setBorder(BorderFactory.createEmptyBorder());
         isi.add(scroll, BorderLayout.CENTER);
 
-        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        tombol.setOpaque(false);
         // Kedua tombol mati sampai ada baris yang dipilih; pembaruan keadaannya
         // dipasang di konstruktor lewat pendengar pilihan.
         btnUbah.setEnabled(false);
         btnHapus.setEnabled(false);
-        tombol.add(btnUbah);
-        tombol.add(btnHapus);
+        JPanel ubahHapus = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
+        ubahHapus.setOpaque(false);
+        ubahHapus.add(btnUbah);
+        ubahHapus.add(btnHapus);
+
+        // Cadangan database ditaruh di ujung kanan baris tombol yang sama, bukan di
+        // baris baru: tinggi halaman ini dipatok (patokan kartu di bawah), dan baris
+        // tambahan memakan ruang daftar pengiriman di atasnya.
+        JButton btnCadangkan = Theme.plain("Cadangkan Database");
+        btnCadangkan.addActionListener(e -> cadangkanDatabase());
+        JPanel cadangan = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
+        cadangan.setOpaque(false);
+        cadangan.add(btnCadangkan);
+        cadangan.add(Theme.caption(
+                "Menyimpan satu berkas cadangan bertanggal berisi seluruh isi buku catatan."));
+
+        JPanel tombol = new JPanel(new BorderLayout());
+        tombol.setOpaque(false);
+        tombol.add(ubahHapus, BorderLayout.WEST);
+        tombol.add(cadangan, BorderLayout.EAST);
         isi.add(tombol, BorderLayout.SOUTH);
 
         card.add(isi, BorderLayout.CENTER);
@@ -1251,12 +1269,12 @@ public class PanelTransaction extends JPanel {
 
         // Plat yang sudah dikenal tidak boleh diam-diam berganti pemilik di sini.
         // Memindahkan pemilik mengubah seluruh laporan lama, jadi harus disengaja
-        // lewat halaman Data Master — bukan lewat ketikan yang kebetulan berbeda.
+        // lewat menu Data Master — bukan lewat ketikan yang kebetulan berbeda.
         Truck dikenal = trukPerPlat.get(plat);
         if (dikenal != null && dikenal.getRentalName() != null
                 && !Rental.matchKey(dikenal.getRentalName()).equals(Rental.matchKey(rental))) {
             setStatus("Truk " + plat + " terdaftar milik \"" + dikenal.getRentalName()
-                    + "\". Pindahkan pemiliknya lewat Data Master > Pindah Pemilik.");
+                    + "\". Pindahkan pemiliknya lewat menu Data Master > Pindah Pemilik.");
             return false;
         }
         return true;
@@ -1481,5 +1499,34 @@ public class PanelTransaction extends JPanel {
         JSpinner sp = new JSpinner(new SpinnerDateModel());
         sp.setEditor(new JSpinner.DateEditor(sp, "dd-MM-yyyy"));
         return sp;
+    }
+
+    /**
+     * Cadangkan seluruh database bawaan ke satu file zip berstempel waktu.
+     *
+     * <p>Database bawaan (H2) tersimpan sebagai satu file di komputer pengguna,
+     * dan aplikasi sekarang ikut menulis ke file itu setiap kali dijalankan —
+     * jadi file yang rusak atau terhapus berarti seluruh catatan hilang. Satu
+     * salinan cadangan yang bisa dibawa pulang adalah satu-satunya jalan pulih.
+     *
+     * <p>Diminta konfirmasi dulu karena menulis file baru, lalu letak file
+     * hasilnya diberitahukan lengkap — cadangan yang tidak ketemu sama saja
+     * dengan tidak ada cadangan.
+     */
+    private void cadangkanDatabase() {
+        if (JOptionPane.showConfirmDialog(this,
+                "Buat cadangan database sekarang?\nFile cadangannya ditulis ke folder "
+                        + "cadangan di samping file databasenya.",
+                "Cadangkan Database", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            return;
+        }
+        try {
+            File hasil = BackupDao.cadangkan();
+            JOptionPane.showMessageDialog(this,
+                    "Cadangan berhasil dibuat:\n" + hasil.getAbsolutePath(),
+                    "Cadangan Database", JOptionPane.INFORMATION_MESSAGE);
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
     }
 }

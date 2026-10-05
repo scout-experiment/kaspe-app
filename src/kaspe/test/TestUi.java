@@ -4,12 +4,12 @@ import kaspe.Db;
 import kaspe.dao.MasterDao;
 import kaspe.model.Rental;
 import kaspe.model.Truck;
+import kaspe.ui.DialogDataMaster;
 import kaspe.ui.HeaderBar;
 import kaspe.ui.NavBar;
 import kaspe.ui.PagePanel;
 import kaspe.ui.PanelDashboard;
 import kaspe.ui.PanelReport;
-import kaspe.ui.PanelMaster;
 import kaspe.ui.PanelTransaction;
 import kaspe.ui.PrintPreview;
 import kaspe.ui.Theme;
@@ -24,6 +24,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
@@ -53,7 +54,7 @@ public class TestUi {
 
         render(new PanelDashboard(), "1-dashboard.png", out);
         render(new PanelTransaction(), "2-transaction-form.png", out);
-        render(new PanelMaster(), "3-master.png", out);
+        render(new DialogDataMaster(), "3-master.png", out);
         render(new PanelReport(), "5-report.png", out);
         render(reportTanpaData(), "6-report-kosong.png", out);
         render(jendelaUtama(), "7-window.png", out);
@@ -77,18 +78,30 @@ public class TestUi {
         // seluruh barisnya berlebar negatif sehingga tidak tergambar sama sekali, dan
         // pemeriksaan gambar tidak menangkapnya karena bagian lain jendela tetap tergambar.
         check("baris menu bilah samping tergambar", barisMenuTergambar());
-        // Memilih baris di halaman data master harus mengisi kotak isiannya tanpa gagal.
-        // Pemeriksaan gambar tidak menangkap ini: barisnya tetap tergambar rapi, dan
-        // kesalahannya baru muncul saat barisnya benar-benar diklik pengguna.
-        check("pilih baris data master tidak gagal", pilihBarisMaster());
-        // Truk tidak boleh tersimpan tanpa pemilik. Kesalahan ini pernah terjadi tanpa
-        // pesan apa pun, dan uangnya masuk ke pemilik yang salah di laporan.
+        // Memilih satu baris di dialog data master harus mengisi mode ubahnya dengan
+        // benar: kotak platnya terisi plat baris itu dan pemilik yang tampil memang
+        // pemiliknya. Pemeriksaan gambar tidak menangkap ini: barisnya tetap tergambar
+        // rapi, dan kesalahannya baru muncul saat barisnya benar-benar diklik pengguna.
+        check("memilih baris data master mengisi kotak plat dan pemiliknya", pilihBarisMaster());
+        // Truk tidak boleh tersimpan tanpa pemilik. Kotak pemiliknya memang kosong
+        // bawaannya; kesalahan ini pernah terjadi tanpa pesan apa pun, dan uangnya
+        // masuk ke pemilik yang salah di laporan.
         check("truk tidak bisa disimpan tanpa pemilik", trukButuhPemilik());
-        // Truk harus bisa dipindah ke pemilik lain dari halaman data master, dan nomor
+        // Truk harus bisa dipindah ke pemilik lain dari dialog data master, dan nomor
         // platnya tidak boleh ikut berubah. Dua kesalahan pernah terjadi di sini, keduanya
         // tanpa suara: tombolnya ikut hilang waktu halaman master digabung, dan
         // perpindahannya sempat mengambil nomor plat dari kotak isian yang bisa dikosongkan.
         check("pindah pemilik truk tidak merusak plat", pindahPemilikTruk());
+        // Pemilik baru lahir dari kotak isian dialog, dan pencocokannya lewat kunci
+        // ejaan: nama yang sama tetapi beda besar-kecil huruf atau beda spasinya tidak
+        // boleh melahirkan pemilik kedua - kalau menjadi dua, rekap uang per pemilik
+        // ikut terpecah tanpa satu pun pesan.
+        check("ejaan pemilik berbeda tidak melahirkan pemilik kedua", ejaanPemilikTidakMembelah());
+        // Penghapusan massal diperiksa seluruhnya lebih dulu: selama satu saja baris
+        // terpilih masih dipakai catatan pengiriman, tidak ada yang boleh terhapus.
+        // Tiap penghapusan meng-commit sendiri, jadi setengah jalan tidak bisa
+        // dibatalkan operator.
+        check("hapus massal batal seluruhnya kalau satu baris terhalang", hapusMassalBatalSeluruhnya());
         // Rental yang tampil di layar transaksi harus sama dengan yang tercatat. Pernah
         // terjadi sebaliknya: layar membuka dengan plat milik satu rental dan nama rental
         // milik rental lain, dan plat yang baru diketik mewarisi rental baris sebelumnya.
@@ -145,7 +158,7 @@ public class TestUi {
         // pemeriksaan lain menangkapnya. Pemeriksaan lebar kolom dan hitungan piksel tetap
         // lolos, karena bagian halaman yang lain tergambar wajar.
         check("tombol tidak terpotong di halaman transaksi", tombolTidakTerpotong(new PanelTransaction(), "Transaksi"));
-        check("tombol tidak terpotong di data master", tombolTidakTerpotong(new PanelMaster(), "Data Master"));
+        check("tombol tidak terpotong di dialog data master", tombolDialogTidakTerpotong());
         check("tombol tidak terpotong di laporan", tombolTidakTerpotong(new PanelReport(), "Laporan"));
         // Pemeriksaan yang sama pada lebar jendela TERKECIL yang diizinkan aplikasi. Form
         // transaksi memakai isian berukuran tetap dan kolom kanannya tidak bisa dilipat, jadi
@@ -157,9 +170,6 @@ public class TestUi {
         // masalah "ada tapi tidak terjangkau" cuma pindah ke halaman lain.
         check("tombol tidak terpotong pada lebar jendela minimum (transaksi)",
                 tombolTidakTerpotong(new PanelTransaction(), "Transaksi",
-                        kaspe.ui.MainFrame.LEBAR_MINIMUM));
-        check("tombol tidak terpotong pada lebar jendela minimum (data master)",
-                tombolTidakTerpotong(new PanelMaster(), "Data Master",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM));
         check("tombol tidak terpotong pada lebar jendela minimum (laporan)",
                 tombolTidakTerpotong(new PanelReport(), "Laporan",
@@ -195,7 +205,7 @@ public class TestUi {
         // besar-kecil uang tidak lagi melompat). Keduanya dikunci di sini.
         check("perataan judul kolom mengikuti isinya", perataanJudulIkutIsi(new PanelTransaction(), "Transaksi"));
         check("perataan judul kolom laporan mengikuti isinya", perataanJudulIkutIsi(new PanelReport(), "Laporan"));
-        check("perataan judul kolom data master mengikuti isinya", perataanJudulIkutIsi(new PanelMaster(), "Data Master"));
+        check("perataan judul kolom dialog data master mengikuti isinya", perataanJudulIkutIsi(new DialogDataMaster(), "Data Master"));
         // Tombol Simpan dipasang sejajar dengan TULISAN di kotak hasil di atasnya, dan
         // kedua angka di kotak itu memakai huruf yang sama. Keduanya mudah melenceng tanpa
         // pesan apa pun: jarak tepinya dulu ditulis di dua tempat sehingga tombolnya
@@ -322,10 +332,13 @@ public class TestUi {
                     + bar.pageName() + "\", seharusnya \"Laporan\"");
             return false;
         }
-        halaman.showPanel(new PanelMaster(), "Data Master", "Kelola data.");
-        if (!"Data Master".equals(bar.pageName())) {
+        // Data master bukan halaman lagi - kliknya di bilah samping membuka dialog -
+        // jadi pindahan kedua diuji ke halaman Transaksi. Sambungan showPanel ke bilah
+        // atas tetap jalur yang sama apa pun halamannya.
+        halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
+        if (!"Transaksi".equals(bar.pageName())) {
             System.out.println("        setelah pindah kedua, bilah atas menulis \""
-                    + bar.pageName() + "\", seharusnya \"Data Master\"");
+                    + bar.pageName() + "\", seharusnya \"Transaksi\"");
             return false;
         }
         return true;
@@ -730,97 +743,82 @@ public class TestUi {
     }
 
     /**
-     * Memilih baris di halaman data master harus mengisi kotak isiannya, tanpa gagal.
+     * Memilih satu baris di dialog data master harus mengisi mode ubahnya dengan benar.
      *
-     * <p>Halaman itu membaca isi tabel berdasarkan nomor kolom. Waktu jumlah kolomnya
-     * berubah — "No HP" dan "Keterangan" dibuang — pembacaannya ikut harus berubah; kalau
-     * tidak, memilih satu baris langsung gagal dan pengguna tidak bisa mengubah data apa
-     * pun. Pemeriksaan gambar tidak menangkapnya, karena barisnya tetap tergambar rapi
-     * dan kesalahannya baru muncul saat barisnya benar-benar diklik.
+     * <p>Setelah "Ubah" ditekan, kotak platnya harus berisi plat baris yang dipilih, dan
+     * pemilik yang ditampilkan harus pemilik yang benar-benar tersimpan untuk truk itu.
+     * Yang diperiksa bukan cuma "tidak gagal": pengisian yang salah kolom atau salah
+     * baris tetap berjalan tanpa kesalahan, dan pengguna baru melihatnya waktu truk
+     * yang salah ikut terubah. Pemeriksaan gambar tidak menangkap ini - barisnya
+     * tetap tergambar rapi dan kesalahannya baru muncul saat barisnya benar-benar
+     * diklik.
      *
-     * <p>Diperiksa untuk kedua halaman sekaligus, dan yang diperiksa bukan cuma "tidak
-     * gagal": nama yang muncul di kotak isian harus sama dengan nama di barisnya, supaya
-     * halaman yang mengisi kotak dengan kolom yang salah ikut ketahuan.
+     * <p>Barisnya dicari lewat isi tabelnya, bukan nomornya, supaya urutan daftar
+     * tidak mengubah arti pemeriksaan ini.
      */
     private static boolean pilihBarisMaster() throws Exception {
-        PanelMaster panel = new PanelMaster();
-        JTable rental = (JTable) field(panel, "tableRental");
+        DialogDataMaster panel = new DialogDataMaster();
         JTable truk = (JTable) field(panel, "tableTruk");
 
-        if (rental.getRowCount() == 0) {
-            System.out.println("        tidak ada rental untuk dipilih");
+        int baris = -1;
+        for (int i = 0; i < truk.getRowCount(); i++) {
+            if ("KB 8234 HD".equals(String.valueOf(truk.getValueAt(i, 0)))) {
+                baris = i;
+            }
+        }
+        if (baris < 0) {
+            System.out.println("        truk contoh 'KB 8234 HD' tidak ada di daftar");
             return false;
         }
-        // Kesalahannya ditangkap di sini supaya dilaporkan sebagai satu pemeriksaan yang
+        String pemilikTersimpan = null;
+        for (Truck t : new MasterDao().listTrucks()) {
+            if ("KB 8234 HD".equals(t.getPlate())) {
+                pemilikTersimpan = t.getRentalName();
+            }
+        }
+        if (pemilikTersimpan == null) {
+            System.out.println("        pemilik 'KB 8234 HD' tidak terbaca dari database");
+            return false;
+        }
+
+        // Kegagalan ditangkap di sini supaya dilaporkan sebagai satu pemeriksaan yang
         // gagal, bukan sebagai kesalahan yang menghentikan seluruh berkas uji. Kalau
         // dibiarkan naik, uji setelahnya tidak ikut berjalan dan hasilnya terlihat seperti
         // uji yang belum selesai, bukan uji yang menemukan masalah.
         try {
-            rental.setRowSelectionInterval(0, 0);
-        } catch (RuntimeException e) {
-            System.out.println("        memilih baris rental gagal - " + e);
+            truk.setRowSelectionInterval(baris, baris);
+            klik(panel, "masukUbah");
+        } catch (Exception e) {
+            Throwable sebab = e.getCause() == null ? e : e.getCause();
+            System.out.println("        masuk mode ubah gagal - " + sebab);
             return false;
         }
-
-        // Menyorot satu pemilik harus mengisi kotak namanya...
-        String diTabel = String.valueOf(rental.getValueAt(0, 1));
-        String diKotak = ((javax.swing.text.JTextComponent) field(panel, "fNama")).getText();
-        if (!diTabel.equals(diKotak)) {
-            System.out.println("        kotak nama berisi '" + diKotak + "', seharusnya '" + diTabel + "'");
-            return false;
-        }
-
-        // ...dan menampilkan truk miliknya di kanan, bukan truk milik pemilik lain.
-        if (truk.getRowCount() == 0) {
-            System.out.println("        truk milik '" + diTabel + "' tidak muncul di kanan");
-            return false;
-        }
-        for (int i = 0; i < truk.getRowCount(); i++) {
-            String plat = String.valueOf(truk.getValueAt(i, 1));
-            if (!milikRental(plat, diTabel)) {
-                System.out.println("        truk '" + plat + "' muncul di bawah '" + diTabel
-                        + "', padahal bukan pemiliknya");
-                return false;
-            }
-        }
-
-        // Menyorot satu truk harus mengisi kotak platnya.
-        try {
-            truk.setRowSelectionInterval(0, 0);
-        } catch (RuntimeException e) {
-            System.out.println("        memilih baris truk gagal - " + e);
-            return false;
-        }
-        String platTabel = String.valueOf(truk.getValueAt(0, 1));
         String platKotak = ((javax.swing.text.JTextComponent) field(panel, "fPlat")).getText();
-        if (!platTabel.equals(platKotak)) {
-            System.out.println("        kotak plat berisi '" + platKotak + "', seharusnya '" + platTabel + "'");
+        if (!"KB 8234 HD".equals(platKotak)) {
+            System.out.println("        kotak plat berisi '" + platKotak + "', seharusnya 'KB 8234 HD'");
+            return false;
+        }
+        String pemilikTampil = ((javax.swing.JLabel) field(panel, "lblPemilik")).getText();
+        if (!pemilikTersimpan.equals(pemilikTampil)) {
+            System.out.println("        pemilik yang tampil '" + pemilikTampil
+                    + "', seharusnya '" + pemilikTersimpan + "'");
             return false;
         }
         return true;
     }
 
-    /** Benar kalau plat itu memang milik rental bernama {@code nama}. */
-    private static boolean milikRental(String plat, String nama) throws Exception {
-        for (Truck t : new MasterDao().listTrucks()) {
-            if (t.getPlate().equals(plat)) {
-                return t.getRentalName() != null && t.getRentalName().equals(nama);
-            }
-        }
-        return false;
-    }
-
     /**
      * Truk tidak boleh bisa disimpan tanpa pemilik.
      *
-     * <p>Halaman data master sekarang menurunkan pemilik truk dari baris rental yang
-     * disorot, dan begitu ada rental, selalu ada baris tersorot — jadi keadaan
-     * "tanpa pemilik" hanya tercapai kalau daftar rentalnya benar-benar kosong.
+     * <p>Kotak pemilik di dialog sengaja KOSONG saat dibuka, dan tombol tambah menolak
+     * selama kotaknya belum diisi. Kotak pemilik yang terisi sendiri begitu layar
+     * dibuka pernah membuat truk baru tercatat milik pemilik yang kebetulan tampil
+     * pertama, tanpa pesan apa pun - dan uangnya lalu masuk ke pemilik yang salah di
+     * laporan.
      *
-     * <p>Dua hal diperiksa di database kosong rental: menambah truk saat belum ada
-     * rental ditolak dengan keterangan (truk tidak boleh lahir tanpa pemilik),
-     * lalu setelah satu rental ditambahkan dan tersorot, truk yang ditambahkan
-     * tercatat milik rental yang sedang tersorot itu.
+     * <p>Tiga hal diperiksa di database terpisah: menambah tanpa pemilik ditolak dengan
+     * keterangan, truk yang ditambahkan setelah pemiliknya diketik tercatat milik
+     * pemilik itu, dan menambah tetap INSERT walau ada baris yang kebetulan tersorot.
      *
      * <p>Memakai database terpisah dalam memori supaya data uji lain tidak ikut
      * dibongkar; konfigurasi dikembalikan setelah selesai.
@@ -830,9 +828,11 @@ public class TestUi {
                 "jdbc:h2:mem:uitest-kosong;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
                 "sa", "");
         try {
-            PanelMaster panel = new PanelMaster();
+            DialogDataMaster panel = new DialogDataMaster();
+            JTable tabel = (JTable) field(panel, "tableTruk");
+            MasterDao dao = new MasterDao();
 
-            // (1) Belum ada rental sama sekali: menambah truk harus ditolak.
+            // (1) Kotak pemilik masih kosong bawaannya: menambah truk harus ditolak.
             isi(panel, "fPlat", "ZZ 7777 ZZ");
             // Kegagalan di dalam penyimpanan memunculkan jendela pesan, dan jendela itu
             // tidak bisa dibuat saat pengujian berjalan tanpa layar. Kalau dibiarkan naik,
@@ -841,12 +841,11 @@ public class TestUi {
                 klik(panel, "tambahTruk");
             } catch (Exception e) {
                 Throwable sebab = e.getCause() == null ? e : e.getCause();
-                System.out.println("        menambah truk tanpa rental tersedia gagal: " + sebab);
+                System.out.println("        menambah truk tanpa pemilik gagal: " + sebab);
                 return false;
             }
-            MasterDao dao = new MasterDao();
-            if (!dao.listTrucks().isEmpty()) {
-                System.out.println("        truk tanpa pemilik ikut tersimpan saat rental kosong");
+            if (tabel.getRowCount() != 0) {
+                System.out.println("        truk tanpa pemilik ikut tersimpan");
                 return false;
             }
             String status = String.valueOf(((javax.swing.JLabel) field(panel, "lblStatus")).getText());
@@ -855,34 +854,26 @@ public class TestUi {
                 return false;
             }
 
-            // (2) Satu rental ditambahkan lalu tersorot: truk berikutnya tercatat
-            // milik rental yang sedang tersorot, bukan rental lain.
-            isi(panel, "fNama", "Rental Uji Tunggal");
-            try {
-                klik(panel, "tambahRental");
-            } catch (Exception e) {
-                Throwable sebab = e.getCause() == null ? e : e.getCause();
-                System.out.println("        menambah rental gagal: " + sebab);
-                return false;
-            }
-            int idRental = 0;
-            for (Rental r : dao.listRental()) {
-                if ("Rental Uji Tunggal".equals(r.getRentalName())) {
-                    idRental = r.getRentalId();
-                }
-            }
-            if (idRental == 0) {
-                System.out.println("        rental baru tidak tersimpan");
-                return false;
-            }
-
+            // (2) Pemilik diketik di kotaknya: truk berikutnya tercatat milik pemilik itu,
+            // bukan pemilik lain.
+            isiPemilik(panel, "Rental Uji Tunggal");
             isi(panel, "fPlat", "ZZ 8888 ZZ");
             try {
                 klik(panel, "tambahTruk");
             } catch (Exception e) {
                 Throwable sebab = e.getCause() == null ? e : e.getCause();
-                System.out.println("        menambah truk dengan rental tersorot gagal: " + sebab);
+                System.out.println("        menambah truk dengan pemilik gagal: " + sebab);
                 return false;
+            }
+            if (tabel.getRowCount() != 1) {
+                System.out.println("        truk dengan pemilik tidak masuk daftar");
+                return false;
+            }
+            Rental pemilik = null;
+            for (Rental r : dao.listRental()) {
+                if ("Rental Uji Tunggal".equals(r.getRentalName())) {
+                    pemilik = r;
+                }
             }
             Truck truk = null;
             for (Truck t : dao.listTrucks()) {
@@ -894,9 +885,37 @@ public class TestUi {
                 System.out.println("        truk dengan pemilik tidak tersimpan");
                 return false;
             }
-            if (truk.getRentalId() == null || truk.getRentalId() != idRental) {
+            if (pemilik == null || truk.getRentalId() == null || truk.getRentalId() != pemilik.getRentalId()) {
                 System.out.println("        truk tercatat milik rental id=" + truk.getRentalId()
-                        + ", seharusnya id=" + idRental + " (yang sedang tersorot)");
+                        + ", seharusnya milik pemilik yang diketik (id=" + pemilik + ")");
+                return false;
+            }
+
+            // (3) Ada baris yang tersorot: menambah harus tetap INSERT, bukan menimpanya.
+            tabel.setRowSelectionInterval(0, 0);
+            isiPemilik(panel, "Rental Uji Tunggal");
+            isi(panel, "fPlat", "ZZ 9999 YY");
+            try {
+                klik(panel, "tambahTruk");
+            } catch (Exception e) {
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        menambah truk saat ada baris tersorot gagal: " + sebab);
+                return false;
+            }
+            if (tabel.getRowCount() != 2) {
+                System.out.println("        menambah menimpa baris yang tersorot: jumlah baris "
+                        + tabel.getRowCount() + ", seharusnya 2");
+                return false;
+            }
+            boolean trukLamaUtuh = false;
+            for (Truck t : dao.listTrucks()) {
+                if ("ZZ 8888 ZZ".equals(t.getPlate())
+                        && t.getRentalId() != null && t.getRentalId() == pemilik.getRentalId()) {
+                    trukLamaUtuh = true;
+                }
+            }
+            if (!trukLamaUtuh) {
+                System.out.println("        truk lama berubah atau hilang saat truk lain ditambah");
                 return false;
             }
             return true;
@@ -908,7 +927,7 @@ public class TestUi {
     }
 
     /**
-     * Truk harus bisa dipindahkan ke pemilik lain dari halaman data master, tanpa kehilangan
+     * Truk harus bisa dipindahkan ke pemilik lain dari dialog data master, tanpa kehilangan
      * nomor platnya.
      *
      * <p>Dua kesalahan pernah terjadi di sini, keduanya tanpa suara. Pertama, tombolnya ikut
@@ -921,9 +940,9 @@ public class TestUi {
      * nilai kosong - dan nomor truk itu hilang tanpa satu pun peringatan.
      */
     private static boolean pindahPemilikTruk() throws Exception {
-        PanelMaster panel = new PanelMaster();
+        DialogDataMaster panel = new DialogDataMaster();
         if (!adaTombol(panel, "Pindah Pemilik")) {
-            System.out.println("        tombol 'Pindah Pemilik' tidak ada di halaman data master");
+            System.out.println("        tombol 'Pindah Pemilik' tidak ada di dialog data master");
             return false;
         }
 
@@ -1003,6 +1022,209 @@ public class TestUi {
     }
 
     /**
+     * Ejaan nama pemilik yang berbeda tidak boleh melahirkan pemilik kedua.
+     *
+     * <p>Pemilik baru lahir dari kotak isian dialog, dan pencocokannya lewat kunci
+     * {@link Rental#matchKey}, bukan perbandingan tulisan apa adanya: nama yang sama
+     * tetapi beda besar-kecil huruf atau beda spasinya harus menunjuk pemilik yang
+     * sudah ada. Kalau tidak, rekap uang per pemilik terpecah diam-diam - satu
+     * perusahaan terbaca dua, dan tidak ada satu pun pesan yang menyebutnya.
+     *
+     * <p>Memakai database terpisah dalam memori supaya data uji lain tidak ikut
+     * dibongkar; konfigurasi dikembalikan setelah selesai.
+     */
+    private static boolean ejaanPemilikTidakMembelah() throws Exception {
+        Db.setConfiguration("org.h2.Driver",
+                "jdbc:h2:mem:uitest-ejaan;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa", "");
+        try {
+            DialogDataMaster panel = new DialogDataMaster();
+            JTable tabel = (JTable) field(panel, "tableTruk");
+
+            // (1) Truk pertama sekaligus melahirkan pemiliknya.
+            isiPemilik(panel, "Rental Sinar Jaya");
+            isi(panel, "fPlat", "ZZ 1111 AA");
+            try {
+                klik(panel, "tambahTruk");
+            } catch (Exception e) {
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        menambah truk pertama gagal: " + sebab);
+                return false;
+            }
+
+            // (2) Ejaan kedua untuk pemilik yang sama: hurufnya beda besar-kecil,
+            // spasinya berlebih di tengah sekaligus berlebih di ujungnya. Harus
+            // menunjuk pemilik itu juga, bukan melahirkan pemilik baru.
+            isiPemilik(panel, "  RENTAL    sinar   jaya ");
+            isi(panel, "fPlat", "ZZ 2222 BB");
+            try {
+                klik(panel, "tambahTruk");
+            } catch (Exception e) {
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        menambah truk dengan ejaan kedua gagal: " + sebab);
+                return false;
+            }
+
+            MasterDao dao = new MasterDao();
+            if (dao.listRental().size() != 1) {
+                System.out.println("        ejaan berbeda melahirkan " + dao.listRental().size()
+                        + " pemilik, seharusnya 1");
+                return false;
+            }
+            Integer pemilik1 = null;
+            Integer pemilik2 = null;
+            for (Truck t : dao.listTrucks()) {
+                if ("ZZ 1111 AA".equals(t.getPlate())) {
+                    pemilik1 = t.getRentalId();
+                }
+                if ("ZZ 2222 BB".equals(t.getPlate())) {
+                    pemilik2 = t.getRentalId();
+                }
+            }
+            if (pemilik1 == null || pemilik2 == null) {
+                System.out.println("        truk ujinya tidak tersimpan");
+                return false;
+            }
+            if (!pemilik1.equals(pemilik2)) {
+                System.out.println("        satu pemilik terbaca dua: truk pertama milik id="
+                        + pemilik1 + ", truk kedua milik id=" + pemilik2);
+                return false;
+            }
+            // Daftar di dialognya juga harus menulis nama pemilik yang sama di kedua
+            // barisnya - bukan dua nama untuk satu perusahaan.
+            String nama0 = String.valueOf(tabel.getValueAt(0, 1));
+            String nama1 = String.valueOf(tabel.getValueAt(1, 1));
+            if (!nama0.equals(nama1)) {
+                System.out.println("        daftar truk menulis dua nama pemilik: '"
+                        + nama0 + "' dan '" + nama1 + "'");
+                return false;
+            }
+            return true;
+        } finally {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:uitest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+        }
+    }
+
+    /**
+     * Penghapusan massal harus diperiksa SELURUHNYA lebih dulu sebelum satu pun dihapus.
+     *
+     * <p>Tiap penghapusan truk membuka koneksinya sendiri dan meng-commit sendiri, jadi
+     * menghapus satu per satu tidak bisa dibatalkan: kalau baris kedua ditolak, baris
+     * pertama sudah telanjur hilang dan daftarnya tinggal setengah jadi. Karena itu,
+     * selama SATU SAJA baris terpilih masih dipakai catatan pengiriman, tidak ada yang
+     * boleh terhapus.
+     *
+     * <p>Penolakan dan konfirmasinya memunculkan jendela pesan, dan jendela itu tidak
+     * bisa dibuat tanpa layar - pemanggilannya ditangkap dan diabaikan saja, karena
+     * keputusannya sudah terbaca dari catatan dao yang dipasang menggantikan dao
+     * panelnya: truk mana saja yang penolakannya diperiksa, dan truk mana saja yang
+     * benar-benar dihapus.
+     */
+    private static boolean hapusMassalBatalSeluruhnya() throws Exception {
+        DialogDataMaster panel = new DialogDataMaster();
+        JTable tabel = (JTable) field(panel, "tableTruk");
+
+        // Dua baris dipilih: 'KB 8234 HD' masih dipakai catatan pengiriman (fillData
+        // membuat transaksinya), 'BE 8437 CF' bebas. Yang bebas sengaja berada lebih
+        // awal di daftar: kalau penghapusan berjalan satu per satu tanpa diperiksa
+        // lebih dulu, dialah yang terhapus duluan sehingga kekeliruan itu langsung
+        // kelihatan dari catatannya.
+        int barisTerpakai = -1;
+        int barisBebas = -1;
+        for (int i = 0; i < tabel.getRowCount(); i++) {
+            String plat = String.valueOf(tabel.getValueAt(i, 0));
+            if ("KB 8234 HD".equals(plat)) {
+                barisTerpakai = i;
+            }
+            if ("BE 8437 CF".equals(plat)) {
+                barisBebas = i;
+            }
+        }
+        if (barisTerpakai < 0 || barisBebas < 0) {
+            System.out.println("        truk uji untuk penghapusan massal tidak lengkap");
+            return false;
+        }
+        MasterDao asli = new MasterDao();
+        int idTerpakai = idTruckPlat(asli, "KB 8234 HD");
+        int idBebas = idTruckPlat(asli, "BE 8437 CF");
+        if (idTerpakai == 0 || idBebas == 0) {
+            System.out.println("        id truk uji tidak terbaca dari database");
+            return false;
+        }
+
+        DaoPencatat dao = new DaoPencatat();
+        java.lang.reflect.Field f = panel.getClass().getDeclaredField("dao");
+        f.setAccessible(true);
+        f.set(panel, dao);
+
+        tabel.setRowSelectionInterval(barisBebas, barisBebas);
+        tabel.addRowSelectionInterval(barisTerpakai, barisTerpakai);
+        try {
+            klik(panel, "hapusTruk");
+        } catch (Exception e) {
+            // Jendela pesan memang tidak bisa dibuat tanpa layar; keputusan hapus/tidak
+            // dibaca dari catatan dao di bawah, bukan dari jendelanya.
+        }
+
+        if (!dao.dihapus.isEmpty()) {
+            System.out.println("        ada truk yang terhapus padahal satu baris terhalang: id "
+                    + dao.dihapus);
+            return false;
+        }
+        if (!dao.penolakanDicek.contains(idTerpakai) || !dao.penolakanDicek.contains(idBebas)) {
+            System.out.println("        penolakan hanya diperiksa untuk " + dao.penolakanDicek.size()
+                    + " baris, seharusnya keduanya sebelum menghapus apa pun");
+            return false;
+        }
+        int tersisa = 0;
+        for (Truck t : asli.listTrucks()) {
+            if (t.getTruckId() == idTerpakai || t.getTruckId() == idBebas) {
+                tersisa++;
+            }
+        }
+        if (tersisa != 2) {
+            System.out.println("        baris truk hilang dari database: tersisa " + tersisa + " dari 2");
+            return false;
+        }
+        return true;
+    }
+
+    /** Id truk menurut platnya, atau 0 kalau tidak ada. */
+    private static int idTruckPlat(MasterDao dao, String plat) throws Exception {
+        for (Truck t : dao.listTrucks()) {
+            if (plat.equals(t.getPlate())) {
+                return t.getTruckId();
+            }
+        }
+        return 0;
+    }
+
+    /**
+     * MasterDao yang mencatat pemanggilan pemeriksaan penolakan dan penghapusan.
+     * Semua pekerjaannya tetap dikerjakan induknya; catatannya hanya untuk membaca
+     * urutan keputusan panel, yang tidak kelihatan dari database karena memang tidak
+     * ada yang berubah.
+     */
+    private static final class DaoPencatat extends MasterDao {
+        final java.util.List<Integer> penolakanDicek = new java.util.ArrayList<>();
+        final java.util.List<Integer> dihapus = new java.util.ArrayList<>();
+
+        @Override
+        public String truckDeleteRefusal(int id) throws SQLException {
+            penolakanDicek.add(id);
+            return super.truckDeleteRefusal(id);
+        }
+
+        @Override
+        public void deleteTruck(int id) throws SQLException {
+            dihapus.add(id);
+            super.deleteTruck(id);
+        }
+    }
+
+    /**
      * Benar kalau tidak ada tombol yang tergambar keluar dari batas wadahnya.
      *
      * <p>Yang diperiksa batas wadah, bukan lebar teksnya: cara tombol menghilang di sini
@@ -1027,6 +1249,34 @@ public class TestUi {
 
         java.util.List<String> terpotong = new java.util.ArrayList<String>();
         cariTombolTerpotong(layar, layar, terpotong);
+        for (String t : terpotong) {
+            System.out.println("        " + t);
+        }
+        return terpotong.isEmpty();
+    }
+
+    /**
+     * Benar kalau tidak ada tombol dialog data master yang tergambar keluar dari wadahnya.
+     *
+     * <p>Dialog itu bukan halaman dan tidak pernah masuk susunan {@link PagePanel};
+     * ukurannya ditetapkan sendiri oleh jendela pembukanya: sekurang-kurangnya
+     * 720x520, atau lebih besar kalau isinya minta. Karena itu diperiksa pada ukuran
+     * yang benar-benar dipakai dialognya - memeriksa lebar halaman berarti menguji
+     * lebar yang tidak pernah memuatnya. Ukurannya juga cuma satu: tidak ada
+     * pemeriksaan kedua pada "lebar jendela minimum" seperti halaman, karena dialognya
+     * memang tidak pernah lebih sempit dari itu.
+     */
+    private static boolean tombolDialogTidakTerpotong() {
+        DialogDataMaster panel = new DialogDataMaster();
+        panel.setSize(Math.max(720, panel.getPreferredSize().width),
+                Math.max(520, panel.getPreferredSize().height));
+        for (int i = 0; i < 3; i++) {
+            panel.doLayout();
+            layoutDeep(panel);
+        }
+
+        java.util.List<String> terpotong = new java.util.ArrayList<String>();
+        cariTombolTerpotong(panel, panel, terpotong);
         for (String t : terpotong) {
             System.out.println("        " + t);
         }
@@ -1325,6 +1575,11 @@ public class TestUi {
     /** Isi satu kotak teks lewat pantulan. */
     private static void isi(Object target, String field, String nilai) throws Exception {
         ((javax.swing.text.JTextComponent) field(target, field)).setText(nilai);
+    }
+
+    /** Isi kotak pemilik yang bisa diketik di dialog data master lewat pantulan. */
+    private static void isiPemilik(Object target, String nama) throws Exception {
+        ((JComboBox<?>) field(target, "cmbRental")).getEditor().setItem(nama);
     }
 
     /**

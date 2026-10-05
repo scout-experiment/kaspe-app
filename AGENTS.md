@@ -22,7 +22,10 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   `content.removeAll() / add / revalidate / repaint`. Each sidebar entry builds a fresh panel
   **except Transaksi**, which `NavBar` keeps and reuses: that page holds rows the operator has
   entered but not yet saved, and rebuilding it threw them away without warning. Reusing it calls
-  `refreshMaster()` so the plate/owner lists follow Data Master without disturbing those rows.
+  `refreshMaster()` so the plate/owner lists follow the master data without disturbing those rows.
+  **Data Master** is the other exception, in the opposite direction: its sidebar entry swaps no
+  page at all — it opens the modal `DialogDataMaster.buka(owner)` ("Kelola Data Truk") over
+  whatever page is on screen, so the page below keeps its state.
   The shell is `NavBar` (sidebar, `WEST`) + `PagePanel` (header bar + content). Both are
   standalone builders — `NavBar.build(page)` — so `tools/BuatPratinjau.java` and `TestUi`
   can rebuild the real shell headlessly. Never inline them into `MainFrame`: preview PNGs
@@ -37,15 +40,16 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   try-with-resources. No pool, no `DataSource`, autocommit except in `TransactionDao.save`.
 - Master delete guards are exposed as PURE accessors: `MasterDao.truckDeleteRefusal(id)` /
   `rentalDeleteRefusal(id)` return the message or null, and the delete methods throw using the
-  same string. `PanelMaster` asks the accessor BEFORE showing its confirmation dialog, so it never
-  calls a deleting method just to harvest its refusal — a read path must not be able to delete.
+  same string. `DialogDataMaster` and `DialogPemilik` ask the accessor BEFORE showing their
+  confirmation dialogs, so they never call a deleting method just to harvest its refusal —
+  a read path must not be able to delete.
 - Deleting a truck or rental is REFUSED while it still has history
   (`MasterDao.deleteTruck`/`deleteRental` throw `IllegalStateException` naming the affected
   count). Both foreign keys are `ON DELETE SET NULL`, so a delete would not fail — it would
   silently null `transaksi_detail.id_truk` / `truk.id_rental` on historical rows, and
   `listReport` reads plate and owner through LEFT JOINs, so past reports and their printed
-  paper lose them permanently. `PanelMaster` shows the refusal as an information dialog, not
-  through `Theme.showError`.
+  paper lose them permanently. `DialogDataMaster` and `DialogPemilik` show the refusal as an
+  information dialog, not through `Theme.showError`.
 - Rental and truck rows are created by `MasterDao.pastikanTruk(Connection, plate, name)`
   **inside** the transaction of `TransactionDao.save`/`updateDelivery` — never while a form is
   still being typed. Creating them earlier, from the transaction screen as the operator typed,
@@ -82,7 +86,7 @@ Never re-implement these inline in UI or DAO code; call `Calculator` so UI, repo
 | `src/kaspe/` | Core: `Main`, `Db` (connection/config), `Schema` (auto table creation), `Calculator` |
 | `src/kaspe/model/` | Plain beans: `Rental`, `Truck`, `Transaction`, `TransactionDetail`, `ReportRow` |
 | `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals) |
-| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `PanelDashboard`, `PanelTransaction`, `PanelMaster`, `PanelReport`, `PrintPreview`, `Theme` |
+| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `PanelDashboard`, `PanelTransaction`, `DialogDataMaster`, `DialogPemilik`, `PanelReport`, `PrintPreview`, `Theme` |
 | `src/kaspe/util/` | `Dates` (display `dd-MM-yyyy`, lenient parse) |
 | `src/kaspe/test/` | Hand-rolled test harness (no JUnit) |
 | `src/kaspe/schema.sql` | Bundled DDL + `v_transaksi` view; run by the app at first start |
@@ -131,7 +135,7 @@ Demo/preview helpers (run after `./build.sh`):
 
 ```bash
 javac -cp "build:lib/*" -d /tmp/tools tools/BuatPratinjau.java
-java  -cp "build:lib/*:/tmp/tools" BuatPratinjau          # renders real MainFrame → preview/*.png
+java  -cp "build:lib/*:/tmp/tools" BuatPratinjau          # renders real shell + panels → preview/*.png
 
 python3 preview/build-preview.py                          # rebuilds preview/index.html from those PNGs
 
@@ -189,23 +193,38 @@ starts with `DELETE`, so it wipes the target database.
   column removed from `schema.sql` survives forever in an existing database. `Schema.ensure`
   therefore also calls `dropObsoleteColumns` — when you delete a column, add it there, and
   `TestDatabase.checkObsoleteColumnsDropped` covers the migration.
-- **Data Master is one master-detail page** (`PanelMaster`, no `Type` enum): rentals on the
-  left, the selected rental's trucks on the right. The truck form shows the owner as a
-  **label, never a combo** — that is deliberate. The old per-type pages had a rental combo
-  that `DefaultComboBoxModel.addItem` auto-selected, so typing a plate and hitting save
-  without touching the combo silently assigned the alphabetically-first rental. Never
-  reintroduce a rental picker there; derive the owner from `rentalId` (the selected row) and
-  keep the "pilih dulu pemiliknya di kiri" guard in `saveTruck`. Moving a truck to another
-  owner goes through the explicit "Pindah Pemilik" button (`moveTruck` → `pindahTruk`), never
-  through editing the plate, and `pindahTruk` MUST re-read the plate from the stored truck
-  (`trukDari`) instead of taking it from `fPlat`: the box can be emptied, and an empty
-  `String` satisfies `NOT NULL` — that once silently erased a truck's plate. `moveTruck` also
-  refuses when `fPlat` differs from the stored plate, so a pending rename is never dropped
-  silently. Never edit the plate: `saveTruck` always writes the *selected* rental, so typing a
-  plate that exists under another owner would either be a no-op or a UNIQUE violation —
-  and delete-then-re-add is not a substitute, because `transaksi_detail.id_truk` is
-  `ON DELETE SET NULL` and the report reads the plate from `LEFT JOIN truk`, so old report
-  rows would lose their plate.
+- **Data Master is a dialog, not a page** (`DialogDataMaster`, no `Type` enum). The sidebar
+  entry opens it with `buka(Window)` as a modal "Kelola Data Truk" dialog; the class itself is
+  the `JPanel` content, so `TestUi` and `tools/BuatPratinjau.java` can build it headlessly —
+  the same split `PagePanel` uses against `MainFrame`. Shape: ONE table of all trucks
+  (Plat | Rental, multi-select) plus ONE input row. "Tambah Truk" INSERTs immediately — there
+  is no idle Simpan button, so nothing can sit half-entered. Editing is selection-driven:
+  pick exactly one row, press "Ubah", the row fills the input box and the buttons become
+  "Simpan Perubahan"/"Batal"; the owner shows as a **label, never a combo** in that mode, and
+  `simpanPerubahan` pins it to the STORED `rentalId` — saving runs
+  `UPDATE truk SET plat=?, id_rental=?` as one statement, so an editable owner would turn a
+  plate typo fix into an unconfirmed move. The owner combo in add mode is **empty by default**
+  and "Tambah Truk" refuses while it is empty — that is deliberate: the old per-type pages had
+  a rental combo that `DefaultComboBoxModel.addItem` auto-selected, so typing a plate and
+  hitting save without touching the combo silently assigned the alphabetically-first rental.
+  `muat()` must keep force-clearing it (`setSelectedIndex(-1)` + empty editor item) whenever
+  no choice was pending, because a `JComboBox` selects its first item by itself the moment it
+  is filled. A new owner typed there is resolved through `pastikanRental` with
+  `Rental.matchKey`, never `WHERE nama=?`, so a different spelling cannot mint a duplicate
+  owner that splits the per-owner money summary. Moving a truck to another owner is its own
+  confirmed "Pindah Pemilik" button (`pindahPemilik` → `pindahTruk`), never a side effect of
+  editing the plate: moving rewrites every past report row's owner, so two intents must not
+  share one button. `pindahTruk` MUST re-read the plate from the stored truck, never from
+  `fPlat`: the box can be emptied, and an empty `String` satisfies `NOT NULL` — that once
+  silently erased a truck's plate. "Hapus" is bulk (multi-select) and consults
+  `truckDeleteRefusal` for EVERY selected row BEFORE deleting any: each
+  `MasterDao.deleteTruck` call opens its own connection and commits on its own, so
+  one-by-one deletion is NOT atomic — if row 3 is refused after rows 1–2 are gone, the
+  operator cannot reconstruct the half-deleted list. One refusal aborts the whole batch. The
+  "×" button beside the plate box deletes whichever truck the typed plate matches (same
+  refusal + confirmation path). "Kelola Pemilik..." in the footer opens `DialogPemilik`
+  (add / rename / delete owners); renames propagate through the join so history follows, and
+  deletes are refused while the owner still owns trucks.
 - **Dashboard is four stat cards, two rows of two, pinned to the top**: the big number keeps
   its all-time meaning and the month-to-date figure (`totalAmount(withDayOfMonth(1), now)`)
   goes in the caption — do not move the month figure into the headline, since changing a
@@ -411,7 +430,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 57 — **327 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 58 — **328 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real
@@ -428,7 +447,8 @@ CP="build:lib/*"
 - Add new checks inside the existing class's `main` using `record(...)`; do not introduce a test
   framework. `ant test` is a no-op here (no `test/` source root, no JUnit jar) — always use `./test.sh`.
 - UI/visual changes: verify with `./test.sh` plus `tools/BuatPratinjau.java` (renders the real
-  `MainFrame`) rather than eyeballing only.
+  shell and panels — the master dialog as its panel, since a `JDialog` needs a screen) rather
+  than eyeballing only.
 - Sample-data numbers can be re-verified against the app formulas with `tools/PeriksaDataContoh.java`;
   a correct run prints `selisih berat = 0`, `selisih uang = 0`,
   `HASIL: cocok dengan rumus aplikasi`.

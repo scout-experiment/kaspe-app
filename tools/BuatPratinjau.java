@@ -1,7 +1,7 @@
 import kaspe.Db;
+import kaspe.ui.DialogDataMaster;
 import kaspe.ui.PagePanel;
 import kaspe.ui.PanelDashboard;
-import kaspe.ui.PanelMaster;
 import kaspe.ui.PanelReport;
 import kaspe.ui.PanelTransaction;
 import kaspe.ui.Theme;
@@ -28,7 +28,9 @@ import java.sql.Statement;
  * Gambar dibuat dari susunan yang sama dengan jendela aplikasi - menu bar, bilah nama
  * halaman, dan halamannya - lalu digambar ke berkas PNG. Jadi tampilannya sama dengan
  * aplikasi yang dijalankan, tetapi tidak memerlukan layar maupun tetikus. Karena tidak
- * memerlukan layar, pembuatnya bisa dijalankan di server tanpa tampilan.
+ * memerlukan layar, pembuatnya bisa dijalankan di server tanpa tampilan. Khusus Kelola
+ * Data Truk, yang di aplikasinya berbentuk dialog, gambarnya memakai panelnya saja di
+ * susunan jendela yang sama - JDialog tidak bisa dibuka tanpa layar.
  *
  * Cara menjalankan (dari folder proyek, setelah ./build.sh):
  *   javac -d /tmp/tools -cp "build:lib/*" tools/BuatPratinjau.java
@@ -91,8 +93,10 @@ public class BuatPratinjau {
                 "Ringkasan catatan pengiriman singkong.");
         gambar("01-dashboard.png");
 
-        // Data master - satu halaman berisi pemilik truk dan truknya sekaligus
-        halaman.showPanel(new PanelMaster(), "Data Master",
+        // Data master - sekarang dialog, bukan halaman: satu tabel semua truk plus satu
+        // baris isian. Isinya memang JPanel, jadi cukup digambar di susunan jendela yang
+        // sama tanpa membuka JDialog (yang butuh layar dan akan gagal di sini).
+        halaman.showPanel(new DialogDataMaster(), "Data Master",
                 "Kelola pemilik truk dan plat nomornya.");
         gambar("04-master.png");
 
