@@ -1,12 +1,27 @@
 package kaspe.ui;
 
 import javax.swing.*;
+import java.awt.Dimension;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
 /** Jendela utama: bilah samping berisi halaman, isinya di sebelah kanan. */
 public class MainFrame extends JFrame {
+
+    /**
+     * Lebar jendela terkecil yang masih menampilkan seluruh isinya.
+     *
+     * <p>Form transaksi memakai isian berukuran tetap dan kolom kanannya tidak bisa
+     * dilipat, sedangkan daftar di bawahnya tidak punya penggeser mendatar. Di bawah lebar
+     * ini tombol Simpan dan angka hasilnya keluar dari layar tanpa satu pun tanda - ada di
+     * kode, tidak terjangkau. Diukur dari lebar yang diminta form (1003px) ditambah bilah
+     * samping dan tepi halaman, lalu diberi sedikit kelonggaran.
+     */
+    public static final int LEBAR_MINIMUM = 1220;
+
+    /** Tinggi jendela terkecil yang masih menyisakan ruang untuk daftar di bawah form. */
+    public static final int TINGGI_MINIMUM = 700;
 
     private final PagePanel page = new PagePanel();
 
@@ -16,6 +31,7 @@ public class MainFrame extends JFrame {
         // belum disimpan, operator harus ditanya dulu — sama seperti saat pindah halaman.
         setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
         setSize(1320, 760);
+        setMinimumSize(new Dimension(LEBAR_MINIMUM, TINGGI_MINIMUM));
         setLocationRelativeTo(null);
 
         // Susunannya dipakai bersama dengan pembuat gambar pratinjau dan uji tampilan,

@@ -147,6 +147,14 @@ public class TestUi {
         check("tombol tidak terpotong di halaman transaksi", tombolTidakTerpotong(new PanelTransaction(), "Transaksi"));
         check("tombol tidak terpotong di data master", tombolTidakTerpotong(new PanelMaster(), "Data Master"));
         check("tombol tidak terpotong di laporan", tombolTidakTerpotong(new PanelReport(), "Laporan"));
+        // Pemeriksaan yang sama pada lebar jendela TERKECIL yang diizinkan aplikasi. Form
+        // transaksi memakai isian berukuran tetap dan kolom kanannya tidak bisa dilipat, jadi
+        // menambah lebar apa pun di situ bisa membuat tombol Simpan keluar layar saat jendela
+        // dikecilkan - dan itu hanya ketahuan kalau diuji pada lebar minimum, bukan pada
+        // lebar bawaan yang lega.
+        check("tombol tidak terpotong pada lebar jendela minimum",
+                tombolTidakTerpotong(new PanelTransaction(), "Transaksi",
+                        kaspe.ui.MainFrame.LEBAR_MINIMUM));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -725,39 +733,66 @@ public class TestUi {
      * sedangkan tombol yang ada tetapi tidak terjangkau selalu ketahuan.
      */
     private static boolean tombolTidakTerpotong(JPanel panel, String nama) {
+        return tombolTidakTerpotong(panel, nama, 1320);
+    }
+
+    private static boolean tombolTidakTerpotong(JPanel panel, String nama, int lebar) {
         PagePanel halaman = new PagePanel();
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, nama, "keterangan");
-        layar.setSize(1320, 760);
+        layar.setSize(lebar, 760);
         for (int i = 0; i < 3; i++) {
             layar.doLayout();
             layoutDeep(layar);
         }
 
         java.util.List<String> terpotong = new java.util.ArrayList<String>();
-        cariTombolTerpotong(layar, terpotong);
+        cariTombolTerpotong(layar, layar, terpotong);
         for (String t : terpotong) {
             System.out.println("        " + t);
         }
         return terpotong.isEmpty();
     }
 
-    private static void cariTombolTerpotong(Container c, java.util.List<String> hasil) {
+    /**
+     * Cari tombol yang tidak terjangkau pengguna, lewat DUA jalan yang berbeda.
+     *
+     * <p>Yang pertama: tombolnya keluar dari wadahnya sendiri. Itu yang terjadi waktu tombol
+     * "Cadangkan Database" terlipat ke baris kedua oleh susunan yang kelebihan muatan, lalu
+     * terpotong oleh tinggi wadahnya.
+     *
+     * <p>Yang kedua: tombolnya masih rapi di dalam wadahnya, tetapi wadah itu sendiri melebar
+     * keluar jendela. Diperiksa karena pemeriksaan pertama TIDAK menangkapnya - waktu kolom
+     * kanan form melebihi lebar jendela, tombol Simpan tetap berada di dalam kolomnya, jadi
+     * hanya pemeriksaan terhadap lebar jendela yang menemukannya.
+     */
+    private static void cariTombolTerpotong(Container c, Container akar, java.util.List<String> hasil) {
         for (Component anak : c.getComponents()) {
             if (anak instanceof javax.swing.AbstractButton && anak.isVisible()) {
+                javax.swing.AbstractButton b = (javax.swing.AbstractButton) anak;
                 Container induk = anak.getParent();
                 if (induk != null && induk.getWidth() > 0
                         && (anak.getX() + anak.getWidth() > induk.getWidth()
                             || anak.getY() + anak.getHeight() > induk.getHeight())) {
-                    hasil.add("tombol \"" + ((javax.swing.AbstractButton) anak).getText()
-                            + "\" di " + induk.getClass().getSimpleName()
+                    hasil.add("tombol \"" + b.getText() + "\" di "
+                            + induk.getClass().getSimpleName()
                             + " pos=(" + anak.getX() + "," + anak.getY() + ") ukuran="
                             + anak.getWidth() + "x" + anak.getHeight()
                             + " keluar dari wadah " + induk.getWidth() + "x" + induk.getHeight());
+                } else {
+                    int kiri = 0;
+                    for (Component k = anak; k != null && k != akar; k = k.getParent()) {
+                        kiri += k.getX();
+                    }
+                    if (kiri + anak.getWidth() > akar.getWidth()) {
+                        hasil.add("tombol \"" + b.getText() + "\" melewati tepi jendela:"
+                                + " ujung kanannya di " + (kiri + anak.getWidth())
+                                + ", lebar jendela " + akar.getWidth());
+                    }
                 }
             }
             if (anak instanceof Container) {
-                cariTombolTerpotong((Container) anak, hasil);
+                cariTombolTerpotong((Container) anak, akar, hasil);
             }
         }
     }

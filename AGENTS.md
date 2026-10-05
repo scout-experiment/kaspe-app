@@ -238,6 +238,15 @@ starts with `DELETE`, so it wipes the target database.
   wide action button there; Batal is hidden outside edit mode. Do not add a button to a row that can
   overflow — a `FlowLayout` row that runs out of width wraps its last button to a second line that
   the card then clips, and `TestUi`'s "tombol tidak terpotong" check exists to catch exactly that.
+- **`MainFrame.LEBAR_MINIMUM` is load-bearing.** The transaction form is a fixed-width layout with a
+  right-hand column that cannot fold, and the saved-deliveries list has no horizontal scrollbar, so
+  the window floor is what keeps the Simpan button and the result figures on screen. Widening the
+  form (a new column, a wider field, more right-column padding) means raising `LEBAR_MINIMUM` too,
+  and `TestUi` lays the panel out at exactly that width to catch the drift.
+- **`lblStatus` lives in the input card's SOUTH**, full card width, hidden when empty. It carries
+  validation messages, so it must stay next to the fields and the button that produced it — moving
+  it to the panel bottom detaches a "bobot pabrik dan refraksi wajib diisi" from the Simpan the
+  operator just pressed, and no render or test covers that error state.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -308,7 +317,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 7,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 29 — **298 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 30 — **299 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

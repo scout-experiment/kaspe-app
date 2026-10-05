@@ -118,11 +118,6 @@ public class PanelTransaction extends JPanel {
         setOpaque(false);
         setBorder(BorderFactory.createEmptyBorder(14, 0, 0, 0));
         add(buildCenter(), BorderLayout.CENTER);
-        // Keterangan sesudah menyimpan ditaruh selebar halaman di bawah, bukan di dalam
-        // kolom kanan: pesannya bisa panjang ("bobot pabrik dan refraksi wajib diisi")
-        // dan kolom sempit akan memotongnya.
-        lblStatus.setForeground(Theme.DANGER);
-        add(lblStatus, BorderLayout.SOUTH);
         cmbPlate.setEditable(true);
         // Nama rental juga bisa diketik langsung, sama seperti plat: rental yang belum
         // pernah masuk tidak perlu didaftarkan dulu di halaman data master.
@@ -213,7 +208,7 @@ public class PanelTransaction extends JPanel {
     /** Label jumlah uang: angka terbesar di kartu, dibaca sebelum menekan Simpan. */
     private static JLabel moneyLabel() {
         JLabel l = new JLabel(EMPTY);
-        l.setFont(Theme.bold(20f));
+        l.setFont(Theme.bold(17f));
         l.setForeground(Theme.INK_SOFT);
         return l;
     }
@@ -257,9 +252,12 @@ public class PanelTransaction extends JPanel {
      * mendatar "label – kotak – label – kotak" membuat mata harus melompati celah yang
      * lebarnya berbeda-beda di tiap baris; susunan bertumpuk membaca satu arah saja.
      *
-     * <p>Tiga bagian dipisah jelas: identitas truk, angka timbangan, lalu kotak hasil
-     * hitungan. Tombol aksi ditaruh di barisnya sendiri, tidak menyempil di antara
-     * kotak isian.
+     * <p>Isiannya tersusun dua baris empat kolom, dan tepi kiri setiap kotak lurus dari
+     * atas ke bawah, sehingga mata tidak perlu mencari ulang kolomnya di tiap baris.
+     *
+     * <p>Kotak hasil hitungan dan tombol Simpan tidak ikut di dalam kisi isian: keduanya
+     * ditaruh di kolom kanan tersendiri, dengan hasil di atas tombolnya. Angka yang dibaca
+     * sebelum menyimpan jadi berdampingan dengan tombol yang ditekan sesudahnya.
      */
     private JPanel buildInputCard() {
         // Judul kartu dibuat sendiri (bukan lewat Theme.card(String)) supaya bisa
@@ -333,6 +331,14 @@ public class PanelTransaction extends JPanel {
         isi.add(buildRightColumn(), BorderLayout.EAST);
 
         card.add(isi, BorderLayout.CENTER);
+
+        // Keterangan ditaruh di dalam kartu ini, selebar kartu. Sebelumnya ia di dasar
+        // halaman, sekitar 460px di bawah tombol Simpan - pesan validasi seperti
+        // "bobot pabrik dan refraksi wajib diisi" jadi muncul jauh dari tombol yang
+        // menyebabkannya. Selebar kartu supaya pesan panjang tidak terpotong.
+        lblStatus.setForeground(Theme.DANGER);
+        card.add(lblStatus, BorderLayout.SOUTH);
+        setStatus("");
         return card;
     }
 
@@ -347,6 +353,9 @@ public class PanelTransaction extends JPanel {
     private JPanel buildRightColumn() {
         JPanel kanan = new JPanel(new BorderLayout(0, 12));
         kanan.setOpaque(false);
+        // Jarak ke tepi kanan kartu. Tepi kartu sendiri hanya memberi 16px, sehingga
+        // tombolnya terlihat menempel di tepi; ditambah sedikit supaya ada udara.
+        kanan.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 20));
         kanan.add(buildResult(), BorderLayout.NORTH);
 
         JPanel tombol = new JPanel(new BorderLayout());
@@ -1352,7 +1361,11 @@ public class PanelTransaction extends JPanel {
     }
 
     private void setStatus(String message) {
-        lblStatus.setText(message == null ? "" : message);
+        boolean ada = message != null && !message.isEmpty();
+        lblStatus.setText(ada ? message : "");
+        // Label kosong tetap memakan tinggi, jadi disembunyikan saat tidak ada pesan.
+        // Tanpa ini kartu form selalu menyisakan satu baris kosong di bawahnya.
+        lblStatus.setVisible(ada);
     }
 
     /**
