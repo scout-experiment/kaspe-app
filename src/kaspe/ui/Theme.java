@@ -4,14 +4,19 @@ import com.formdev.flatlaf.FlatClientProperties;
 import com.formdev.flatlaf.FlatLaf;
 import com.formdev.flatlaf.FlatLightLaf;
 import com.formdev.flatlaf.ui.FlatLineBorder;
+import kaspe.util.Dates;
 
 import javax.swing.*;
 import javax.swing.plaf.FontUIResource;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.JTableHeader;
 import javax.swing.table.TableColumn;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -631,6 +636,84 @@ public final class Theme {
         }
     }
 
+    /**
+     * Urutkan kolom angka menurut NILAI angkanya, bukan menurut tulisannya.
+     *
+     * <p>Isi kolomnya sudah diberi satuannya ("Rp 6.888.500", "6.350 kg", "15%"), dan
+     * pembanding bawaan tabel membandingkan tulisan itu huruf per huruf. Akibatnya
+     * "Rp 10.000.000" terurut SEBELUM "Rp 6.888.500" — angka yang lebih besar dianggap
+     * lebih kecil hanya karena tulisannya lebih pendek. Angkanya tetap terbaca benar satu
+     * per satu, jadi tidak ada tanda apa pun bahwa urutannya salah.
+     *
+     * <p>Dipakai bersama {@link #sortTanggal}; keduanya perlu dipanggil setelah
+     * {@code setAutoCreateRowSorter(true)}, karena pembandingnya dipasang ke pengurutnya.
+     */
+    public static void sortAngka(JTable t, int... columns) {
+        TableRowSorter<?> pengurut = pengurut(t);
+        if (pengurut == null) {
+            return;
+        }
+        for (int i : columns) {
+            if (i < t.getColumnCount()) {
+                pengurut.setComparator(i, new Comparator<Object>() {
+                    @Override
+                    public int compare(Object a, Object b) {
+                        return angkaDari(a).compareTo(angkaDari(b));
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Urutkan kolom tanggal menurut tanggalnya, bukan menurut tulisannya.
+     *
+     * <p>Sama alasannya dengan {@link #sortAngka}: "05-10-2026" tertulis lebih kecil
+     * daripada "12-09-2026" walaupun tanggalnya lebih akhir.
+     */
+    public static void sortTanggal(JTable t, int... columns) {
+        TableRowSorter<?> pengurut = pengurut(t);
+        if (pengurut == null) {
+            return;
+        }
+        for (int i : columns) {
+            if (i < t.getColumnCount()) {
+                pengurut.setComparator(i, new Comparator<Object>() {
+                    @Override
+                    public int compare(Object a, Object b) {
+                        return tanggalDari(a).compareTo(tanggalDari(b));
+                    }
+                });
+            }
+        }
+    }
+
+    /** Pengurut tabel, atau null kalau tabelnya memang tidak diurutkan. */
+    private static TableRowSorter<?> pengurut(JTable t) {
+        return t.getRowSorter() instanceof TableRowSorter ? (TableRowSorter<?>) t.getRowSorter() : null;
+    }
+
+    /**
+     * Nilai sebuah sel angka: angkanya saja, tanpa "Rp", pemisah ribuan, dan satuannya.
+     *
+     * <p>Sel yang kosong dihitung nol, bukan dibuang ke ujung daftar — di tabel yang dipakai
+     * mencocokkan uang, sel kosong yang berpindah-pindah tempat lebih membingungkan daripada
+     * sel kosong yang berbaris di satu tempat.
+     */
+    private static BigDecimal angkaDari(Object sel) {
+        if (sel == null) {
+            return BigDecimal.ZERO;
+        }
+        String teks = sel.toString().replaceAll("[^0-9-]", "");
+        return teks.isEmpty() || "-".equals(teks) ? BigDecimal.ZERO : new BigDecimal(teks);
+    }
+
+    /** Tanggal sebuah sel. Sel kosong dianggap paling awal supaya berbaris di satu tempat. */
+    private static LocalDate tanggalDari(Object sel) {
+        LocalDate t = sel == null ? null : Dates.parse(sel.toString());
+        return t == null ? LocalDate.MIN : t;
+    }
+
     /** Isi kolom yang ditegaskan: setengah tebal, hijau tua, tetap mengikuti selang-seling baris. */
     private static class EmphasisCell extends DefaultTableCellRenderer {
 
@@ -669,7 +752,35 @@ public final class Theme {
             setForeground(INK);
             setBackground(HEADER_BG);
             setOpaque(true);
+            // Panah penanda urut dipasang sendiri, bukan diwarisi. Penggantian judul kolom
+            // dengan penggambar sendiri menghapus bagian yang memilih ikon panah itu, dan
+            // yang hilang bukan cuma gambarnya: kolom yang sedang diurut jadi tidak
+            // memperlihatkan tanda apa pun, sehingga urutannya terlihat sama saja dengan
+            // tidak diurut - orang menyangka kliknya tidak bekerja. Digambar di sini,
+            // bukan dihitung sendiri-sendiri, supaya bentuk panahnya tetap panah bawaan
+            // tema (ikut berubah kalau temanya berganti).
+            setIcon(sortIcon(table, column));
             return this;
+        }
+
+        /**
+         * Panah untuk kolom yang sedang jadi kunci urut pertama, atau null kalau bukan
+         * kolomnya.
+         *
+         * <p>Yang diurut hanya kolom pertama pada daftar kunci, sama seperti bawaan Swing:
+         * kolom lain yang ikut jadi kunci urut kedua dan seterusnya tidak ditandai.
+         */
+        private static Icon sortIcon(JTable table, int column) {
+            if (table == null || table.getRowSorter() == null) {
+                return null;
+            }
+            java.util.List<? extends RowSorter.SortKey> kunci = table.getRowSorter().getSortKeys();
+            if (kunci.isEmpty()
+                    || kunci.get(0).getColumn() != table.convertColumnIndexToModel(column)) {
+                return null;
+            }
+            return UIManager.getIcon(kunci.get(0).getSortOrder() == SortOrder.ASCENDING
+                    ? "Table.ascendingSortIcon" : "Table.descendingSortIcon");
         }
     }
 

@@ -202,6 +202,28 @@ public class TestUi {
         // menggantung keluar dari kotaknya, dan jumlah uang dulu lebih besar daripada berat
         // bersih sehingga satu angka terlihat lebih penting padahal keduanya sederajat.
         check("tombol Simpan sejajar dengan angka hasil di atasnya", simpanSejajarAngkaHasil());
+        // Berkas CSV dipakai mengolah angkanya di Excel. Dua kesalahan yang sama-sama
+        // tidak berbunyi: angka yang ikut membawa satuannya ("6.350 kg") tidak bisa
+        // dijumlahkan sehingga berkasnya tidak berguna, dan jumlah yang berbeda dari
+        // total di layar menyesatkan orang yang sedang mencocokkan uang.
+        check("berkas CSV siap dijumlahkan di Excel", csvSiapDiolah());
+        // Isian yang memuat pemisah atau tanda petik harus dibungkus, kalau tidak satu
+        // nama rental bisa memecah barisnya jadi dua dan angka di sebelahnya bergeser.
+        check("isian CSV yang memuat pemisah dibungkus", isianCsvDibungkus());
+        // Kolom yang bisa diurut harus memperlihatkan kolom mana yang sedang diurut -
+        // panahnya tidak lagi diwarisi begitu judul kolomnya digambar sendiri, dan yang
+        // hilang bukan cuma gambarnya: urutannya terlihat sama saja dengan tidak diurut.
+        check("panah penanda urut tergambar di kolom laporan", panahUrutTergambar(new PanelReport(), 9));
+        check("panah penanda urut tergambar di kolom daftar tersimpan",
+                panahUrutTergambar(new PanelTransaction(), 10));
+        // Diuji pada KEDUA tabel: keduanya mengurut kolom uangnya sendiri-sendiri, jadi
+        // memasang pembanding di yang satu tidak memperbaiki yang lain - dan pemeriksaan
+        // yang hanya melihat laporan tidak akan menangkap daftar tersimpan yang masih
+        // mengurut "Rp 10.000.000" sebelum "Rp 6.888.500".
+        check("kolom uang laporan terurut menurut nilainya", urutAngkaMenurutNilai(new PanelReport(), 9));
+        check("kolom uang daftar tersimpan terurut menurut nilainya",
+                urutAngkaMenurutNilai(new PanelTransaction(), 10));
+        check("mengurutkan tabel tidak menukar isi barisnya", urutTidakMenukarBaris());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -1422,6 +1444,260 @@ public class TestUi {
         m.invoke(target);
     }
 
+    /** Panggil satu metode tanpa argumen lewat pantulan, dan ambil hasilnya. */
+    private static Object ambil(Object target, String method) throws Exception {
+        java.lang.reflect.Method m = target.getClass().getDeclaredMethod(method);
+        m.setAccessible(true);
+        return m.invoke(target);
+    }
+
+    /**
+     * Berkas CSV harus bisa langsung dijumlahkan di Excel, dan jumlahnya harus sama dengan
+     * total yang tertulis di layar.
+     *
+     * <p>Dua kesalahan yang sama-sama tidak menimbulkan pesan apa pun: angka yang ikut
+     * membawa satuannya ("6.350 kg", "Rp 6.158.250") tidak bisa dijumlahkan di Excel
+     * sehingga berkasnya jadi tidak berguna, dan berkas yang jumlahnya berbeda dari layar
+     * justru menyesatkan orang yang sedang mencocokkan uang - laporan ini dipakai
+     * menyetorkan uang, jadi angkanya harus satu keterangan dengan layarnya.
+     */
+    private static boolean csvSiapDiolah() throws Exception {
+        PanelReport p = new PanelReport();
+        Object[] isi = ((java.util.List<?>) ambil(p, "isiCsv")).toArray();
+        boolean ok = true;
+
+        String judul = "Tanggal;Plat;Rental;Bobot Lapak;Bobot Pabrik;Refraksi;"
+                + "Berat Bersih;Tgl Lunas;Harga;Jumlah Uang";
+        if (isi.length < 2 || !judul.equals(isi[0])) {
+            System.out.println("        baris judul CSV tidak sesuai: " + isi[0]);
+            ok = false;
+        }
+
+        java.math.BigDecimal jumlah = java.math.BigDecimal.ZERO;
+        for (int i = 1; i < isi.length; i++) {
+            String[] kolom = isi[i].toString().split(";", -1);
+            if (kolom.length != 10) {
+                System.out.println("        baris " + i + " berisi " + kolom.length
+                        + " kolom, seharusnya 10");
+                return false;
+            }
+            for (int k : new int[]{3, 4, 5, 6, 8, 9}) {
+                if (!kolom[k].matches("\\d+")) {
+                    System.out.println("        kolom ke-" + k + " baris " + i
+                            + " bukan angka polos: \"" + kolom[k]
+                            + "\" - angka bersatuan tidak bisa dijumlahkan di Excel");
+                    return false;
+                }
+            }
+            jumlah = jumlah.add(new java.math.BigDecimal(kolom[9]));
+        }
+
+        String diLayar = ((JLabel) field(p, "lblTotalAmount")).getText()
+                .replace("Rp ", "").replace(".", "");
+        if (!jumlah.toPlainString().equals(diLayar)) {
+            System.out.println("        jumlah kolom uang di berkas " + jumlah.toPlainString()
+                    + " berbeda dari total di layar " + diLayar);
+            ok = false;
+        }
+        return ok;
+    }
+
+    /** Isian yang memuat pemisah, tanda petik, atau baris baru harus dibungkus tanda petik. */
+    private static boolean isianCsvDibungkus() throws Exception {
+        java.lang.reflect.Method kolom = PanelReport.class.getDeclaredMethod("kolom", String.class);
+        kolom.setAccessible(true);
+        boolean ok = true;
+        ok &= periksaKolom(kolom, "CV Mitra; Tani", "\"CV Mitra; Tani\"");
+        ok &= periksaKolom(kolom, "CV \"Mitra\" Tani", "\"CV \"\"Mitra\"\" Tani\"");
+        ok &= periksaKolom(kolom, "Rental Sinar Jaya", "Rental Sinar Jaya");
+        return ok;
+    }
+
+    private static boolean periksaKolom(java.lang.reflect.Method kolom, String masuk, String harap)
+            throws Exception {
+        Object hasil = kolom.invoke(null, masuk);
+        if (harap.equals(hasil)) {
+            return true;
+        }
+        System.out.println("        isian \"" + masuk + "\" menjadi " + hasil
+                + ", seharusnya " + harap);
+        return false;
+    }
+
+    /**
+     * Judul kolom yang sedang diurut harus memperlihatkan panahnya.
+     *
+     * <p>Panah itu tidak lagi diwarisi begitu judul kolomnya digambar sendiri oleh
+     * aplikasi. Yang hilang kalau panahnya tidak dipasang bukan cuma gambarnya: kolom
+     * yang diurut terlihat sama saja dengan yang tidak diurut, jadi kliknya disangka
+     * tidak bekerja sama sekali.
+     */
+    private static boolean panahUrutTergambar(Container panel, int kolomUang) throws Exception {
+        JTable t = tabel(panel);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabelnya tidak bisa diurut sama sekali");
+            return false;
+        }
+        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                new RowSorter.SortKey(kolomUang, SortOrder.DESCENDING)));
+
+        Icon panah = ikonJudul(t, kolomUang);
+        if (panah == null) {
+            System.out.println("        kolom yang diurut tidak memperlihatkan panah apa pun");
+            return false;
+        }
+        if (panah != UIManager.getIcon("Table.descendingSortIcon")) {
+            System.out.println("        panahnya bukan panah bawaan tema, jadi tidak ikut temanya");
+            return false;
+        }
+        if (ikonJudul(t, kolomUang - 7) != null) {
+            System.out.println("        kolom yang tidak diurut ikut memperlihatkan panah");
+            return false;
+        }
+        // Arah panahnya harus ikut arah urutannya, bukan selalu panah naik.
+        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                new RowSorter.SortKey(kolomUang, SortOrder.ASCENDING)));
+        if (ikonJudul(t, kolomUang) != UIManager.getIcon("Table.ascendingSortIcon")) {
+            System.out.println("        urutan menaik tetap memakai panah menurun");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Kolom uang harus terurut menurut NILAI angkanya, bukan menurut tulisannya.
+     *
+     * <p>Isi kolomnya sudah diberi awalan "Rp" dan pemisah ribuan, dan pembanding bawaan
+     * tabel membandingkan tulisan itu huruf per huruf. Akibatnya "Rp 10.000.000" terurut
+     * sebelum "Rp 6.888.500" - angka yang lebih besar dianggap lebih kecil hanya karena
+     * tulisannya lebih pendek. Angkanya tetap terbaca benar satu per satu, jadi tidak ada
+     * tanda apa pun bahwa urutannya salah.
+     *
+     * <p>Diperiksa pada tabelnya langsung, bukan lewat berkas CSV, supaya pemeriksaan yang
+     * sama bisa dipakai untuk kedua tabel - daftar tersimpan tidak punya ekspor CSV.
+     */
+    private static boolean urutAngkaMenurutNilai(Container panel, int kolomUang) throws Exception {
+        JTable t = tabel(panel);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabelnya tidak bisa diurut sama sekali");
+            return false;
+        }
+        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                new RowSorter.SortKey(kolomUang, SortOrder.DESCENDING)));
+
+        java.math.BigDecimal sebelumnya = null;
+        for (int i = 0; i < t.getRowCount(); i++) {
+            String teks = String.valueOf(t.getValueAt(i, kolomUang)).replaceAll("[^0-9]", "");
+            java.math.BigDecimal nilai = new java.math.BigDecimal(teks);
+            if (sebelumnya != null && sebelumnya.compareTo(nilai) < 0) {
+                System.out.println("        urutan menurunnya tidak berlaku: " + sebelumnya
+                        + " lalu " + nilai + " - yang dibandingkan tulisannya, bukan angkanya");
+                return false;
+            }
+            sebelumnya = nilai;
+        }
+        return true;
+    }
+
+    /** Ikon di judul satu kolom, apa adanya dari penggambar judul kolomnya. */
+    private static Icon ikonJudul(JTable t, int kolom) {
+        javax.swing.table.TableCellRenderer r =
+                t.getColumnModel().getColumn(kolom).getHeaderRenderer();
+        if (r == null) {
+            r = t.getTableHeader().getDefaultRenderer();
+        }
+        JLabel l = (JLabel) r.getTableCellRendererComponent(t, "judul", false, false, -1, kolom);
+        return l.getIcon();
+    }
+
+    /**
+     * Mengurutkan tabel tidak boleh menukar isi barisnya.
+     *
+     * <p>Tabel menyimpan angka yang sudah diberi satuan, jadi ekspor CSV membaca daftar
+     * baris yang lain dan mencocokkannya lewat nomor baris tabel. Begitu pengurutan
+     * dinyalakan, nomor baris tampilan tidak lagi sama dengan nomor baris data - dan
+     * kalau pencocokannya tidak ikut menyesuaikan, setiap baris di berkasnya berisi
+     * angka milik catatan LAIN. Angkanya tetap masuk akal satu per satu, jadi tidak ada
+     * satu pun pemeriksaan lain yang menangkapnya.
+     *
+     * <p>Yang dibandingkan SELURUH baris, bukan hanya yang pertama: pemeriksaan yang
+     * hanya melihat baris pertama bisa lolos hanya karena kebetulan baris pertama data
+     * ujinya memang yang terbesar - dan pemeriksaan yang bisa lolos karena kebetulan
+     * lebih buruk daripada tidak ada, karena ia terlihat seperti jaminan.
+     */
+    private static boolean urutTidakMenukarBaris() throws Exception {
+        PanelReport p = new PanelReport();
+        JTable t = tabel(p);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabel laporan tidak bisa diurut sama sekali");
+            return false;
+        }
+        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                new RowSorter.SortKey(9, SortOrder.DESCENDING)));
+
+        String[] baris = ((java.util.List<?>) ambil(p, "isiCsv")).toArray(new String[0]);
+        if (baris.length < 3) {
+            System.out.println("        tidak ada baris untuk diperiksa");
+            return false;
+        }
+        java.math.BigDecimal sebelumnya = null;
+        for (int i = 1; i < baris.length; i++) {
+            // Angkanya dibandingkan sebagai deretan digit saja, bukan sebagai angka
+            // bersatuan. Kalau berkasnya memuat satuan, itu cacat tersendiri yang sudah
+            // diperiksa pemeriksaan CSV di atas - di sini yang diperiksa hanya apakah
+            // baris berkas berpasangan dengan baris layar yang sama.
+            String diBerkas = baris[i].split(";", -1)[9].replaceAll("[^0-9]", "");
+            // Yang tertulis di layar pada baris yang sama, angkanya saja.
+            String diLayar = String.valueOf(t.getValueAt(i - 1, 9)).replaceAll("[^0-9]", "");
+            if (!diBerkas.equals(diLayar)) {
+                System.out.println("        baris ke-" + i + " berkas berisi " + diBerkas
+                        + " padahal di layar baris itu berisi " + diLayar
+                        + " - isinya tertukar dengan catatan lain");
+                return false;
+            }
+            if (diBerkas.isEmpty()) {
+                System.out.println("        baris ke-" + i + " berkas tidak memuat jumlah uang");
+                return false;
+            }
+            java.math.BigDecimal nilai = new java.math.BigDecimal(diBerkas);
+            if (sebelumnya != null && sebelumnya.compareTo(nilai) < 0) {
+                System.out.println("        urutan menurunnya tidak berlaku: " + sebelumnya
+                        + " lalu " + nilai);
+                return false;
+            }
+            sebelumnya = nilai;
+        }
+
+        // Kolom tanggal diuji juga, bukan hanya kolom uang: keduanya memakai pembanding
+        // sendiri-sendiri, jadi memasang yang satu tidak memperbaiki yang lain - dan
+        // pemeriksaan yang hanya melihat kolom uang tidak akan menangkap tanggal yang
+        // urutannya salah.
+        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                new RowSorter.SortKey(0, SortOrder.DESCENDING)));
+        // Berkasnya dibaca ULANG setelah urutannya diganti: isinya mengikuti urutan tabel
+        // yang sedang berlaku, jadi daftar yang dibaca sebelum pengurutan sudah basi.
+        baris = ((java.util.List<?>) ambil(p, "isiCsv")).toArray(new String[0]);
+        java.time.LocalDate tanggalSebelumnya = null;
+        for (int i = 1; i < baris.length; i++) {
+            String diBerkas = baris[i].split(";", -1)[0];
+            String diLayar = String.valueOf(t.getValueAt(i - 1, 0));
+            if (!diBerkas.equals(diLayar)) {
+                System.out.println("        baris ke-" + i + " berkas bertanggal " + diBerkas
+                        + " padahal di layar baris itu bertanggal " + diLayar
+                        + " - isinya tertukar dengan catatan lain");
+                return false;
+            }
+            java.time.LocalDate tanggal = kaspe.util.Dates.parse(diBerkas);
+            if (tanggalSebelumnya != null && tanggalSebelumnya.isBefore(tanggal)) {
+                System.out.println("        urutan tanggal menurunnya tidak berlaku: "
+                        + tanggalSebelumnya + " lalu " + tanggal);
+                return false;
+            }
+            tanggalSebelumnya = tanggal;
+        }
+        return true;
+    }
+
     /** Ambil satu field lewat pantulan. */
     private static Object field(Object target, String name) throws Exception {
         java.lang.reflect.Field f = target.getClass().getDeclaredField(name);
@@ -1871,6 +2147,17 @@ public class TestUi {
             det.add(detail(trucks, "BE 8570 CF", 6480, 6380, 15, 1150));
             transactionDao.save(t, det);
         }
+
+        // Satu baris dengan angka BERDIGIT BEDA dari baris lainnya. Baris-baris di atas
+        // berjumlah tujuh digit (sekitar Rp 6-7 juta), baris ini delapan digit (di atas
+        // sepuluh juta). Baris ini ada justru supaya urutan tabel bisa diuji: selama semua
+        // angkanya berdigit sama, urutan menurut tulisan kebetulan sama dengan urutan
+        // menurut angka - sehingga tabel yang membandingkan tulisan tetap terlihat benar,
+        // dan pemeriksaan urutan yang memakai data itu tidak akan pernah bisa gagal.
+        kaspe.model.Transaction besar = new kaspe.model.Transaction();
+        besar.setDate(java.time.LocalDate.of(2026, 9, 20));
+        transactionDao.save(besar, java.util.Collections.singletonList(
+                detail(trucks, "KB 8234 HD", 12000, 11500, 5, 1150)));
     }
 
     private static kaspe.model.TransactionDetail detail(java.util.List<Truck> truck, String plate,

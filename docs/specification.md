@@ -89,7 +89,8 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 - Kelola Rental (pemilik truk) dan Truk dalam satu halaman
 - Input Transaksi
 - Cari catatan pengiriman lewat saringan tanggal, rental, dan plat, lalu ubah atau hapus
-- Lihat dan Cetak Laporan
+- Urutkan daftar pengiriman dan laporan dengan mengklik judul kolomnya
+- Lihat, Cetak, dan ekspor Laporan ke berkas CSV
 
 ## 7. Rencana pengujian black box
 
@@ -111,6 +112,9 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 | 5a | Saring daftar pengiriman | rentang tanggal, rental, sepenggal plat | hanya catatan yang cocok yang tampil, dan kolom Jumlah Uang tiap baris tetap milik barisnya sendiri |
 | 5b | Kembalikan saringan ke semua | tekan Semua | seluruh catatan tampil lagi |
 | 6 | Filter laporan | rentang tanggal, rental, sepenggal plat | hanya data yang cocok yang tampil, dan kertas yang dicetak menyebut saringan itu |
+| 6a | Urutkan laporan | klik judul kolom Jumlah Uang | angka terbesar di atas; Rp 10.000.000 mendahului Rp 6.888.500, dan kolom yang diurut memperlihatkan panahnya |
+| 6b | Urutkan daftar pengiriman | klik judul kolom Jumlah Uang | sama seperti laporan, dan baris yang dipilih tetap menunjuk catatan yang sama |
+| 6c | Ekspor laporan | klik Ekspor CSV, pilih berkas | berkas berisi baris yang sedang tampil dalam urutan yang tampil; angkanya polos tanpa satuan dan jumlah kolom uangnya sama dengan total di layar |
 | 7 | Cetak laporan | klik tombol cetak | dialog cetak muncul |
 | 8 | Cadangkan database | klik Cadangkan Database | berkas cadangan bertanggal terbentuk, jalurnya diberitahukan |
 | 9 | Berkas setelan rusak | `kaspe.properties` tanpa `db.url` | aplikasi menolak dibuka, menjelaskan berkas dan jalan keluarnya; database tidak tersentuh |
@@ -124,6 +128,6 @@ Seluruh uji dijalankan lewat `./test.sh` dan lulus tanpa kegagalan:
 | TestCalculator | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
 | TestDatabase | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama menjadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman dijalankan berulang) | 56 lulus |
 | TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat, penolakan cadangan di luar H2, cadangan sungguhan pada H2 berbasis berkas | 91 lulus |
-| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 39 lulus |
+| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 46 lulus |
 | TestAlur | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul, batas dirapikan), rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **309 lulus, 0 gagal** |
+| **Total** | | **316 lulus, 0 gagal** |

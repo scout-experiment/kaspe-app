@@ -13,11 +13,15 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.print.Printable;
 import java.awt.print.PrinterException;
+import java.io.File;
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.text.MessageFormat;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
 
@@ -64,6 +68,16 @@ public class PanelReport extends JPanel {
 
     private final TransactionDao transactionDao = new TransactionDao();
 
+    /**
+     * Baris laporan yang sedang tampil, apa adanya dari database.
+     *
+     * <p>Tabelnya menyimpan angka yang sudah diberi satuan ("6.350 kg", "Rp 6.158.250"),
+     * dan angka bersatuan tidak bisa dijumlahkan lagi. Ekspor CSV memakai daftar ini
+     * supaya angkanya keluar polos. Urutannya sama dengan urutan barisnya di tabel,
+     * jadi nomor baris tabel bisa dipakai untuk mencari barisnya di sini.
+     */
+    private List<ReportRow> barisTabel = new ArrayList<>();
+
     public PanelReport() {
         setLayout(new BorderLayout(0, 12));
         setOpaque(false);
@@ -71,6 +85,12 @@ public class PanelReport extends JPanel {
         add(buildFilter(), BorderLayout.NORTH);
 
         Theme.styleTable(table);
+        // Kolom bisa diurut dengan mengklik judulnya. Laporan ini bisa memuat puluhan
+        // baris, dan yang paling sering dicari justru yang paling besar - bukan yang
+        // paling awal. Urutan bawaan tetap menurut tanggal (dari query): sebelum ada
+        // judul yang diklik, tidak ada kunci urut, jadi tabel dan kertasnya tetap keluar
+        // dalam urutan tanggal seperti sebelumnya.
+        table.setAutoCreateRowSorter(true);
         // Lebar kolom laporan dikalibrasi supaya seluruh kolom tampil utuh pada jendela
         // bawaan 1320x760 SESUDAH bilah samping dipasang. Angka-angka ini bukan selera:
         // jumlahnya harus muat di lebar tabel yang tersisa, kalau tidak judul dan isi
@@ -90,6 +110,12 @@ public class PanelReport extends JPanel {
         // jangan kecilkan kolom yang lain.
         Theme.widths(table, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
         Theme.alignRight(table, 3, 4, 5, 6, 8, 9);
+        // Angka dan tanggal dibandingkan menurut nilainya, bukan menurut tulisannya.
+        // Tanpa ini, "Rp 10.000.000" terurut sebelum "Rp 6.888.500" hanya karena
+        // tulisannya lebih pendek - dan angkanya tetap terbaca benar satu per satu,
+        // jadi tidak ada tanda apa pun bahwa urutannya salah.
+        Theme.sortTanggal(table, 0, 7);
+        Theme.sortAngka(table, 3, 4, 5, 6, 8, 9);
         // Kolom uang ditegaskan. Ketebalan huruf yang menonjolkannya, bukan warnanya -
         // di kertas warnanya menjadi abu-abu dan yang tersisa hanya ketebalannya.
         Theme.emphasis(table, 9);
@@ -182,10 +208,17 @@ public class PanelReport extends JPanel {
         p.setOpaque(false);
         p.setBorder(BorderFactory.createEmptyBorder(2, 4, 4, 4));
 
-        lblTotalAmount.setFont(Theme.bold(19f));
+        // Kedua total memakai huruf dan warna yang SAMA, seperti dua angka di kotak hasil
+        // halaman Transaksi. Sebelumnya "Total uang" 19pt hijau sementara "Total berat
+        // bersih" 17pt hitam, jadi uangnya terlihat lebih penting daripada beratnya -
+        // padahal keduanya sederajat. Warnanya hijau untuk keduanya: hijau di sini berarti
+        // "ini angka hasil hitungan", bukan "ini uang".
+        lblTotalAmount.setFont(Theme.semibold(17f));
         lblTotalAmount.setForeground(Theme.MONEY);
-        lblTotalWeight.setFont(Theme.bold(17f));
-        lblTotalWeight.setForeground(Theme.INK);
+        lblTotalWeight.setFont(Theme.semibold(17f));
+        lblTotalWeight.setForeground(Theme.MONEY);
+        // Jumlah baris bukan angka hasil hitungan, jadi tetap kecil dan redup. Kalau ikut
+        // dibesarkan, ia terbaca sebagai total ketiga yang setara dengan dua di sebelahnya.
         lblRowCount.setForeground(Theme.INK_SOFT);
 
         JPanel a = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
@@ -199,6 +232,13 @@ public class PanelReport extends JPanel {
         JPanel c = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
         c.setOpaque(false);
         c.add(lblRowCount);
+        // Ekspor ditaruh di sini, bukan di baris saringan di atas: baris itu sudah pas
+        // selebar jendela minimum - sisanya hanya 10px - sehingga menambah satu tombol
+        // di situ membuat tombolnya terlipat ke baris kedua lalu terpotong. Di sini
+        // tempatnya juga berdampingan dengan totalnya, dan total itulah yang mau diolah.
+        JButton btnCsv = Theme.plain("Ekspor CSV");
+        btnCsv.addActionListener(e -> eksporCsv());
+        c.add(btnCsv);
 
         p.add(a);
         p.add(b);
@@ -225,6 +265,8 @@ public class PanelReport extends JPanel {
         try {
             List<ReportRow> row = transactionDao.listReport(from, to, rental, plat);
             model.setRowCount(0);
+            // Daftar ini dipakai juga oleh ekspor CSV, yang butuh angkanya polos.
+            barisTabel = row;
             BigDecimal totalAmount = BigDecimal.ZERO;
             BigDecimal totalWeight = BigDecimal.ZERO;
             for (ReportRow b : row) {
@@ -394,6 +436,84 @@ public class PanelReport extends JPanel {
         } catch (PrinterException e) {
             JOptionPane.showMessageDialog(this, "Gagal mencetak: " + e.getMessage(), "Error", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    /**
+     * Tulis baris yang sedang tampil ke berkas CSV, supaya angkanya bisa dijumlah ulang
+     * di Excel. Laporan ini dipakai menyetorkan uang, dan dari layar angkanya hanya bisa
+     * dibaca - tidak bisa diolah.
+     *
+     * <p>Isinya diambil dari baris yang SEDANG TAMPIL dan dalam urutan yang sedang
+     * tampil, jadi berkasnya selalu sama dengan yang terlihat di layar, bukan seluruh isi
+     * database. Urutannya penting: kalau judul kolom baru diklik untuk mengurutkan, yang
+     * diekspor harus urutan itu juga.
+     *
+     * <p>Pemisahnya titik koma, bukan koma. Excel berbahasa Indonesia memakai koma
+     * sebagai pemisah desimal, jadi berkas berpemisah koma terbaca sebagai satu kolom
+     * panjang. Angkanya ditulis polos tanpa titik pemisah ribuan supaya bisa langsung
+     * dijumlahkan - angka bersatuan seperti "6.350 kg" tidak bisa.
+     */
+    private void eksporCsv() {
+        if (!tanggalFilterSah() || !saringanSiapCetak("Ekspor")) {
+            return;
+        }
+        if (table.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Tidak ada baris untuk diekspor dengan saringan ini.",
+                    "Ekspor CSV", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        JFileChooser pilih = new JFileChooser();
+        pilih.setSelectedFile(new File("laporan-" + LocalDate.now() + ".csv"));
+        if (pilih.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
+            return;
+        }
+        File berkas = pilih.getSelectedFile();
+        try {
+            Files.write(berkas.toPath(), isiCsv(), StandardCharsets.UTF_8);
+            JOptionPane.showMessageDialog(this, "Laporan diekspor ke:\n" + berkas.getAbsolutePath());
+        } catch (Exception e) {
+            Theme.showError(this, e);
+        }
+    }
+
+    /**
+     * Isi berkas CSV, satu untai per baris - dipisah dari penulisannya supaya isinya bisa
+     * diperiksa tanpa membuka jendela "simpan berkas", yang menunggu jawaban orang.
+     */
+    List<String> isiCsv() {
+        List<String> isi = new ArrayList<>();
+        isi.add("Tanggal;Plat;Rental;Bobot Lapak;Bobot Pabrik;Refraksi;"
+                + "Berat Bersih;Tgl Lunas;Harga;Jumlah Uang");
+        for (int baris = 0; baris < table.getRowCount(); baris++) {
+            ReportRow b = barisTabel.get(table.convertRowIndexToModel(baris));
+            isi.add(kolom(Dates.format(b.getDate()))
+                    + ";" + kolom(b.getPlate())
+                    + ";" + kolom(b.getRentalName())
+                    + ";" + kolom(angka(b.getFieldWeight()))
+                    + ";" + kolom(angka(b.getFactoryWeight()))
+                    + ";" + kolom(angka(b.getRefractionPercent()))
+                    + ";" + kolom(angka(b.getNetWeight()))
+                    + ";" + kolom(Dates.format(b.getPaymentDate()))
+                    + ";" + kolom(angka(b.getPrice()))
+                    + ";" + kolom(angka(b.getTotalAmount())));
+        }
+        return isi;
+    }
+
+    /** Satu isian CSV: dibungkus tanda petik kalau isinya memuat pemisah, petik, atau baris baru. */
+    private static String kolom(String teks) {
+        if (teks == null || teks.isEmpty()) {
+            return "";
+        }
+        boolean perluPetik = teks.indexOf(';') >= 0 || teks.indexOf('"') >= 0
+                || teks.indexOf('\n') >= 0 || teks.indexOf('\r') >= 0;
+        return perluPetik ? '"' + teks.replace("\"", "\"\"") + '"' : teks;
+    }
+
+    /** Angka polos tanpa pemisah ribuan, supaya bisa langsung dijumlahkan di Excel. */
+    private static String angka(BigDecimal nilai) {
+        return nilai == null ? "" : nilai.stripTrailingZeros().toPlainString();
     }
 
     /**

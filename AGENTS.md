@@ -269,6 +269,34 @@ starts with `DELETE`, so it wipes the target database.
   validation messages, so it must stay next to the fields and the button that produced it — moving
   it to the panel bottom detaches a "bobot pabrik dan refraksi wajib diisi" from the Simpan the
   operator just pressed, and no render or test covers that error state.
+- **Sortable tables compare VALUES, not text.** Both the Laporan table and the saved-deliveries list
+  turn sorting on per table with `setAutoCreateRowSorter(true)`, and must then install
+  `Theme.sortAngka` / `Theme.sortTanggal` for their numeric and date columns. Cells already carry
+  their units ("Rp 6.888.500", "6.350 kg", "05-10-2026"), and the default comparator is
+  `Collator`-free string comparison, so without the comparators "Rp 10.000.000" sorts *before*
+  "Rp 6.888.500". Every value stays readable, so nothing else catches it. Two ordering traps:
+  `setAutoCreateRowSorter(true)` must come BEFORE the comparator calls (a comparator installed on a
+  null sorter is silently dropped, then a fresh sorter replaces it), and any code reading
+  `getSelectedRow()` / table row indexes must go through `convertRowIndexToModel` — that is why
+  `Theme.styleTable` keeps `setAutoCreateRowSorter(false)` and the two panels opt in individually.
+- **`Theme.emphasis` / `HeaderRenderer` are the only places that style a header cell.** The sort
+  arrow is not inherited: replacing `TableHeader.defaultRenderer` discards the JDK's
+  `DefaultTableCellHeaderRenderer`, which is what picks the arrow icon. `HeaderRenderer` sets it
+  itself from `RowSorter` + `Table.ascendingSortIcon`/`Table.descendingSortIcon`, so the arrow keeps
+  following the theme. Drop that line and a sorted column shows no arrow at all — the order looks
+  unchanged, so the click reads as broken.
+- **The two figures in a summary row are equals.** In the form's result strip and in the Laporan
+  footer, the weight and the money total use the SAME font (and, in the footer, the same
+  `Theme.MONEY` colour — green there means "this is a computed figure", not "this is money"). Making
+  the money total larger made one figure look more important than its neighbour in the same box.
+  The row count is deliberately NOT sized up: it would read as a third total. The Simpan button is
+  indented by `Theme.STRIP_INSET` so its left edge lines up with the *text* in the strip above it.
+- **Laporan's "Ekspor CSV" sits in the totals row, not the filter row.** The filter row is already
+  1042px of a 1052px budget at `LEBAR_MINIMUM`; a button added there wraps and gets clipped. The CSV
+  carries raw numbers (no "Rp", no thousands separator, `;` delimiter for Indonesian Excel) taken
+  from the raw `ReportRow` list in table order — the table cells hold unit-suffixed strings that
+  cannot be summed. `PanelReport.isiCsv()` is package-private precisely so `TestUi` can assert the
+  file's per-row values and total match what is on screen.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -339,7 +367,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 39 — **309 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 46 — **316 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

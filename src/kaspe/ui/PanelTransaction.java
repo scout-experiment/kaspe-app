@@ -464,6 +464,26 @@ public class PanelTransaction extends JPanel {
         // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
         Theme.alignRight(riwayatTable, 4, 5, 6, 7, 9, 10);
         Theme.emphasis(riwayatTable, 10);
+        // Kolom bisa diurut dengan mengklik judulnya, sama seperti tabel laporan. Ini
+        // daftar yang dipakai mencari satu pengiriman yang salah catat, dan mencarinya
+        // menurut plat atau jumlah uang jauh lebih cepat daripada menggulir. Urutan
+        // bawaan tetap yang terbaru di atas (dari query) sampai ada judul yang diklik.
+        //
+        // Semua bacaan baris di halaman ini sudah lewat convertRowIndexToModel, jadi
+        // nomor baris yang dipakai selalu nomor catatannya, bukan nomor tampilannya -
+        // itu syarat mutlak sebelum pengurutan dinyalakan di sini: tanpa itu, mengurut
+        // lalu menghapus akan menghapus catatan yang salah.
+        //
+        // Dinyalakan SEBELUM pembandingnya dipasang. Urutan sebaliknya membuat
+        // pembandingnya dipasang ke pengurut yang belum ada - pemasangannya diam-diam
+        // tidak terjadi, lalu baris ini membuat pengurut baru yang kosong, sehingga
+        // tabelnya mengurut menurut tulisan lagi tanpa satu pun tanda.
+        riwayatTable.setAutoCreateRowSorter(true);
+        // Angka dan tanggal dibandingkan menurut nilainya, bukan menurut tulisannya -
+        // sama seperti tabel laporan. Nomor kolomnya bergeser satu karena kolom id
+        // tersembunyi di depannya.
+        Theme.sortTanggal(riwayatTable, 1, 8);
+        Theme.sortAngka(riwayatTable, 4, 5, 6, 7, 9, 10);
         // Theme.styleTable memasang pilihan tunggal untuk semua tabel; daftar ini
         // justru harus bisa memilih beberapa baris sekaligus untuk hapus sekali jalan.
         riwayatTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
