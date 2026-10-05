@@ -448,7 +448,6 @@ public class PanelTransaction extends JPanel {
         // Semua nomor kolom bergeser satu karena kolom id tersembunyi di depannya.
         // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
         Theme.alignRight(riwayatTable, 4, 5, 6, 7, 9, 10);
-        Theme.emphasis(riwayatTable, 10);
         // Theme.styleTable memasang pilihan tunggal untuk semua tabel; daftar ini
         // justru harus bisa memilih beberapa baris sekaligus untuk hapus sekali jalan.
         riwayatTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);

@@ -159,8 +159,8 @@ starts with `DELETE`, so it wipes the target database.
 
 - **Java 8 API only.** No `var`, no `List.of`, no records, no `java.nio.file` shortcuts beyond 8.
 - **A column header's alignment follows its cells': text columns left, numeric columns right.**
-  `Theme.alignRight` sets BOTH the cell and the header renderer, and `Theme.emphasis` re-asserts the
-  header for the money column so it cannot drift. Two wrong states were tried and both looked wrong:
+  `Theme.alignRight` sets BOTH the cell and the header renderer. Two wrong states were tried and both
+  looked wrong:
   headers left with numeric cells right leaves the header sharing no edge with its values, so it reads
   as a detached line; and everything left makes values of different lengths ragged on the right, which
   is exactly what hides a small amount among large ones. `TestUi` compares header alignment against

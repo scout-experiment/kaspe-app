@@ -73,15 +73,6 @@ public final class Theme {
      * terbaca sebagai pemisah di kertas.
      */
     public static final Color HEADER_BG = new Color(0xE7EDF3);
-    /**
-     * Warna angka uang di dalam tabel.
-     *
-     * <p>Lebih gelap daripada {@link #MONEY}. Tabel laporan ikut dicetak ke kertas, dan
-     * hijau yang terang berubah menjadi abu-abu muda di sana — kolom terpenting justru
-     * akan tampak paling pudar. Hijau tua ini tetap terbaca sebagai hijau di layar,
-     * tetapi di kertas mendekati kegelapan teks biasa.
-     */
-    public static final Color MONEY_TABLE = new Color(0x14532D);
     /** Latar kotak sorot angka hasil hitungan. */
     public static final Color STRIP = new Color(0xEDF4EF);
     /** Tepi kotak sorot angka hasil hitungan. */
@@ -589,54 +580,6 @@ public final class Theme {
                 c.setCellRenderer(new CellRenderer(SwingConstants.RIGHT));
                 c.setHeaderRenderer(new HeaderRenderer(SwingConstants.RIGHT));
             }
-        }
-    }
-
-    /**
-     * Tegaskan kolom angka penting — biasanya kolom jumlah uang.
-     *
-     * <p>Isinya dibuat setengah tebal dan berwarna hijau tua. Ketebalan huruf inilah yang
-     * menonjolkan kolomnya; warnanya hanya penguat di layar, karena di kertas warnanya
-     * menjadi abu-abu dan yang tersisa hanyalah ketebalannya. Itu sebabnya kolom uang
-     * tetap terbaca di hasil cetak walaupun warnanya tidak ikut tercetak.
-     *
-     * <p>Penggambar sel bawaan digantikan untuk kolom ini, jadi selang-seling barisnya
-     * digambar ulang di dalamnya — tanpa itu kolom ini akan kehilangan pitanya dan
-     * terlihat sebagai satu lajur yang berbeda dari barisnya.
-     */
-    public static void emphasis(JTable t, int... columns) {
-        for (int i : columns) {
-            if (i < t.getColumnCount()) {
-                TableColumn c = t.getColumnModel().getColumn(i);
-                c.setCellRenderer(new EmphasisCell());
-                // Judul kolomnya ikut rata kanan, mengikuti perataan isinya (lihat
-                // alignRight). Disetel di sini juga, bukan diserahkan ke pemanggil, supaya
-                // kolom uang tidak bisa berakhir dengan judul rata kiri sementara angkanya
-                // rata kanan - dan kesalahan itu tidak menimbulkan pesan apa pun.
-            }
-        }
-    }
-
-    /** Isi kolom yang ditegaskan: setengah tebal, hijau tua, tetap mengikuti selang-seling baris. */
-    private static class EmphasisCell extends DefaultTableCellRenderer {
-
-        EmphasisCell() {
-            setHorizontalAlignment(SwingConstants.RIGHT);
-        }
-
-        @Override
-        public Component getTableCellRendererComponent(JTable table, Object value, boolean selected,
-                                                       boolean focused, int row, int column) {
-            super.getTableCellRendererComponent(table, value, selected, focused, row, column);
-            if (selected) {
-                setForeground(INK);
-            } else {
-                Color alt = UIManager.getColor("Table.alternateRowColor");
-                setBackground(row % 2 == 1 && alt != null ? alt : table.getBackground());
-                setForeground(MONEY_TABLE);
-            }
-            setFont(semibold(FONT_SIZE));
-            return this;
         }
     }
 

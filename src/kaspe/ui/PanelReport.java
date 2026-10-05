@@ -90,9 +90,6 @@ public class PanelReport extends JPanel {
         // jangan kecilkan kolom yang lain.
         Theme.widths(table, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
         Theme.alignRight(table, 3, 4, 5, 6, 8, 9);
-        // Kolom uang ditegaskan. Ketebalan huruf yang menonjolkannya, bukan warnanya -
-        // di kertas warnanya menjadi abu-abu dan yang tersisa hanya ketebalannya.
-        Theme.emphasis(table, 9);
 
         JPanel card = Theme.card();
         JScrollPane scroll = new JScrollPane(table);
