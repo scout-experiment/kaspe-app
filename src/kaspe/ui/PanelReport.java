@@ -23,7 +23,9 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /** Halaman laporan: filter tanggal, tabel, total, dan cetak. */
 public class PanelReport extends JPanel {
@@ -103,12 +105,22 @@ public class PanelReport extends JPanel {
         // dengan angka terburuk itu, jadi angka di sini tidak bisa asal diubah.
         // Kolom Harga lebih lebar dari angka harganya karena ikut memuat awalan "Rp",
         // sama seperti kolom Jumlah Uang - dua kolom uang di satu tabel harus seragam.
+        // Empat judul kolom (Bobot Lapak, Bobot Pabrik, Refraksi, Berat Bersih) tadinya
+        // pas tanpa panah sehingga terpotong begitu kolomnya diurut dan ikon panah
+        // penanda urutnya (10 px) muncul; angka kolom-kolom itu di bawah sudah termasuk
+        // ruang panah. Plat (97) dan Harga (89) mengikuti isian terlebarnya ("BE 0000 ZZ",
+        // "Rp 00.000") - kurang 1 px pun terpotong. Tanggal cukup 105: isinya "00-00-0000"
+        // dan judulnya jauh lebih pendek dari panahnya.
+        //
+        // Jumlah seluruh kolom (1050) harus muat di ruang tabel pada jendela terkecil
+        // (1300 - bilah samping 230 - penggeser tegak 10 = 1060) supaya kolomnya tidak
+        // diperas; sisa 10 px itu cadangan kalau penggesernya lebih tebal di tema lain.
         // ponytail: lebar ini pas untuk angka sampai Rp 99.999.999 dan bobot sampai
         // 99.999 kg - jauh di atas pemakaian nyata (truk engkel, harga sekitar Rp 1.150/kg).
         // Batasnya: nama rental di atas ~18 huruf akan terpotong, dan angka di atas
         // 100 juta juga. Kalau suatu saat itu terjadi, tambah kolom atau pendekkan judulnya,
         // jangan kecilkan kolom yang lain.
-        Theme.widths(table, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
+        Theme.widths(table, 105, 97, 127, 108, 110, 83, 106, 105, 89, 120);
         Theme.alignRight(table, 3, 4, 5, 6, 8, 9);
         // Angka dan tanggal dibandingkan menurut nilainya, bukan menurut tulisannya.
         // Tanpa ini, "Rp 10.000.000" terurut sebelum "Rp 6.888.500" hanya karena
@@ -116,6 +128,10 @@ public class PanelReport extends JPanel {
         // jadi tidak ada tanda apa pun bahwa urutannya salah.
         Theme.sortTanggal(table, 0, 7);
         Theme.sortAngka(table, 3, 4, 5, 6, 8, 9);
+        // Kolom teks (Plat, Rental) juga memakai pembanding tersendiri: pembanding
+        // bawaan mengikuti setelan bahasa komputer, sehingga urutan nama bisa berbeda
+        // antar komputer padahal laporannya dicetak dan dibaca orang lain.
+        Theme.sortTeks(table, 1, 2);
         // Kolom uang ditegaskan. Ketebalan huruf yang menonjolkannya, bukan warnanya -
         // di kertas warnanya menjadi abu-abu dan yang tersisa hanya ketebalannya.
         Theme.emphasis(table, 9);
@@ -149,6 +165,19 @@ public class PanelReport extends JPanel {
         }
     }
 
+    /**
+     * Tanggal transaksi paling akhir, untuk dipakai sebagai batas akhir rentang
+     * "Semua". Kalau belum ada data sama sekali, dipakai tanggal cadangan.
+     */
+    private LocalDate tanggalTerakhir(LocalDate cadangan) {
+        try {
+            LocalDate akhir = transactionDao.latestDate();
+            return akhir == null ? cadangan : akhir;
+        } catch (Exception e) {
+            return cadangan;
+        }
+    }
+
     /** Benar kalau belum ada satu pun transaksi tersimpan. */
     private boolean belumAdaData() {
         try {
@@ -159,14 +188,16 @@ public class PanelReport extends JPanel {
     }
 
     /**
-     * Baris saringan laporan: rentang tanggal, rental, dan sepenggal plat — sama
-     * seperti saringan riwayat di halaman Transaksi, supaya dua layar ini berkelakuan
-     * sama. Semua isian dijaga seukuran tetap supaya barisnya tetap satu baris pada
-     * jendela bawaan; kolom tabel tidak boleh dikecilkan demi memuatnya.
+     * Kartu saringan dua baris: baris pertama rentang tanggal, rental, dan sepenggal
+     * plat — sama seperti saringan riwayat di halaman Transaksi, supaya dua layar ini
+     * berkelakuan sama. Semua isian dijaga seukuran tetap supaya barisnya tetap satu
+     * baris pada jendela bawaan; kolom tabel tidak boleh dikecilkan demi memuatnya.
+     * Baris kedua rentang cepat.
      */
     private JPanel buildFilter() {
+        JPanel kartu = new JPanel(new BorderLayout(0, 8));
+        Theme.applyCard(kartu);
         JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        Theme.applyCard(p);
         p.add(Theme.label("Dari"));
         p.add(spFrom);
         p.add(Theme.label("Sampai"));
@@ -194,7 +225,31 @@ public class PanelReport extends JPanel {
         // bisa diperbaiki.
         lblStatus.setForeground(Theme.DANGER);
         p.add(lblStatus);
-        return p;
+        kartu.add(p, BorderLayout.NORTH);
+
+        // Rentang cepat ditaruh di baris kedua karena baris pertama sudah selebar
+        // jendela minimum — tombol tambahan di situ akan terlipat lalu terpotong.
+        JPanel cepat = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        cepat.add(Theme.label("Rentang cepat:"));
+        JButton btnHariIni = Theme.plain("Hari ini");
+        JButton btnBulanIni = Theme.plain("Bulan ini");
+        JButton btnSemua = Theme.plain("Semua");
+        btnHariIni.addActionListener(e -> rentang(LocalDate.now(), LocalDate.now()));
+        btnBulanIni.addActionListener(e -> rentang(LocalDate.now().withDayOfMonth(1), LocalDate.now()));
+        btnSemua.addActionListener(e -> rentang(
+                tanggalTerawal(LocalDate.now().withDayOfMonth(1)), tanggalTerakhir(LocalDate.now())));
+        cepat.add(btnHariIni);
+        cepat.add(btnBulanIni);
+        cepat.add(btnSemua);
+        kartu.add(cepat, BorderLayout.CENTER);
+        return kartu;
+    }
+
+    /** Terapkan satu rentang cepat ke kotak tanggal, lalu tampilkan ulang. */
+    private void rentang(LocalDate dari, LocalDate sampai) {
+        spFrom.setValue(toDate(dari));
+        spTo.setValue(toDate(sampai));
+        reload();
     }
 
     /** Samakan tinggi kotak saringan, sama seperti di halaman Transaksi. */
@@ -236,6 +291,9 @@ public class PanelReport extends JPanel {
         // selebar jendela minimum - sisanya hanya 10px - sehingga menambah satu tombol
         // di situ membuat tombolnya terlipat ke baris kedua lalu terpotong. Di sini
         // tempatnya juga berdampingan dengan totalnya, dan total itulah yang mau diolah.
+        JButton btnRekap = Theme.plain("Rekap per rental");
+        btnRekap.addActionListener(e -> tampilkanRekap());
+        c.add(btnRekap);
         JButton btnCsv = Theme.plain("Ekspor CSV");
         btnCsv.addActionListener(e -> eksporCsv());
         c.add(btnCsv);
@@ -365,7 +423,50 @@ public class PanelReport extends JPanel {
     }
 
     /**
-     * Kaki cetak: periode, saringan rental/plat (kalau ada), total, dan nomor halaman.
+     * Periode dan saringan yang benar-benar diterapkan ke tabel, sebagai teks polos.
+     *
+     * <p>Dipakai bersama oleh kaki cetak dan kepala berkas CSV supaya kertas dan berkas
+     * menyebut cakupannya dengan kalimat yang persis sama. Teksnya sengaja polos:
+     * pengamanan ({@link #quote}) urusan pemakainya — pola cetak butuh diamankan,
+     * CSV tidak.
+     */
+    private String cakupanTabel() {
+        Date dari = fromTabel == null ? null : toDate(fromTabel);
+        Date sampai = toTabel == null ? null : toDate(toTabel);
+        StringBuilder teks = new StringBuilder(periodeRingkas(dari, sampai));
+        if (rentalTabel != null && !rentalTabel.trim().isEmpty()) {
+            teks.append("  ·  Rental: \"").append(rentalTabel.trim()).append('"');
+        }
+        if (platTabel != null && !platTabel.trim().isEmpty()) {
+            teks.append("  ·  Plat: \"").append(Truck.normalizePlate(platTabel)).append('"');
+        }
+        return teks.toString();
+    }
+
+    /**
+     * Urutan yang sedang berlaku di tabel, mis. {@code Urut: Jumlah Uang ↓}.
+     *
+     * <p>Urutan layar ikut ke kertas — pencetakan menggambar tabel apa adanya — jadi
+     * kertas yang dipakai mencocokkan uang harus menyebut urutannya, sama seperti ia
+     * sudah menyebut periode dan saringannya. Teks kosong berarti tabel belum diurutkan
+     * (urutannya tetap urutan bawaan dari query: tanggal menaik).
+     */
+    private String urutTabel() {
+        if (!(table.getRowSorter() instanceof RowSorter)) {
+            return "";
+        }
+        List<? extends RowSorter.SortKey> kunci = table.getRowSorter().getSortKeys();
+        if (kunci.isEmpty()) {
+            return "";
+        }
+        RowSorter.SortKey k = kunci.get(0);
+        return "Urut: " + model.getColumnName(k.getColumn())
+                + (k.getSortOrder() == SortOrder.ASCENDING ? " \u2191" : " \u2193");
+    }
+
+    /**
+     * Kaki cetak: periode, saringan rental/plat (kalau ada), urutan (kalau ada),
+     * total, dan nomor halaman.
      *
      * <p>Periodenya diambil dari rentang yang diterapkan ke tabel, bukan dari kotak
      * tanggalnya: operator bisa mengubah tanggal lalu langsung menekan Cetak/Pratinjau,
@@ -376,14 +477,10 @@ public class PanelReport extends JPanel {
      * kakinya tertulis sama seperti sebelum ada saringan itu.
      */
     private MessageFormat kakiCetak() {
-        Date dari = fromTabel == null ? null : toDate(fromTabel);
-        Date sampai = toTabel == null ? null : toDate(toTabel);
-        StringBuilder teks = new StringBuilder(periodeRingkas(dari, sampai));
-        if (rentalTabel != null && !rentalTabel.trim().isEmpty()) {
-            teks.append("  ·  Rental: ").append(quote(rentalTabel.trim()));
-        }
-        if (platTabel != null && !platTabel.trim().isEmpty()) {
-            teks.append("  ·  Plat: ").append(quote(Truck.normalizePlate(platTabel)));
+        StringBuilder teks = new StringBuilder(quote(cakupanTabel()));
+        String urut = urutTabel();
+        if (!urut.isEmpty()) {
+            teks.append("  ·  ").append(quote(urut));
         }
         teks.append("  ·  Total ").append(quote(lblTotalAmount.getText()))
                 .append("  ·  ").append(quote(lblTotalWeight.getText()))
@@ -399,7 +496,7 @@ public class PanelReport extends JPanel {
         if (!tanggalFilterSah()) {
             return;
         }
-        if (!saringanSiapCetak("Pratinjau")) {
+        if (!saringanSiapCetak("Pratinjau", "dicetak")) {
             return;
         }
         if (table.getRowCount() == 0) {
@@ -416,7 +513,7 @@ public class PanelReport extends JPanel {
         if (!tanggalFilterSah()) {
             return;
         }
-        if (!saringanSiapCetak("Cetak")) {
+        if (!saringanSiapCetak("Cetak", "dicetak")) {
             return;
         }
 
@@ -439,6 +536,76 @@ public class PanelReport extends JPanel {
     }
 
     /**
+     * Rekap per rental dari baris yang SEDANG TAMPIL, bukan seluruh isi database.
+     *
+     * <p>Diambil dari daftar baris yang sudah tersaring, bukan lewat query terpisah: query
+     * rekap yang tidak ikut disaring akan diam-diam menjumlah seluruh rental sementara tabel
+     * di atasnya hanya menampilkan satu rental - dan total yang lebih besar dari barisnya
+     * itulah yang bikin orang salah menyetor uang.
+     *
+     * <p>Tiap baris: {nama rental, jumlah nota, total berat bersih, total uang}. Baris terakhir
+     * berisi jumlah keseluruhan dengan nama "Jumlah".
+     */
+    List<Object[]> rekapPerRental() {
+        Map<String, Object[]> grup = new LinkedHashMap<>();
+        for (ReportRow b : barisTabel) {
+            String nama = b.getRentalName() == null || b.getRentalName().trim().isEmpty()
+                    ? "(tanpa rental)" : b.getRentalName().trim();
+            Object[] g = grup.get(nama);
+            if (g == null) {
+                g = new Object[]{nama, 0, BigDecimal.ZERO, BigDecimal.ZERO};
+                grup.put(nama, g);
+            }
+            g[1] = (Integer) g[1] + 1;
+            g[2] = ((BigDecimal) g[2]).add(b.getNetWeight() == null ? BigDecimal.ZERO : b.getNetWeight());
+            g[3] = ((BigDecimal) g[3]).add(b.getTotalAmount() == null ? BigDecimal.ZERO : b.getTotalAmount());
+        }
+        List<Object[]> hasil = new ArrayList<>(grup.values());
+        if (!hasil.isEmpty()) {
+            int totalNota = 0;
+            BigDecimal totalBerat = BigDecimal.ZERO;
+            BigDecimal totalUang = BigDecimal.ZERO;
+            for (Object[] g : hasil) {
+                totalNota += (Integer) g[1];
+                totalBerat = totalBerat.add((BigDecimal) g[2]);
+                totalUang = totalUang.add((BigDecimal) g[3]);
+            }
+            hasil.add(new Object[]{"Jumlah", totalNota, totalBerat, totalUang});
+        }
+        return hasil;
+    }
+
+    /** Tampilkan rekap per rental dari baris yang sedang tampil, dalam jendela kecil. */
+    private void tampilkanRekap() {
+        if (table.getRowCount() == 0) {
+            JOptionPane.showMessageDialog(this, "Tidak ada baris untuk direkap dengan saringan ini.",
+                    "Rekap per rental", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+        DefaultTableModel m = new DefaultTableModel(
+                new Object[]{"Rental", "Nota", "Berat Bersih", "Jumlah Uang"}, 0) {
+            @Override
+            public boolean isCellEditable(int r, int c) {
+                return false;
+            }
+        };
+        for (Object[] g : rekapPerRental()) {
+            m.addRow(new Object[]{g[0], g[1],
+                    Calculator.formatKg((BigDecimal) g[2]),
+                    "Rp " + Calculator.formatCurrency((BigDecimal) g[3])});
+        }
+        Theme.Table t = new Theme.Table(m, "");
+        Theme.styleTable(t);
+        Theme.widths(t, 220, 70, 120, 140);
+        Theme.alignRight(t, 1, 2, 3);
+        Theme.emphasis(t, 3);
+        JScrollPane scroll = new JScrollPane(t);
+        scroll.setBorder(BorderFactory.createEmptyBorder());
+        scroll.setPreferredSize(new Dimension(560, Math.min(400, 46 + t.getRowCount() * Theme.ROW_HEIGHT)));
+        JOptionPane.showMessageDialog(this, scroll, "Rekap per rental", JOptionPane.PLAIN_MESSAGE);
+    }
+
+    /**
      * Tulis baris yang sedang tampil ke berkas CSV, supaya angkanya bisa dijumlah ulang
      * di Excel. Laporan ini dipakai menyetorkan uang, dan dari layar angkanya hanya bisa
      * dibaca - tidak bisa diolah.
@@ -454,7 +621,7 @@ public class PanelReport extends JPanel {
      * dijumlahkan - angka bersatuan seperti "6.350 kg" tidak bisa.
      */
     private void eksporCsv() {
-        if (!tanggalFilterSah() || !saringanSiapCetak("Ekspor")) {
+        if (!tanggalFilterSah() || !saringanSiapCetak("Ekspor", "diekspor")) {
             return;
         }
         if (table.getRowCount() == 0) {
@@ -464,11 +631,27 @@ public class PanelReport extends JPanel {
             return;
         }
         JFileChooser pilih = new JFileChooser();
-        pilih.setSelectedFile(new File("laporan-" + LocalDate.now() + ".csv"));
+        // Nama bawaan memakai periode yang diterapkan, bukan tanggal hari ini:
+        // nama "laporan-2026-10-05.csv" menyesatkan kalau yang diekspor periode
+        // Juli sampai September.
+        pilih.setSelectedFile(new File(fromTabel != null && toTabel != null
+                ? "laporan-" + fromTabel + "_" + toTabel + ".csv"
+                : "laporan-" + LocalDate.now() + ".csv"));
         if (pilih.showSaveDialog(this) != JFileChooser.APPROVE_OPTION) {
             return;
         }
         File berkas = pilih.getSelectedFile();
+        // Penimpaan ditanyakan di sini karena showSaveDialog TIDAK menanyakannya,
+        // sedangkan aplikasi ini sudah berjanji di pencadangan untuk tidak menimpa
+        // berkas lama.
+        if (berkas.exists()) {
+            int timpa = JOptionPane.showConfirmDialog(this,
+                    "Berkas " + berkas.getName() + " sudah ada. Timpa berkas itu?",
+                    "Ekspor CSV", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            if (timpa != JOptionPane.YES_OPTION) {
+                return;
+            }
+        }
         try {
             Files.write(berkas.toPath(), isiCsv(), StandardCharsets.UTF_8);
             JOptionPane.showMessageDialog(this, "Laporan diekspor ke:\n" + berkas.getAbsolutePath());
@@ -480,11 +663,23 @@ public class PanelReport extends JPanel {
     /**
      * Isi berkas CSV, satu untai per baris - dipisah dari penulisannya supaya isinya bisa
      * diperiksa tanpa membuka jendela "simpan berkas", yang menunggu jawaban orang.
+     *
+     * <p>Berkasnya menyebut cakupan dan urutannya karena berkas ini dokumen yang sama
+     * dengan kertas - laporan sebagian data harus menyebut bagiannya, sebab dipakai
+     * menyetorkan uang. Susut ditulis sebagai kolomnya sendiri supaya bisa diperiksa
+     * di Excel; nilainya kosong kalau bobot barisnya tidak lengkap.
      */
     List<String> isiCsv() {
         List<String> isi = new ArrayList<>();
+        isi.add("Laporan Penjualan Singkong");
+        isi.add(cakupanTabel());
+        String urut = urutTabel();
+        if (!urut.isEmpty()) {
+            isi.add(urut);
+        }
+        isi.add("");
         isi.add("Tanggal;Plat;Rental;Bobot Lapak;Bobot Pabrik;Refraksi;"
-                + "Berat Bersih;Tgl Lunas;Harga;Jumlah Uang");
+                + "Berat Bersih;Susut;Tgl Lunas;Harga;Jumlah Uang");
         for (int baris = 0; baris < table.getRowCount(); baris++) {
             ReportRow b = barisTabel.get(table.convertRowIndexToModel(baris));
             isi.add(kolom(Dates.format(b.getDate()))
@@ -494,11 +689,18 @@ public class PanelReport extends JPanel {
                     + ";" + kolom(angka(b.getFactoryWeight()))
                     + ";" + kolom(angka(b.getRefractionPercent()))
                     + ";" + kolom(angka(b.getNetWeight()))
+                    + ";" + kolom(angka(susut(b)))
                     + ";" + kolom(Dates.format(b.getPaymentDate()))
                     + ";" + kolom(angka(b.getPrice()))
                     + ";" + kolom(angka(b.getTotalAmount())));
         }
         return isi;
+    }
+
+    /** Susut satu baris, atau null kalau bobotnya tidak lengkap. */
+    private static BigDecimal susut(ReportRow b) {
+        return b.getFieldWeight() == null || b.getFactoryWeight() == null
+                ? null : Calculator.shrinkage(b.getFieldWeight(), b.getFactoryWeight());
     }
 
     /** Satu isian CSV: dibungkus tanda petik kalau isinya memuat pemisah, petik, atau baris baru. */
@@ -620,7 +822,7 @@ public class PanelReport extends JPanel {
      *
      * @return true kalau pencetakan boleh diteruskan, false kalau dibatalkan operator
      */
-    private boolean saringanSiapCetak(String judul) {
+    private boolean saringanSiapCetak(String judul, String kataKerja) {
         if (!saringanBelumDiterapkan()) {
             return true;
         }
@@ -635,7 +837,7 @@ public class PanelReport extends JPanel {
         }
         int pilih = JOptionPane.showConfirmDialog(this,
                 "Saringan sudah diubah, tetapi tabelnya belum ditampilkan ulang.\n"
-                        + "Yang akan dicetak masih " + masih + ".\n\n"
+                        + "Yang akan " + kataKerja + " masih " + masih + ".\n\n"
                         + "Tampilkan dulu dengan saringan yang baru?",
                 judul, JOptionPane.YES_NO_CANCEL_OPTION, JOptionPane.QUESTION_MESSAGE);
         if (pilih == JOptionPane.YES_OPTION) {

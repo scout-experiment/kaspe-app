@@ -259,8 +259,9 @@ starts with `DELETE`, so it wipes the target database.
 - **`MainFrame.LEBAR_MINIMUM` is load-bearing and measured, not guessed.** The floor is set by the
   two fixed-width tables — the saved-deliveries list and the Laporan table — because a `JTable` with
   default auto-resize *squeezes* its columns rather than scrolling, and on Laporan that squeeze
-  reaches paper (`FIT_WIDTH` printing shrinks the table as-is). 1241px is the measured smallest width
-  that still shows every column whole; the constant carries a little slack on top. It also has to
+  reaches paper (`FIT_WIDTH` printing shrinks the table as-is). 1290px is the measured smallest width
+  that still shows every column whole — including the sort arrow's 10px inside a sorted header cell;
+  the constant carries a little slack on top. It also has to
   cover the transaction form's right-hand column, which cannot fold. Anything that widens a fixed
   table, a field, or that column means raising `LEBAR_MINIMUM`, and `TestUi` lays every page out at
   exactly that width so the drift fails the suite instead of shipping. Note the tables are the
@@ -271,14 +272,27 @@ starts with `DELETE`, so it wipes the target database.
   operator just pressed, and no render or test covers that error state.
 - **Sortable tables compare VALUES, not text.** Both the Laporan table and the saved-deliveries list
   turn sorting on per table with `setAutoCreateRowSorter(true)`, and must then install
-  `Theme.sortAngka` / `Theme.sortTanggal` for their numeric and date columns. Cells already carry
-  their units ("Rp 6.888.500", "6.350 kg", "05-10-2026"), and the default comparator is
-  `Collator`-free string comparison, so without the comparators "Rp 10.000.000" sorts *before*
-  "Rp 6.888.500". Every value stays readable, so nothing else catches it. Two ordering traps:
-  `setAutoCreateRowSorter(true)` must come BEFORE the comparator calls (a comparator installed on a
-  null sorter is silently dropped, then a fresh sorter replaces it), and any code reading
-  `getSelectedRow()` / table row indexes must go through `convertRowIndexToModel` — that is why
+  `Theme.sortAngka` / `Theme.sortTanggal` / `Theme.sortTeks` for their numeric, date and text columns.
+  Cells already carry their units ("Rp 6.888.500", "6.350 kg", "05-10-2026"), and with no comparator
+  installed `DefaultRowSorter` compares `toString()` with a **locale-dependent `Collator`**, so
+  "Rp 10.000.000" sorts *before* "Rp 6.888.500". Every value stays readable, so nothing else catches
+  it. `sortTeks` exists because that same locale dependence makes Plat/Rental order differ between
+  computers — the reason `Dates` writes its own day/month names. Two further traps: an empty cell is
+  real (an unpaid row has no Tgl Lunas) and must not blow up the comparator, and
+  `setAutoCreateRowSorter(true)` must come BEFORE the comparator calls — `Theme.pengurut` now creates
+  the sorter itself so that order cannot silently drop the comparators, and any code reading
+  `getSelectedRow()` / table row indexes must go through `convertRowIndexToModel`. That is why
   `Theme.styleTable` keeps `setAutoCreateRowSorter(false)` and the two panels opt in individually.
+- **Column widths include room for the sort arrow.** The arrow icon is 10px and lives inside the
+  header cell, so the four columns whose header text was calibrated to fit exactly (Bobot Lapak,
+  Bobot Pabrik, Refraksi, Berat Bersih) were truncated the moment the column was sorted. Their widths
+  now carry the arrow's space, which is what moved `LEBAR_MINIMUM` to 1300 (the measured floor is
+  1290; the constant carries 10px of slack). `TestUi` measures every header's preferred width against
+  its column width with the icon installed, so a width that only fits without the arrow fails.
+  The floor is now within 20px of the default window size, which is the real signal: ten columns each
+  holding a header, a unit and a worst-case number have run out of room. Adding a column to the
+  on-screen table would push `LEBAR_MINIMUM` past the default — treat that as the cue to leave the
+  column off the screen (Susut lives only in the CSV for exactly this reason).
 - **`Theme.emphasis` / `HeaderRenderer` are the only places that style a header cell.** The sort
   arrow is not inherited: replacing `TableHeader.defaultRenderer` discards the JDK's
   `DefaultTableCellHeaderRenderer`, which is what picks the arrow icon. `HeaderRenderer` sets it
@@ -291,12 +305,41 @@ starts with `DELETE`, so it wipes the target database.
   the money total larger made one figure look more important than its neighbour in the same box.
   The row count is deliberately NOT sized up: it would read as a third total. The Simpan button is
   indented by `Theme.STRIP_INSET` so its left edge lines up with the *text* in the strip above it.
-- **Laporan's "Ekspor CSV" sits in the totals row, not the filter row.** The filter row is already
-  1042px of a 1052px budget at `LEBAR_MINIMUM`; a button added there wraps and gets clipped. The CSV
-  carries raw numbers (no "Rp", no thousands separator, `;` delimiter for Indonesian Excel) taken
-  from the raw `ReportRow` list in table order — the table cells hold unit-suffixed strings that
-  cannot be summed. `PanelReport.isiCsv()` is package-private precisely so `TestUi` can assert the
-  file's per-row values and total match what is on screen.
+- **Laporan's "Ekspor CSV" and "Rekap per rental" sit in the totals row, not the filter row.** The
+  filter row is already 1042px of a 1052px budget at `LEBAR_MINIMUM`; a button added there wraps and
+  gets clipped. Quick date ranges therefore live on a *second* row of the filter card, never appended
+  to the first. The CSV carries raw numbers (no "Rp", no thousands separator, `;` delimiter for
+  Indonesian Excel) taken from the raw `ReportRow` list in current view order — the table cells hold
+  unit-suffixed strings that cannot be summed. It also carries a Susut column, which the on-screen
+  table has no room for: adding it would push `LEBAR_MINIMUM` past the 1320px default window, and the
+  figure is derivable from the two weight columns anyway. A file has no width budget, so it goes there.
+  `PanelReport.isiCsv()` and `PanelReport.rekapPerRental()` are package-private precisely so `TestUi`
+  can assert their contents against what is on screen.
+- **The CSV states its own coverage, and never silently overwrites.** `isiCsv()` starts with the title
+  and `cakupanTabel()` — the same period + rental/plat words as the print footer — because the file is
+  the same document as the paper and is used to hand over money; a partial export that does not name
+  its scope is indistinguishable from a full one. It also records `urutTabel()`, since the row order
+  is whatever the operator clicked. The default filename uses the *applied period*, not the export
+  date, and an existing file is confirmed before writing: `JFileChooser.showSaveDialog` does NOT ask
+  about overwriting (unlike the native dialog), which would break the no-clobber promise the backup
+  feature already makes.
+- **`rekapPerRental()` groups the rows already on screen, not a fresh query.** `TransactionDao` has a
+  `summaryPerRental` that takes only dates, so using it here would recap *every* rental while the table
+  above shows one — a total larger than the rows it sits under, which is exactly how money gets handed
+  over wrong. Grouping the filtered list in the UI cannot drift that way.
+- **The print footer and the CSV state the same coverage, and the row order.** `kakiCetak()` and
+  `isiCsv()` both start from `cakupanTabel()` (period + rental/plat) and add `urutTabel()` when the
+  table is sorted — the print path draws the table as-is, so the paper's order is whatever the operator
+  clicked. Both are used to hand over money, so a partial document that does not name its scope is
+  indistinguishable from a full one.
+- **A guard must be able to fail, and must fail as a report.** Every `check(...)` added for the above
+  was verified by deleting the fix and watching it go red. Two lessons that cost real time:
+  a guard comparing the *rows' own order* proves nothing about locale-independence (on the sample
+  names, locale order coincides with code-point order) — it has to call the comparator directly with
+  a pair that differs, e.g. `("BE 1", "BE1")`, which a `Collator` orders one way and
+  `compareToIgnoreCase` the other. And a guard that lets a comparator's exception escape turns into a
+  crash that stops the suite before `=== HASIL ===`, which reads like a broken test rather than a
+  caught defect; `TestUi.urutkan(tabel, kolom, arah)` wraps every `setSortKeys` for that reason.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -367,7 +410,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 46 — **316 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 55 — **325 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

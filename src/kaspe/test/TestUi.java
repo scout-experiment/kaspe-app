@@ -219,11 +219,54 @@ public class TestUi {
         // Diuji pada KEDUA tabel: keduanya mengurut kolom uangnya sendiri-sendiri, jadi
         // memasang pembanding di yang satu tidak memperbaiki yang lain - dan pemeriksaan
         // yang hanya melihat laporan tidak akan menangkap daftar tersimpan yang masih
-        // mengurut "Rp 10.000.000" sebelum "Rp 6.888.500".
-        check("kolom uang laporan terurut menurut nilainya", urutAngkaMenurutNilai(new PanelReport(), 9));
+        // mengurut "Rp 10.000.000" sebelum "Rp 6.888.500". Kolom tanggalnya ikut
+        // diperiksa dengan alasan yang sama: urutan tanggal yang salah tetap terlihat
+        // wajar karena tanggalnya terbaca benar satu per satu, jadi tidak ada tanda
+        // apa pun bahwa kolomnya mengurut menurut tulisannya.
+        check("kolom uang laporan terurut menurut nilainya",
+                urutAngkaMenurutNilai(new PanelReport(), 9, 7));
         check("kolom uang daftar tersimpan terurut menurut nilainya",
-                urutAngkaMenurutNilai(new PanelTransaction(), 10));
+                urutAngkaMenurutNilai(new PanelTransaction(), 10, 1));
         check("mengurutkan tabel tidak menukar isi barisnya", urutTidakMenukarBaris());
+        // Baris "belum lunas" tidak memuat tanggal pembayaran. Pengurut yang
+        // membandingkan tanggal mentah-mentah mati begitu bertemu sel kosong - dan
+        // data uji yang semua barisnya lunas membuat cacat itu tidak pernah
+        // kelihatan. Satu baris belum lunas sengaja ditanam di fillData().
+        check("pengurutan kolom Tgl Lunas tahan baris belum lunas", urutTglLunasTahanBelumLunas());
+        // Panah penanda urut menambah sekitar 10px di judul kolom yang sedang diurut.
+        // Judul yang lebarnya pas-pasan tanpa panah terpotong begitu panahnya muncul,
+        // dan tabel laporan tidak punya penggeser mendatar sehingga yang terpotong
+        // memang tidak terlihat. Semua kolom diukur bersama panahnya, karena kolom
+        // mana pun bisa menjadi kolom yang diurut.
+        check("judul kolom tidak terpotong saat panah urut tampil", judulMuatBersamaPanahUrut());
+        // Rekap per rental dihitung dari baris yang SEDANG TAMPIL. Baris "Jumlah"
+        // yang tidak sepadan dengan total di layar berarti rekap dan layar saling
+        // bertentangan - dan dua-duanya dipakai orang yang mencocokkan uang yang sama.
+        check("rekap per rental berjumlah sama dengan total di layar", rekapSamaDenganTotalLayar());
+        // Rekap yang menghitung seluruh data (bukan hasil saringan) tetap terlihat
+        // benar: angkanya memang jumlah yang sah, hanya bukan jumlah yang sedang
+        // disaring. Uang yang disetorkan dari rekap macam itu pasti salah tanpa tanda.
+        check("rekap per rental hanya memuat rental yang disaring", rekapMenghormatiSaringan());
+        // Tombol "Bulan ini" mempersempit rentang dengan satu klik. Kesalahan yang
+        // senyap: kotak tanggalnya berubah tetapi tabelnya tidak dimuat ulang, jadi
+        // baris dan totalnya masih periode lama padahal kotaknya menulis bulan ini.
+        check("tombol 'Bulan ini' memasang rentang bulan berjalan", rentangCepatBulanIni());
+        // Pembanding teks yang mengikuti aturan abjad komputer mengurut nama yang
+        // sama dengan hasil berbeda di komputer yang berbeda, sehingga laporan dari
+        // dua komputer tidak bisa dicocokkan. Diurutkan menaik lalu diperiksa
+        // menurut perbandingan yang hasilnya sama di mana-mana.
+        check("urutan nama rental tidak bergantung bahasa komputer", urutTeksTegar());
+        // Berkas CSV adalah dokumen yang sama dengan kertas, dan namanya memakai tanggal
+        // ekspor - bukan periode laporannya. Karena itu periode, saringan, dan urutannya
+        // harus tertulis di dalam berkasnya, sama seperti kaki cetak menuliskannya.
+        check("berkas CSV menyebut cakupan dan urutannya", csvMenyebutCakupannya());
+        // Urutan layar ikut ke kertas, jadi kertas yang dipakai mencocokkan uang harus
+        // menyebut urutannya - bagian dari keterangan yang sama dengan periode dan saringan.
+        check("kaki cetak menyebut urutan yang sedang berlaku", kakiCetakMenyebutUrutan());
+        // Memasang pembanding sebelum tabelnya punya pengurut pernah membuat pembandingnya
+        // hilang tanpa suara. Diperiksa pada tabel kosong, bukan lewat halaman, karena
+        // halaman yang urutan pemanggilannya sudah benar tetap lulus tanpa penjagaan ini.
+        check("memasang pembanding menyalakan pengurutnya sendiri", sortAngkaMenyalakanPengurut());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -1466,22 +1509,39 @@ public class TestUi {
         Object[] isi = ((java.util.List<?>) ambil(p, "isiCsv")).toArray();
         boolean ok = true;
 
-        String judul = "Tanggal;Plat;Rental;Bobot Lapak;Bobot Pabrik;Refraksi;"
-                + "Berat Bersih;Tgl Lunas;Harga;Jumlah Uang";
-        if (isi.length < 2 || !judul.equals(isi[0])) {
-            System.out.println("        baris judul CSV tidak sesuai: " + isi[0]);
+        // Baris judul dicari sebagai baris PERTAMA yang diawali "Tanggal;", bukan
+        // baris pertama berkas: pembuka berkas (judul, cakupan, keterangan urutan)
+        // bisa bertambah atau berkurang, dan menghitung nomornya membuat pemeriksaan
+        // ini ikut rusak setiap kali pembukanya disunting.
+        int judul = -1;
+        for (int i = 0; i < isi.length; i++) {
+            if (isi[i].toString().startsWith("Tanggal;")) {
+                judul = i;
+                break;
+            }
+        }
+        String judulHarap = "Tanggal;Plat;Rental;Bobot Lapak;Bobot Pabrik;Refraksi;"
+                + "Berat Bersih;Susut;Tgl Lunas;Harga;Jumlah Uang";
+        if (judul < 0 || !judulHarap.equals(isi[judul])) {
+            System.out.println("        baris judul CSV tidak sesuai: "
+                    + (judul < 0 ? "(tidak ada)" : isi[judul]));
             ok = false;
+        }
+        if (judul < 0) {
+            // Tanpa baris judul, kolom-kolom data tidak bisa diperiksa satu per satu.
+            return false;
         }
 
         java.math.BigDecimal jumlah = java.math.BigDecimal.ZERO;
-        for (int i = 1; i < isi.length; i++) {
+        for (int i = judul + 1; i < isi.length; i++) {
             String[] kolom = isi[i].toString().split(";", -1);
-            if (kolom.length != 10) {
+            if (kolom.length != 11) {
                 System.out.println("        baris " + i + " berisi " + kolom.length
-                        + " kolom, seharusnya 10");
+                        + " kolom, seharusnya 11");
                 return false;
             }
-            for (int k : new int[]{3, 4, 5, 6, 8, 9}) {
+            // Kolom 8 (Tgl Lunas) adalah tanggal, bukan angka yang dijumlahkan.
+            for (int k : new int[]{3, 4, 5, 6, 7, 9, 10}) {
                 if (!kolom[k].matches("\\d+")) {
                     System.out.println("        kolom ke-" + k + " baris " + i
                             + " bukan angka polos: \"" + kolom[k]
@@ -1489,7 +1549,7 @@ public class TestUi {
                     return false;
                 }
             }
-            jumlah = jumlah.add(new java.math.BigDecimal(kolom[9]));
+            jumlah = jumlah.add(new java.math.BigDecimal(kolom[10]));
         }
 
         String diLayar = ((JLabel) field(p, "lblTotalAmount")).getText()
@@ -1538,8 +1598,9 @@ public class TestUi {
             System.out.println("        tabelnya tidak bisa diurut sama sekali");
             return false;
         }
-        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(kolomUang, SortOrder.DESCENDING)));
+        if (!urutkan(t, kolomUang, SortOrder.DESCENDING)) {
+            return false;
+        }
 
         Icon panah = ikonJudul(t, kolomUang);
         if (panah == null) {
@@ -1555,8 +1616,9 @@ public class TestUi {
             return false;
         }
         // Arah panahnya harus ikut arah urutannya, bukan selalu panah naik.
-        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(kolomUang, SortOrder.ASCENDING)));
+        if (!urutkan(t, kolomUang, SortOrder.ASCENDING)) {
+            return false;
+        }
         if (ikonJudul(t, kolomUang) != UIManager.getIcon("Table.ascendingSortIcon")) {
             System.out.println("        urutan menaik tetap memakai panah menurun");
             return false;
@@ -1565,7 +1627,8 @@ public class TestUi {
     }
 
     /**
-     * Kolom uang harus terurut menurut NILAI angkanya, bukan menurut tulisannya.
+     * Kolom uang harus terurut menurut NILAI angkanya, dan kolom tanggal di tabel yang
+     * sama harus terurut menurut nilainya juga.
      *
      * <p>Isi kolomnya sudah diberi awalan "Rp" dan pemisah ribuan, dan pembanding bawaan
      * tabel membandingkan tulisan itu huruf per huruf. Akibatnya "Rp 10.000.000" terurut
@@ -1575,15 +1638,24 @@ public class TestUi {
      *
      * <p>Diperiksa pada tabelnya langsung, bukan lewat berkas CSV, supaya pemeriksaan yang
      * sama bisa dipakai untuk kedua tabel - daftar tersimpan tidak punya ekspor CSV.
+     *
+     * <p>Kolom tanggal ikut diperiksa dengan alasan yang sama seperti tabelnya yang diuji
+     * dua-duanya: memasang pembanding di satu tabel tidak memperbaiki tabel lain, dan
+     * urutan tanggal yang salah tetap terlihat wajar karena tanggalnya terbaca benar satu
+     * per satu - tidak ada satu pun tanda bahwa kolomnya mengurut menurut tulisannya.
+     * Sel kosong dilewati: nilainya memang tidak ada untuk dibandingkan, dan cacat khusus
+     * baris belum lunas diperiksa sendiri oleh {@link #urutTglLunasTahanBelumLunas()}.
      */
-    private static boolean urutAngkaMenurutNilai(Container panel, int kolomUang) throws Exception {
+    private static boolean urutAngkaMenurutNilai(Container panel, int kolomUang, int kolomTanggal)
+            throws Exception {
         JTable t = tabel(panel);
         if (t.getRowSorter() == null) {
             System.out.println("        tabelnya tidak bisa diurut sama sekali");
             return false;
         }
-        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(kolomUang, SortOrder.DESCENDING)));
+        if (!urutkan(t, kolomUang, SortOrder.DESCENDING)) {
+            return false;
+        }
 
         java.math.BigDecimal sebelumnya = null;
         for (int i = 0; i < t.getRowCount(); i++) {
@@ -1595,6 +1667,25 @@ public class TestUi {
                 return false;
             }
             sebelumnya = nilai;
+        }
+
+        if (!urutkan(t, kolomTanggal, SortOrder.DESCENDING)) {
+            return false;
+        }
+        java.time.LocalDate tanggalSebelumnya = null;
+        for (int i = 0; i < t.getRowCount(); i++) {
+            java.time.LocalDate tanggal = kaspe.util.Dates.parse(
+                    String.valueOf(t.getValueAt(i, kolomTanggal)));
+            if (tanggal == null) {
+                continue;
+            }
+            if (tanggalSebelumnya != null && tanggalSebelumnya.isBefore(tanggal)) {
+                System.out.println("        urutan tanggal menurunnya tidak berlaku: "
+                        + tanggalSebelumnya + " lalu " + tanggal
+                        + " - yang dibandingkan tulisannya, bukan tanggalnya");
+                return false;
+            }
+            tanggalSebelumnya = tanggal;
         }
         return true;
     }
@@ -1632,23 +1723,38 @@ public class TestUi {
             System.out.println("        tabel laporan tidak bisa diurut sama sekali");
             return false;
         }
-        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(9, SortOrder.DESCENDING)));
+        if (!urutkan(t, 9, SortOrder.DESCENDING)) {
+            return false;
+        }
 
         String[] baris = ((java.util.List<?>) ambil(p, "isiCsv")).toArray(new String[0]);
-        if (baris.length < 3) {
+        // Baris data dimulai SETELAH baris judul, bukan di baris pertama: berkasnya
+        // kini berjudul, memuat cakupan, dan bisa memuat keterangan urutan di atas
+        // tabelnya. Membaca dari baris pertama membuat pembuka berkas ikut dibaca
+        // sebagai baris data.
+        int judul = -1;
+        for (int i = 0; i < baris.length; i++) {
+            if (baris[i].startsWith("Tanggal;")) {
+                judul = i;
+                break;
+            }
+        }
+        if (judul < 0 || baris.length < judul + 2) {
             System.out.println("        tidak ada baris untuk diperiksa");
             return false;
         }
         java.math.BigDecimal sebelumnya = null;
-        for (int i = 1; i < baris.length; i++) {
+        for (int i = judul + 1; i < baris.length; i++) {
             // Angkanya dibandingkan sebagai deretan digit saja, bukan sebagai angka
             // bersatuan. Kalau berkasnya memuat satuan, itu cacat tersendiri yang sudah
             // diperiksa pemeriksaan CSV di atas - di sini yang diperiksa hanya apakah
             // baris berkas berpasangan dengan baris layar yang sama.
-            String diBerkas = baris[i].split(";", -1)[9].replaceAll("[^0-9]", "");
-            // Yang tertulis di layar pada baris yang sama, angkanya saja.
-            String diLayar = String.valueOf(t.getValueAt(i - 1, 9)).replaceAll("[^0-9]", "");
+            String diBerkas = baris[i].split(";", -1)[10].replaceAll("[^0-9]", "");
+            // Yang tertulis di layar pada baris yang sama, angkanya saja. Kolom uang
+            // di berkas menjadi 10 karena Susut menyisip di kolom 7; di tabel layar
+            // kolomnya tetap 9 - Susut hanya ditulis ke berkas.
+            String diLayar = String.valueOf(t.getValueAt(i - judul - 1, 9))
+                    .replaceAll("[^0-9]", "");
             if (!diBerkas.equals(diLayar)) {
                 System.out.println("        baris ke-" + i + " berkas berisi " + diBerkas
                         + " padahal di layar baris itu berisi " + diLayar
@@ -1672,15 +1778,16 @@ public class TestUi {
         // sendiri-sendiri, jadi memasang yang satu tidak memperbaiki yang lain - dan
         // pemeriksaan yang hanya melihat kolom uang tidak akan menangkap tanggal yang
         // urutannya salah.
-        t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
-                new RowSorter.SortKey(0, SortOrder.DESCENDING)));
+        if (!urutkan(t, 0, SortOrder.DESCENDING)) {
+            return false;
+        }
         // Berkasnya dibaca ULANG setelah urutannya diganti: isinya mengikuti urutan tabel
         // yang sedang berlaku, jadi daftar yang dibaca sebelum pengurutan sudah basi.
         baris = ((java.util.List<?>) ambil(p, "isiCsv")).toArray(new String[0]);
         java.time.LocalDate tanggalSebelumnya = null;
-        for (int i = 1; i < baris.length; i++) {
+        for (int i = judul + 1; i < baris.length; i++) {
             String diBerkas = baris[i].split(";", -1)[0];
-            String diLayar = String.valueOf(t.getValueAt(i - 1, 0));
+            String diLayar = String.valueOf(t.getValueAt(i - judul - 1, 0));
             if (!diBerkas.equals(diLayar)) {
                 System.out.println("        baris ke-" + i + " berkas bertanggal " + diBerkas
                         + " padahal di layar baris itu bertanggal " + diLayar
@@ -1688,6 +1795,11 @@ public class TestUi {
                 return false;
             }
             java.time.LocalDate tanggal = kaspe.util.Dates.parse(diBerkas);
+            if (tanggal == null) {
+                System.out.println("        baris ke-" + i + " berkas bertuliskan \"" + diBerkas
+                        + "\", bukan tanggal");
+                return false;
+            }
             if (tanggalSebelumnya != null && tanggalSebelumnya.isBefore(tanggal)) {
                 System.out.println("        urutan tanggal menurunnya tidak berlaku: "
                         + tanggalSebelumnya + " lalu " + tanggal);
@@ -1696,6 +1808,446 @@ public class TestUi {
             tanggalSebelumnya = tanggal;
         }
         return true;
+    }
+
+    /**
+     * Pengurutan kolom Tgl Lunas harus tahan terhadap baris yang belum lunas.
+     *
+     * <p>Baris belum lunas tidak memuat tanggal pembayaran sama sekali. Pengurut yang
+     * membandingkan tanggalnya tanpa memikirkan sel kosong melempar kesalahan pada
+     * saat tabelnya diurut - dan di Java 8, pengurut yang melempar membuat seluruh
+     * pengurutannya macet, bukan cuma satu klik yang gagal. Data uji yang selalu lunas
+     * membuat cacat itu tidak pernah kelihatan, karena itu satu baris belum lunas
+     * sengaja ditanam di {@link #fillData()}.
+     *
+     * <p>Diperiksa dua arah, menaik dan menurun. Sel kosong harus berbaris di SATU
+     * ujung (yang tercampur berarti sel kosong dibandingkan dengan hasil tak menentu),
+     * dan tanggal yang ada harus benar-benar terurut menurut arahnya.
+     */
+    private static boolean urutTglLunasTahanBelumLunas() throws Exception {
+        PanelReport p = new PanelReport();
+        JTable t = tabel(p);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabel laporan tidak bisa diurut sama sekali");
+            return false;
+        }
+        // Data yang sedang tampil harus memuat baris belum lunas: tanpa itu,
+        // pemeriksaan ini memeriksa keadaan yang tidak pernah terjadi.
+        boolean adaKosong = false;
+        for (int i = 0; i < t.getRowCount(); i++) {
+            if (String.valueOf(t.getValueAt(i, 7)).trim().isEmpty()) {
+                adaKosong = true;
+                break;
+            }
+        }
+        if (!adaKosong) {
+            System.out.println("        data uji tidak memuat baris belum lunas,"
+                    + " tidak ada sel kosong untuk diperiksa");
+            return false;
+        }
+
+        for (SortOrder arah : new SortOrder[]{SortOrder.ASCENDING, SortOrder.DESCENDING}) {
+            try {
+                t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                        new RowSorter.SortKey(7, arah)));
+            } catch (RuntimeException e) {
+                System.out.println("        mengurut kolom Tgl Lunas " + sebutArah(arah)
+                        + " melempar: " + e);
+                return false;
+            }
+
+            java.util.List<java.time.LocalDate> tanggal = new java.util.ArrayList<>();
+            int perubahanKosong = 0;
+            boolean kosongSebelumnya = String.valueOf(t.getValueAt(0, 7)).trim().isEmpty();
+            if (kosongSebelumnya) {
+                tanggal.add(null);
+            } else {
+                tanggal.add(kaspe.util.Dates.parse(String.valueOf(t.getValueAt(0, 7))));
+            }
+            for (int i = 1; i < t.getRowCount(); i++) {
+                String teks = String.valueOf(t.getValueAt(i, 7)).trim();
+                boolean kosong = teks.isEmpty();
+                if (kosong != kosongSebelumnya) {
+                    perubahanKosong++;
+                }
+                kosongSebelumnya = kosong;
+                tanggal.add(kosong ? null : kaspe.util.Dates.parse(teks));
+            }
+
+            // Sel kosong berbaris di satu ujung: perpindahan kosong-terisi lebih dari
+            // satu berarti sel kosong tercampur di tengah baris yang berisi.
+            if (perubahanKosong > 1) {
+                System.out.println("        sel kosong tercampur saat diurut " + sebutArah(arah)
+                        + ", bukan berbaris di satu ujung");
+                return false;
+            }
+            for (int i = 1; i < tanggal.size(); i++) {
+                java.time.LocalDate sebelum = tanggal.get(i - 1);
+                java.time.LocalDate kini = tanggal.get(i);
+                if (sebelum == null || kini == null) {
+                    continue;
+                }
+                boolean menaikLagi = arah == SortOrder.ASCENDING
+                        ? sebelum.isAfter(kini) : sebelum.isBefore(kini);
+                if (menaikLagi) {
+                    System.out.println("        urutan tanggal " + sebutArah(arah)
+                            + "nya tidak berlaku: " + sebelum + " lalu " + kini);
+                    return false;
+                }
+            }
+        }
+
+        // Urutan barisnya sendiri tidak cukup: pengurut yang membandingkan tanggal
+        // mentah-mentah bisa saja tidak melempar saat diurutkan di sini, lalu barulah
+        // gagal di tangan pengguna. Pembandingnya karena itu dipanggil langsung dengan
+        // sel kosong - persis nilai yang muncul di kolom ini untuk catatan belum lunas.
+        if (!(t.getRowSorter() instanceof javax.swing.table.TableRowSorter)) {
+            System.out.println("        pengurutnya bukan TableRowSorter, pembandingnya tidak bisa diperiksa");
+            return false;
+        }
+        javax.swing.table.TableRowSorter<?> pengurut =
+                (javax.swing.table.TableRowSorter<?>) t.getRowSorter();
+        @SuppressWarnings("unchecked")
+        java.util.Comparator<Object> banding =
+                (java.util.Comparator<Object>) pengurut.getComparator(7);
+        if (banding == null) {
+            System.out.println("        kolom Tgl Lunas tidak punya pembanding sendiri,"
+                    + " jadi sel kosong dibandingkan sebagai tulisan");
+            return false;
+        }
+        for (Object[] pasangan : new Object[][]{{"", "16-07-2026"}, {"16-07-2026", ""},
+                {"", ""}, {"05-10-2026", "12-09-2026"}}) {
+            try {
+                banding.compare(pasangan[0], pasangan[1]);
+            } catch (RuntimeException e) {
+                System.out.println("        pembanding Tgl Lunas melempar untuk sel \""
+                        + pasangan[0] + "\" dan \"" + pasangan[1] + "\": " + e);
+                return false;
+            }
+        }
+        if (banding.compare("05-10-2026", "12-09-2026") <= 0) {
+            System.out.println("        pembanding Tgl Lunas menaruh 05-10-2026 sebelum"
+                    + " 12-09-2026 - yang dibandingkan tulisannya, bukan tanggalnya");
+            return false;
+        }
+        return true;
+    }
+
+    /** Sebutan arah pengurutan untuk pesan kegagalan. */
+    private static String sebutArah(SortOrder arah) {
+        return arah == SortOrder.ASCENDING ? "menaik" : "menurun";
+    }
+
+    /**
+     * Judul kolom harus tetap utuh saat panah penanda urutnya tampil.
+     *
+     * <p>Panah penanda urut menambah sekitar 10px di sisi judul kolom yang sedang
+     * diurut. Judul yang lebarnya pas-pasan tanpa panah terpotong begitu panahnya
+     * muncul - dan tabel laporan tidak punya penggeser mendatar, jadi yang terpotong
+     * tidak bisa dilihat dengan menggeser. Diukur pada lebar jendela MINIMUM karena
+     * di sanalah ruangnya paling sempit, dengan cara penyusunan yang sama seperti
+     * pemeriksaan lebar kolom lainnya.
+     *
+     * <p>Setiap kolom diukur bersama panahnya, bukan hanya kolom yang kebetulan
+     * disorot pemeriksaan: pengguna bisa mengklik kolom mana pun untuk mengurutnya,
+     * jadi judul yang pas-pasan di kolom mana pun adalah cacat yang sama.
+     */
+    private static boolean judulMuatBersamaPanahUrut() throws Exception {
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        PanelReport panel = new PanelReport();
+        halaman.showPanel(panel, "Laporan", "Rekap penjualan per periode.");
+        layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        JTable t = tabel(panel);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabel laporan tidak bisa diurut sama sekali");
+            return false;
+        }
+        if (!urutkan(t, 0, SortOrder.DESCENDING)) {
+            return false;
+        }
+
+        Icon panah = UIManager.getIcon("Table.descendingSortIcon");
+        if (panah == null) {
+            System.out.println("        tema tidak menyediakan panah urut, tidak ada yang bisa diukur");
+            return false;
+        }
+        boolean utuh = true;
+        for (int kolom = 0; kolom < t.getColumnCount(); kolom++) {
+            javax.swing.table.TableColumn col = t.getColumnModel().getColumn(kolom);
+            if (col.getMaxWidth() == 0) {
+                continue;
+            }
+            javax.swing.table.TableCellRenderer r = col.getHeaderRenderer() != null
+                    ? col.getHeaderRenderer() : t.getTableHeader().getDefaultRenderer();
+            java.awt.Component k = r.getTableCellRendererComponent(
+                    t, col.getHeaderValue(), false, false, -1, kolom);
+            ((JLabel) k).setIcon(panah);
+            int butuh = k.getPreferredSize().width;
+            if (butuh > col.getWidth()) {
+                System.out.println("        judul kolom \"" + col.getHeaderValue()
+                        + "\" butuh " + butuh + "px bersama panah urut,"
+                        + " kolomnya hanya " + col.getWidth() + "px");
+                utuh = false;
+            }
+        }
+        return utuh;
+    }
+
+    /**
+     * Rekap per rental harus berjumlah sama dengan total yang tertulis di layar.
+     *
+     * <p>Rekap inilah yang dipakai menyetorkan uang per pemilik. Baris "Jumlah" yang
+     * tidak sepadan dengan total di layar berarti salah satu di antaranya salah - dan
+     * dua-duanya dipakai orang yang berbeda untuk uang yang sama, jadi selisihnya baru
+     * ketahuan saat uangnya sudah berpindah tangan.
+     */
+    private static boolean rekapSamaDenganTotalLayar() throws Exception {
+        PanelReport p = new PanelReport();
+        java.util.List<Object[]> rekap = rekap(p);
+        if (rekap.isEmpty()) {
+            System.out.println("        rekap per rental kosong");
+            return false;
+        }
+        Object[] total = rekap.get(rekap.size() - 1);
+        if (!"Jumlah".equals(total[0])) {
+            System.out.println("        baris terakhir rekap bernama \"" + total[0]
+                    + "\", seharusnya \"Jumlah\"");
+            return false;
+        }
+        boolean ok = true;
+        java.math.BigDecimal uang = angkaLayar(((JLabel) field(p, "lblTotalAmount")).getText());
+        java.math.BigDecimal berat = angkaLayar(((JLabel) field(p, "lblTotalWeight")).getText());
+        if (((java.math.BigDecimal) total[3]).compareTo(uang) != 0) {
+            System.out.println("        total uang rekap " + total[3]
+                    + " berbeda dari total di layar " + uang.toPlainString());
+            ok = false;
+        }
+        if (((java.math.BigDecimal) total[2]).compareTo(berat) != 0) {
+            System.out.println("        total berat rekap " + total[2]
+                    + " berbeda dari total di layar " + berat.toPlainString());
+            ok = false;
+        }
+        JTable t = tabel(p);
+        if (((Integer) total[1]).intValue() != t.getRowCount()) {
+            System.out.println("        jumlah nota rekap " + total[1]
+                    + " berbeda dari baris yang tampil " + t.getRowCount());
+            ok = false;
+        }
+        return ok;
+    }
+
+    /**
+     * Rekap per rental harus dihitung dari baris yang SEDANG TAMPIL, jadi setelah
+     * satu rental disaring, rekapnya tidak boleh memuat rental lain.
+     *
+     * <p>Rekap yang menghitung seluruh data - bukan hasil saringan - tetap terlihat
+     * benar: angkanya memang jumlah yang sah, hanya bukan jumlah yang sedang
+     * disaring. Uang yang disetorkan dari rekap macam itu pasti salah tanpa satu pun
+     * tanda di layar.
+     */
+    private static boolean rekapMenghormatiSaringan() throws Exception {
+        PanelReport p = new PanelReport();
+        JComboBox<?> cmbRental = (JComboBox<?>) field(p, "cmbRental");
+        String disaring = "Rental Bumi Ayu";
+        Rental pilihan = null;
+        for (int i = 0; i < cmbRental.getItemCount(); i++) {
+            if (cmbRental.getItemAt(i) instanceof Rental
+                    && disaring.equals(((Rental) cmbRental.getItemAt(i)).getRentalName())) {
+                pilihan = (Rental) cmbRental.getItemAt(i);
+                break;
+            }
+        }
+        if (pilihan == null) {
+            System.out.println("        rental \"" + disaring + "\" tidak ada di saringan");
+            return false;
+        }
+        cmbRental.setSelectedItem(pilihan);
+        klik(p, "reload");
+
+        boolean ok = true;
+        for (Object[] baris : rekap(p)) {
+            if ("Jumlah".equals(baris[0])) {
+                continue;
+            }
+            if (!disaring.equals(baris[0])) {
+                System.out.println("        rekap tersaring \"" + disaring
+                        + "\" memuat rental lain: \"" + baris[0] + "\"");
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
+    /** Rekap per rental halaman laporan, lewat pantulan. */
+    private static java.util.List<Object[]> rekap(PanelReport p) throws Exception {
+        return (java.util.List<Object[]>) ambil(p, "rekapPerRental");
+    }
+
+    /** Angka dari tulisan di layar: buang "Rp", titik ribuan, dan satuannya. */
+    private static java.math.BigDecimal angkaLayar(String teks) {
+        return new java.math.BigDecimal(teks.replaceAll("[^0-9]", ""));
+    }
+
+    /**
+     * Tombol "Bulan ini" harus memasang rentang bulan berjalan DAN memuat ulang
+     * tabelnya.
+     *
+     * <p>Kesalahan yang senyap: kotak tanggalnya berubah tetapi tabelnya tidak dimuat
+     * ulang, sehingga baris dan totalnya masih periode lama padahal kotaknya menulis
+     * bulan ini - orang yang membacanya mencocokkan uangnya dengan periode yang salah.
+     * Data uji sengaja menjangkau bulan sebelum hari ini, jadi jumlah barisnya
+     * benar-benar berubah saat rentangnya dipersempit.
+     */
+    private static boolean rentangCepatBulanIni() throws Exception {
+        PanelReport p = new PanelReport();
+        JButton tombol = tombolBerteks(p, "Bulan ini");
+        if (tombol == null) {
+            System.out.println("        tombol 'Bulan ini' tidak ada di halaman laporan");
+            return false;
+        }
+        String labelSebelum = ((JLabel) field(p, "lblRowCount")).getText();
+        tombol.doClick();
+
+        boolean ok = true;
+        java.time.LocalDate hariIni = java.time.LocalDate.now();
+        java.time.LocalDate dari = tanggalSpinner(p, "spFrom");
+        java.time.LocalDate sampai = tanggalSpinner(p, "spTo");
+        if (!hariIni.withDayOfMonth(1).equals(dari)) {
+            System.out.println("        'Bulan ini' memasang Dari " + dari
+                    + ", seharusnya " + hariIni.withDayOfMonth(1));
+            ok = false;
+        }
+        if (!hariIni.equals(sampai)) {
+            System.out.println("        'Bulan ini' memasang Sampai " + sampai
+                    + ", seharusnya " + hariIni);
+            ok = false;
+        }
+        javax.swing.table.DefaultTableModel model =
+                (javax.swing.table.DefaultTableModel) field(p, "model");
+        String label = ((JLabel) field(p, "lblRowCount")).getText();
+        if (label.equals(labelSebelum)) {
+            System.out.println("        tabel tidak dimuat ulang: jumlah baris masih \""
+                    + label + "\"");
+            ok = false;
+        }
+        if (!label.equals(model.getRowCount() + " baris")) {
+            System.out.println("        label jumlah baris menulis \"" + label
+                    + "\", tabelnya " + model.getRowCount() + " baris");
+            ok = false;
+        }
+        return ok;
+    }
+
+    /** Tanggal yang tertulis di nilai model sebuah kotak tanggal. */
+    private static java.time.LocalDate tanggalSpinner(Object target, String nama) throws Exception {
+        java.util.Date d = (java.util.Date) ((JSpinner) field(target, nama)).getValue();
+        return d.toInstant().atZone(java.time.ZoneId.systemDefault()).toLocalDate();
+    }
+
+    /**
+     * Urutan nama rental harus mengikuti perbandingan yang tidak bergantung bahasa
+     * komputer.
+     *
+     * <p>Pembanding yang memakai aturan abjad komputer bisa mengurut nama yang sama
+     * dengan hasil berbeda di komputer yang berbeda, sehingga rekap yang dicetak dari
+     * dua komputer tidak bisa dicocokkan. Diurutkan menaik lalu diperiksa bahwa
+     * urutannya tidak pernah turun menurut {@code String.compareToIgnoreCase},
+     * yang hasilnya sama di komputer mana pun.
+     */
+    private static boolean urutTeksTegar() throws Exception {
+        PanelReport p = new PanelReport();
+        JTable t = tabel(p);
+        if (t.getRowSorter() == null) {
+            System.out.println("        tabel laporan tidak bisa diurut sama sekali");
+            return false;
+        }
+        if (!urutkan(t, 2, SortOrder.ASCENDING)) {
+            return false;
+        }
+        String sebelumnya = null;
+        for (int i = 0; i < t.getRowCount(); i++) {
+            String nama = String.valueOf(t.getValueAt(i, 2));
+            if (sebelumnya != null && sebelumnya.compareToIgnoreCase(nama) > 0) {
+                System.out.println("        urutan nama rental turun: \"" + sebelumnya
+                        + "\" lalu \"" + nama + "\"");
+                return false;
+            }
+            sebelumnya = nama;
+        }
+
+        // Urutan barisnya sendiri TIDAK cukup membuktikan pembandingnya tidak bergantung
+        // bahasa komputer: pada nama rental yang ada di data uji, urutan menurut aturan
+        // bahasa komputer kebetulan sama dengan urutan menurut abjad tetap - jadi
+        // pemeriksaan di atas tetap hijau walaupun pembandingnya tidak terpasang sama
+        // sekali. Yang membedakan keduanya adalah huruf besar-kecil yang letaknya
+        // berjauhan di abjad: aturan bahasa komputer mengabaikan besar-kecil huruf
+        // sehingga "a" mendahului "Z", sedangkan pembanding tetap menaruh "Z" lebih dulu
+        // (huruf besarnya bernilai lebih kecil). Pembandingnya dipanggil langsung dengan
+        // dua nilai itu.
+        if (!(t.getRowSorter() instanceof javax.swing.table.TableRowSorter)) {
+            System.out.println("        pengurutnya bukan TableRowSorter, pembandingnya tidak bisa diperiksa");
+            return false;
+        }
+        javax.swing.table.TableRowSorter<?> pengurut =
+                (javax.swing.table.TableRowSorter<?>) t.getRowSorter();
+        @SuppressWarnings("unchecked")
+        java.util.Comparator<Object> banding =
+                (java.util.Comparator<Object>) pengurut.getComparator(2);
+        if (banding == null) {
+            System.out.println("        kolom nama rental tidak punya pembanding sendiri,"
+                    + " jadi urutannya ikut aturan bahasa komputer");
+            return false;
+        }
+        if (banding.compare("BE 1", "BE1") >= 0) {
+            System.out.println("        pembanding nama mengabaikan spasi seperti aturan bahasa"
+                    + " komputer (\"BE 1\" tidak mendahului \"BE1\") - hasilnya berbeda antar komputer");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Urutkan satu kolom, dan laporkan kalau pengurutnya melempar.
+     *
+     * <p>Pengurutan bisa gagal karena datanya, bukan karena kodenya: pembanding yang
+     * membandingkan tanggal atau angka mentah-mentah mati begitu bertemu sel kosong, dan
+     * sel kosong itu keadaan yang nyata (catatan belum lunas tidak punya tanggal lunas).
+     * Tanpa dibungkus, kegagalan itu melempar keluar dari uji sehingga seluruh uji
+     * berhenti sebelum mencetak hasilnya - pemeriksaannya jadi terlihat seperti uji yang
+     * rusak, bukan seperti cacat yang ketahuan.
+     */
+    private static boolean urutkan(JTable t, int kolom, SortOrder arah) {
+        try {
+            t.getRowSorter().setSortKeys(java.util.Collections.singletonList(
+                    new RowSorter.SortKey(kolom, arah)));
+            return true;
+        } catch (RuntimeException e) {
+            System.out.println("        mengurut kolom " + kolom + " " + sebutArah(arah)
+                    + " melempar: " + e);
+            return false;
+        }
+    }
+
+    /** Tombol pertama berteks itu di dalam wadah, dicari sampai anak terdalam, atau null. */
+    private static JButton tombolBerteks(Container c, String teks) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof JButton && teks.equals(((JButton) anak).getText())) {
+                return (JButton) anak;
+            }
+            if (anak instanceof Container) {
+                JButton hasil = tombolBerteks((Container) anak, teks);
+                if (hasil != null) {
+                    return hasil;
+                }
+            }
+        }
+        return null;
     }
 
     /** Ambil satu field lewat pantulan. */
@@ -1920,6 +2472,147 @@ public class TestUi {
     }
 
     /**
+     * Berkas CSV harus menyebut cakupannya sendiri dan urutan yang sedang berlaku.
+     *
+     * <p>Berkas ini dokumen yang sama dengan kertas: dipakai menyetorkan uang. Nama
+     * berkasnya bisa diganti orang dan memakai tanggal EKSPOR, bukan periode laporannya -
+     * laporan Januari yang diekspor bulan Oktober akan bernama Oktober. Karena itu periode,
+     * saringan, dan urutannya harus tertulis DI DALAM berkasnya. Cetakan sebagian data yang
+     * tidak menyebut bagiannya tidak bisa dibedakan dari daftar lengkap, dan itu yang bikin
+     * uangnya salah setor.
+     */
+    private static boolean csvMenyebutCakupannya() throws Exception {
+        PanelReport p = new PanelReport();
+        klik(p, "reload");
+        java.util.List<?> isi = (java.util.List<?>) ambil(p, "isiCsv");
+        if (isi.size() < 3) {
+            System.out.println("        berkas CSV hanya " + isi.size() + " baris");
+            return false;
+        }
+        // Tanpa saringan dan tanpa pengurutan: baris kedua harus sama dengan cakupan
+        // yang tertulis di kaki cetak, dan belum boleh menyebut urutan.
+        String kaki = kakiCetak(p);
+        String cakupanKertas = kaki.split("  ·  ")[0];
+        String cakupanBerkas = String.valueOf(isi.get(1));
+        if (!cakupanBerkas.equals(cakupanKertas)) {
+            System.out.println("        baris cakupan berkas \"" + cakupanBerkas
+                    + "\" berbeda dari kaki cetak \"" + cakupanKertas + "\"");
+            return false;
+        }
+        for (Object baris : isi) {
+            if (String.valueOf(baris).startsWith("Urut: ")) {
+                System.out.println("        berkas menyebut urutan padahal tabelnya belum diurut");
+                return false;
+            }
+        }
+
+        // Dengan saringan rental: cakupannya ikut tertulis di berkas.
+        JComboBox<?> cmb = (JComboBox<?>) field(p, "cmbRental");
+        for (int i = 1; i < cmb.getItemCount(); i++) {
+            Object item = cmb.getItemAt(i);
+            if (item instanceof Rental) {
+                cmb.setSelectedIndex(i);
+                klik(p, "reload");
+                String nama = ((Rental) item).getRentalName();
+                String cakupan = String.valueOf(((java.util.List<?>) ambil(p, "isiCsv")).get(1));
+                if (!cakupan.contains("Rental: \"" + nama + "\"")) {
+                    System.out.println("        saringan rental \"" + nama
+                            + "\" tidak tertulis di cakupan berkas: \"" + cakupan + "\"");
+                    return false;
+                }
+                break;
+            }
+        }
+
+        // Dengan pengurutan: berkas menyebut kolom dan arahnya.
+        JTable t = tabel(p);
+        if (!urutkan(t, 9, SortOrder.DESCENDING)) {
+            return false;
+        }
+        boolean adaUrut = false;
+        for (Object baris : (java.util.List<?>) ambil(p, "isiCsv")) {
+            String teks = String.valueOf(baris);
+            if (teks.startsWith("Urut: ") && teks.contains("Jumlah Uang")) {
+                adaUrut = true;
+            }
+        }
+        if (!adaUrut) {
+            System.out.println("        berkas tidak menyebut urutan yang sedang berlaku");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Kaki cetak harus menyebut urutan yang sedang berlaku, dan tidak menyebut apa-apa
+     * kalau tabelnya belum diurut.
+     *
+     * <p>Urutan layar ikut ke kertas: pencetakan menggambar tabel apa adanya. Kertas ini
+     * dipakai mencocokkan uang, dan urutan adalah bagian dari keterangan itu - sama seperti
+     * periode dan saringan yang sudah lebih dulu ditulis di kaki.
+     */
+    private static boolean kakiCetakMenyebutUrutan() throws Exception {
+        PanelReport p = new PanelReport();
+        klik(p, "reload");
+        if (kakiCetak(p).contains("Urut:")) {
+            System.out.println("        kaki cetak menyebut urutan padahal tabelnya belum diurut");
+            return false;
+        }
+        JTable t = tabel(p);
+        if (!urutkan(t, 9, SortOrder.DESCENDING)) {
+            return false;
+        }
+        String kaki = kakiCetak(p);
+        if (!kaki.contains("Urut: Jumlah Uang")) {
+            System.out.println("        kaki cetak tidak menyebut kolom yang diurut: \"" + kaki + "\"");
+            return false;
+        }
+        if (!kaki.contains("\u2193")) {
+            System.out.println("        kaki cetak tidak menyebut arah urutannya: \"" + kaki + "\"");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Memasang pembanding pada tabel yang belum punya pengurut harus menyalakan
+     * pengurutnya sendiri, bukan diam-diam tidak memasang apa pun.
+     *
+     * <p>Kejadian itu sudah pernah lolos: pembanding dipasang sebelum
+     * {@code setAutoCreateRowSorter(true)}, sehingga pemasangannya tidak terjadi dan
+     * tabelnya mengurut menurut tulisan tanpa satu pun tanda. Memeriksanya di sini
+     * memakai tabel kosong tanpa pengurut - bukan lewat halaman, karena halaman yang
+     * urutan pemanggilannya sudah benar tetap lulus walaupun penjagaan ini hilang.
+     */
+    private static boolean sortAngkaMenyalakanPengurut() throws Exception {
+        JTable t = new JTable(new javax.swing.table.DefaultTableModel(
+                new Object[]{"Jumlah Uang"}, 1));
+        Theme.styleTable(t);
+        if (t.getRowSorter() != null) {
+            System.out.println("        tabel baru sudah punya pengurut, pemeriksaan ini tidak berlaku");
+            return false;
+        }
+        Theme.sortAngka(t, 0);
+        if (!(t.getRowSorter() instanceof javax.swing.table.TableRowSorter)) {
+            System.out.println("        memasang pembanding tidak menyalakan pengurutnya,"
+                    + " jadi pembandingnya hilang tanpa suara");
+            return false;
+        }
+        @SuppressWarnings("unchecked")
+        java.util.Comparator<Object> banding = (java.util.Comparator<Object>)
+                ((javax.swing.table.TableRowSorter<?>) t.getRowSorter()).getComparator(0);
+        if (banding == null) {
+            System.out.println("        pengurutnya menyala tetapi pembandingnya tidak terpasang");
+            return false;
+        }
+        if (banding.compare("Rp 10.000.000", "Rp 6.888.500") <= 0) {
+            System.out.println("        pembandingnya tidak membandingkan nilai angkanya");
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Kaki cetakan harus menuliskan saringan rental/plat yang benar-benar diterapkan
      * ke tabel, dan tidak menuliskan apa-apa kalau tidak ada saringan.
      *
@@ -1948,10 +2641,13 @@ public class TestUi {
         cmbRental.setSelectedIndex(1);
         klik(panel, "reload");
         String kakiRental = kakiCetak(panel);
-        boolean rentalTertera = kakiRental.contains("Rental: " + dipilih.getRentalName());
+        // Nama saringan dibungkus tanda petik ganda di kaki: nama rental bisa memuat
+        // titik tengah pemisah segmen, jadi tanpa petik ujung namanya tidak terbaca.
+        boolean rentalTertera = kakiRental.contains(
+                "Rental: \"" + dipilih.getRentalName() + "\"");
         if (!rentalTertera) {
             System.out.println("        kaki cetak tersaring rental tertulis '" + kakiRental
-                    + "', seharusnya memuat 'Rental: " + dipilih.getRentalName() + "'");
+                    + "', seharusnya memuat 'Rental: \"" + dipilih.getRentalName() + "\"'");
         }
 
         // (c) Kotak rental dikembalikan ke "Semua rental", sepotong plat diketik
@@ -1963,10 +2659,12 @@ public class TestUi {
         txtPlat.setText("  be 8009  cf ");
         klik(panel, "reload");
         String kakiPlat = kakiCetak(panel);
-        boolean platTertera = kakiPlat.contains("Plat: BE 8009 CF") && !kakiPlat.contains("Rental:");
+        // Plat juga dibungkus tanda petik ganda, sama seperti nama rental di atas.
+        boolean platTertera = kakiPlat.contains("Plat: \"BE 8009 CF\"")
+                && !kakiPlat.contains("Rental:");
         if (!platTertera) {
             System.out.println("        kaki cetak tersaring plat tertulis '" + kakiPlat
-                    + "', seharusnya memuat 'Plat: BE 8009 CF'");
+                    + "', seharusnya memuat 'Plat: \"BE 8009 CF\"'");
         }
 
         // (d) Saringan dikosongkan lagi: segmennya hilang kembali, bukan menempel.
@@ -2158,10 +2856,28 @@ public class TestUi {
         besar.setDate(java.time.LocalDate.of(2026, 9, 20));
         transactionDao.save(besar, java.util.Collections.singletonList(
                 detail(trucks, "KB 8234 HD", 12000, 11500, 5, 1150)));
+
+        // Satu catatan BELUM LUNAS: tanggal pembayarannya kosong. Baris macam ini nyata
+        // di pemakaian (uangnya menyusul setelah notanya jalan), tetapi data uji yang
+        // selalu lunas membuat pengurutan kolom Tgl Lunas tidak pernah bertemu sel
+        // kosong - dan pengurut yang rapuh terhadapnya tidak pernah kelihatan salah.
+        kaspe.model.Transaction belumLunas = new kaspe.model.Transaction();
+        belumLunas.setDate(java.time.LocalDate.of(2026, 9, 25));
+        transactionDao.save(belumLunas, java.util.Collections.singletonList(
+                detail(trucks, "KB 8234 HD", 6000, 5950, 15, 1150, null)));
     }
 
+    /** Rincian siap simpan dengan tanggal lunas bawaan data uji. */
     private static kaspe.model.TransactionDetail detail(java.util.List<Truck> truck, String plate,
                                                          long fieldWeight, long factoryWeight, int refraction, long price) {
+        return detail(truck, plate, fieldWeight, factoryWeight, refraction, price,
+                java.time.LocalDate.of(2026, 9, 15));
+    }
+
+    /** Rincian siap simpan, termasuk tanggal lunasnya: null berarti belum lunas. */
+    private static kaspe.model.TransactionDetail detail(java.util.List<Truck> truck, String plate,
+                                                         long fieldWeight, long factoryWeight, int refraction, long price,
+                                                         java.time.LocalDate paymentDate) {
         Truck t = null;
         for (Truck x : truck) {
             if (x.getPlate().equals(plate)) {
@@ -2178,7 +2894,7 @@ public class TestUi {
         d.setNetWeight(netWeight);
         d.setPrice(new java.math.BigDecimal(price));
         d.setTotalAmount(kaspe.Calculator.totalAmount(netWeight, new java.math.BigDecimal(price)));
-        d.setPaymentDate(java.time.LocalDate.of(2026, 9, 15));
+        d.setPaymentDate(paymentDate);
         return d;
     }
 

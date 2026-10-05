@@ -688,29 +688,74 @@ public final class Theme {
         }
     }
 
-    /** Pengurut tabel, atau null kalau tabelnya memang tidak diurutkan. */
+    /**
+     * Urutkan kolom teks tanpa bergantung pada setelan bahasa komputer.
+     *
+     * <p>Pembanding bawaan tabel memakai pembanding bahasa mesin, sehingga urutan nama
+     * rental atau plat bisa berbeda antar komputer - padahal daftar ini dibaca orang lain
+     * di komputer lain, dan laporannya dicetak. Sama alasannya dengan nama hari dan bulan
+     * di {@link Dates} yang ditulis sendiri supaya hasilnya pasti sama di mana pun.
+     */
+    public static void sortTeks(JTable t, int... columns) {
+        TableRowSorter<?> pengurut = pengurut(t);
+        if (pengurut == null) {
+            return;
+        }
+        for (int i : columns) {
+            if (i < t.getColumnCount()) {
+                pengurut.setComparator(i, new Comparator<Object>() {
+                    @Override
+                    public int compare(Object a, Object b) {
+                        return teksDari(a).compareToIgnoreCase(teksDari(b));
+                    }
+                });
+            }
+        }
+    }
+
+    /**
+     * Pengurut tabel, atau null kalau tabelnya memang tidak bisa diurutkan.
+     *
+     * <p>Pengurutnya dibuat sendiri di sini kalau belum ada. Tanpa itu, memanggil
+     * {@link #sortAngka} sebelum tabelnya punya pengurut hanya membuang pembandingnya tanpa
+     * suara - tabelnya lalu tetap mengurut menurut tulisan, dan tidak ada tanda apa pun
+     * bahwa pembandingnya tidak terpasang. Kejadian itu sudah pernah lolos ke satu halaman.
+     */
     private static TableRowSorter<?> pengurut(JTable t) {
+        if (!(t.getRowSorter() instanceof TableRowSorter)) {
+            t.setAutoCreateRowSorter(true);
+        }
         return t.getRowSorter() instanceof TableRowSorter ? (TableRowSorter<?>) t.getRowSorter() : null;
+    }
+
+    /** Isi sel sebagai teks; sel kosong dianggap teks kosong, bukan "null". */
+    private static String teksDari(Object sel) {
+        return sel == null ? "" : sel.toString();
     }
 
     /**
      * Nilai sebuah sel angka: angkanya saja, tanpa "Rp", pemisah ribuan, dan satuannya.
      *
-     * <p>Sel yang kosong dihitung nol, bukan dibuang ke ujung daftar — di tabel yang dipakai
+     * <p>Sel kosong dihitung nol, bukan dibuang ke ujung daftar — di tabel yang dipakai
      * mencocokkan uang, sel kosong yang berpindah-pindah tempat lebih membingungkan daripada
-     * sel kosong yang berbaris di satu tempat.
+     * sel kosong yang berbaris di satu tempat. Sel yang kosong itu nyata: kolom harga dan
+     * jumlah uang bisa kosong pada catatan lama.
      */
     private static BigDecimal angkaDari(Object sel) {
-        if (sel == null) {
-            return BigDecimal.ZERO;
-        }
-        String teks = sel.toString().replaceAll("[^0-9-]", "");
+        String teks = teksDari(sel).replaceAll("[^0-9-]", "");
         return teks.isEmpty() || "-".equals(teks) ? BigDecimal.ZERO : new BigDecimal(teks);
     }
 
-    /** Tanggal sebuah sel. Sel kosong dianggap paling awal supaya berbaris di satu tempat. */
+    /**
+     * Tanggal sebuah sel. Sel kosong dianggap paling awal supaya berbaris di satu tempat.
+     *
+     * <p>Sel kosong itu keadaan yang nyata, bukan kemungkinan: catatan yang belum dibayar
+     * tidak punya tanggal lunas, jadi seluruh kolom "Tgl Lunas" bisa berisi sel kosong.
+     * Membandingkannya sebagai tanggal kosong membuat pengurutnya gagal saat kolomnya
+     * diklik — bukan saat halamannya dibuka, sehingga baru ketahuan di tangan pengguna.
+     */
     private static LocalDate tanggalDari(Object sel) {
-        LocalDate t = sel == null ? null : Dates.parse(sel.toString());
+        LocalDate t = Dates.parse(teksDari(sel));
         return t == null ? LocalDate.MIN : t;
     }
 

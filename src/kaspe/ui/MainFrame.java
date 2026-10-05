@@ -18,16 +18,26 @@ public class MainFrame extends JFrame {
      * dan isinya terpotong; pada tabel laporan pemotongan itu ikut ke kertas, karena
      * pencetakan memakai {@code FIT_WIDTH} yang memperkecil tabel apa adanya.
      *
-     * <p>Yang paling menuntut adalah tabel-tabel itu: 1241px adalah lebar terkecil yang
-     * masih menampilkan seluruh kolomnya utuh. Diberi kelonggaran sedikit supaya perubahan
-     * lebar kolom yang wajar tidak langsung menggagalkan pengujian, tetapi tidak lebih -
-     * lebar ini membatasi berapa kecil jendelanya boleh dikecilkan.
+     * <p>Yang paling menuntut adalah tabel-tabel itu: 1290px adalah lebar terkecil yang
+     * masih menampilkan seluruh kolomnya utuh, termasuk ruang ikon panah urut yang muncul
+     * di judul kolom yang sedang diurutkan. Di bawah itu tabelnya mulai memeras kolom, dan
+     * kolom yang paling mepet kehilangan satu piksel lalu terpotong. Angka di bawah ini
+     * diberi kelonggaran 10px di atas lantai itu supaya perubahan lebar kolom yang wajar
+     * tidak langsung menggagalkan pengujian, tetapi tidak lebih - lebar ini membatasi
+     * berapa kecil jendelanya boleh dikecilkan.
      *
      * <p>Angkanya diukur, bukan diperkirakan: batasnya dicari dengan menguji satu per satu
      * sampai pengujiannya berhenti gagal. Mengubah lebar kolom tabel atau lebar isian form
      * menggeser angka ini, dan {@code TestUi} menguji seluruh halaman persis pada lebar ini.
+     *
+     * <p>Perhatikan bahwa lebar ini hampir menyentuh lebar bawaan jendela (1320). Itu wajar:
+     * sepuluh kolom laporan yang masing-masing harus memuat judulnya, satuannya, dan angka
+     * terburuknya memang memakai hampir seluruh lebar. Karena itu menambah kolom di layar
+     * berarti menaikkan angka ini sampai di atas lebar bawaan - dan itu tanda bahwa kolom
+     * barunya sebaiknya tidak ada di layar (lihat kolom Susut, yang karena itu hanya ada di
+     * berkas ekspor).
      */
-    public static final int LEBAR_MINIMUM = 1248;
+    public static final int LEBAR_MINIMUM = 1300;
 
     /**
      * Tinggi jendela terkecil yang masih memuat seluruh halaman transaksi tanpa digulir.

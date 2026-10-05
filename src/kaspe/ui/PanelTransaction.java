@@ -458,7 +458,10 @@ public class PanelTransaction extends JPanel {
         Theme.styleTable(riwayatTable);
         // Lebar kolom sama dengan tabel laporan — sudah teruji muat utuh di jendela
         // bawaan — dengan satu angka 0 di depan untuk kolom id yang disembunyikan.
-        Theme.widths(riwayatTable, 0, 105, 96, 127, 95, 97, 70, 93, 105, 88, 120);
+        // Angka yang lebih besar dari tabel laporan (Tanggal, Bobot Lapak, Bobot Pabrik,
+        // Refraksi, Berat Bersih) memberi ruang ikon panah urut yang muncul di judul
+        // kolomnya; tanpa itu judulnya terpotong begitu kolomnya diklik untuk mengurutkan.
+        Theme.widths(riwayatTable, 0, 105, 97, 127, 108, 110, 83, 106, 105, 89, 120);
         sembunyikanKolomId();
         // Semua nomor kolom bergeser satu karena kolom id tersembunyi di depannya.
         // Keseleo satu angka di sini tidak ditangkap uji apa pun — hati-hati.
@@ -484,6 +487,9 @@ public class PanelTransaction extends JPanel {
         // tersembunyi di depannya.
         Theme.sortTanggal(riwayatTable, 1, 8);
         Theme.sortAngka(riwayatTable, 4, 5, 6, 7, 9, 10);
+        // Nama plat dan rental dibandingkan tanpa bergantung setelan bahasa komputer,
+        // sama seperti tabel laporan.
+        Theme.sortTeks(riwayatTable, 2, 3);
         // Theme.styleTable memasang pilihan tunggal untuk semua tabel; daftar ini
         // justru harus bisa memilih beberapa baris sekaligus untuk hapus sekali jalan.
         riwayatTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);

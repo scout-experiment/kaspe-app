@@ -319,10 +319,21 @@ cukup nyalakan server MySQL-nya.
   total berat bersih dan total uang, serta cetak. Saringan yang sedang dipakai ikut tertulis
   di kaki halaman yang dicetak, jadi kertasnya menyebut sendiri periode dan rental apa yang
   dicakupnya. Judul kolom bisa diklik untuk mengurutkan — kolom uang dan bobot diurut menurut
-  nilainya, bukan menurut tulisannya, jadi Rp 10.000.000 memang di atas Rp 6.888.500. Tombol
-  **Ekspor CSV** menuliskan baris yang sedang tampil ke berkas yang bisa dibuka di Excel;
-  angkanya polos tanpa titik pemisah ribuan supaya langsung bisa dijumlahkan, dan pemisah
-  kolomnya titik koma karena Excel berbahasa Indonesia memakai koma sebagai pemisah desimal.
+  nilainya, bukan menurut tulisannya, jadi Rp 10.000.000 memang di atas Rp 6.888.500. Nama
+  rental dan plat diurut dengan aturan abjad tetap, bukan aturan bahasa komputer, supaya hasil
+  di dua komputer tidak berbeda. Ada tombol **Hari ini / Bulan ini / Semua** untuk mempersempit
+  rentang dengan satu klik, dan **Rekap per rental** yang menjumlahkan baris yang sedang tampil
+  per pemilik truk.
+- **Ekspor CSV** — tombol di baris total menuliskan baris yang sedang tampil ke berkas yang bisa
+  dibuka di Excel. Angkanya polos tanpa titik pemisah ribuan supaya langsung bisa dijumlahkan,
+  dan pemisah kolomnya titik koma karena Excel berbahasa Indonesia memakai koma sebagai pemisah
+  desimal. Berkasnya menyebut sendiri periode, saringan, dan urutan yang sedang berlaku —
+  namanya memakai periode laporan, tetapi bisa diganti orang, dan berkas laporan sebagian yang
+  tidak menyebut bagiannya tidak bisa dibedakan dari daftar lengkap. Berisi satu kolom yang
+  tidak ada di layar: **susut** (bobot lapak dikurangi bobot pabrik). Kolom itu tidak muat di
+  tabel layar — menambahnya membuat jendela terkecil harus lebih lebar daripada jendela bawaan —
+  sedangkan di berkas tidak ada batas lebar. Berkas yang sudah ada ditanyakan dulu sebelum
+  ditimpa, karena jendela "simpan berkas" bawaan Java tidak menanyakannya sendiri.
 - **Cadangkan database** — tombol di halaman Data Master membuat berkas cadangan bertanggal
   dari database bawaan (H2), memakai fasilitas cadangan H2 sendiri sehingga isinya konsisten
   walau aplikasi sedang dipakai. Cadangan kedua tidak menimpa yang pertama. Pada MySQL/MariaDB
@@ -611,9 +622,9 @@ pemasangan apa pun.
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
 | `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 56 lulus |
 | `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa) | 91 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 46 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 55 lulus |
 | `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul; batas di luar jangkauan data dirapikan; jangkauan yang gagal dibaca tidak menggeser batas), catatan tersembunyi oleh saringan diberitahu, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **316 lulus, 0 gagal** |
+| **Total** | | **325 lulus, 0 gagal** |
 
 ---
 
