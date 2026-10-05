@@ -1118,7 +1118,7 @@ public class PanelTransaction extends JPanel {
             setValue(lblTotalAmount, EMPTY);
             return;
         }
-        setValue(lblNetWeight, Calculator.formatCurrency(netWeight) + " kg");
+        setValue(lblNetWeight, Calculator.formatKg(netWeight));
         setValue(lblTotalAmount, price == null ? EMPTY
                 : "Rp " + Calculator.formatCurrency(Calculator.totalAmount(netWeight, price)));
     }

@@ -246,7 +246,7 @@ starts with `DELETE`, so it wipes the target database.
 - **`MainFrame.LEBAR_MINIMUM` is load-bearing and measured, not guessed.** The floor is set by the
   two fixed-width tables — the saved-deliveries list and the Laporan table — because a `JTable` with
   default auto-resize *squeezes* its columns rather than scrolling, and on Laporan that squeeze
-  reaches paper (`FIT_WIDTH` printing shrinks the table as-is). 1264px is the measured smallest width
+  reaches paper (`FIT_WIDTH` printing shrinks the table as-is). 1241px is the measured smallest width
   that still shows every column whole; the constant carries a little slack on top. It also has to
   cover the transaction form's right-hand column, which cannot fold. Anything that widens a fixed
   table, a field, or that column means raising `LEBAR_MINIMUM`, and `TestUi` lays every page out at

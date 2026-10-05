@@ -429,6 +429,17 @@ public class TestUi {
             // Data contoh berhenti di "Rp 6.158.250", jadi kalau diukur dari situ saja
             // kolom uang akan terpotong begitu ada satu nota di atas sepuluh juta -
             // dan itu baru ketahuan setelah dipakai.
+            //
+            // Peta ini berkunci JUDUL kolom. Jadi mengganti judul - seperti "Refraksi (%)"
+            // menjadi "Refraksi" - membuat kuncinya tidak ketemu, dan kolom itu diam-diam
+            // berhenti diuji terhadap angka terburuknya: pemeriksaannya tetap hijau karena
+            // yang diukur tinggal data contoh. Karena itu kuncinya diperiksa lebih dulu.
+            if (!TERBURUK.containsKey(nama)) {
+                System.out.println("        kolom \"" + nama + "\" tidak ada di peta angka"
+                        + " terburuk, jadi tidak diuji terhadap angka terburuknya");
+                utuh = false;
+                continue;
+            }
             String terburuk = TERBURUK.get(nama);
             if (terburuk != null) {
                 butuh = Math.max(butuh, Math.max(biasa.stringWidth(terburuk), tebal.stringWidth(terburuk)));

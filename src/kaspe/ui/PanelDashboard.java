@@ -111,7 +111,7 @@ public class PanelDashboard extends JPanel {
         // kecilnya, di baris yang memang sudah ada.
         p.add(statCard(Icons.CHART, "Total uang", "Rp " + Calculator.formatCurrency(amount),
                 "bulan ini Rp " + Calculator.formatCurrency(monthAmount), true));
-        p.add(statCard(Icons.HOME, "Total berat bersih", Calculator.formatCurrency(weight) + " kg",
+        p.add(statCard(Icons.HOME, "Total berat bersih", Calculator.formatKg(weight),
                 "setelah dipotong refraksi", false));
         p.add(statCard(Icons.TRUCK, "Truk terdaftar", String.valueOf(trucks),
                 "dari " + rentals + " rental", false));

@@ -239,7 +239,7 @@ public class PanelReport extends JPanel {
                 totalWeight = totalWeight.add(b.getNetWeight() == null ? BigDecimal.ZERO : b.getNetWeight());
             }
             lblTotalAmount.setText("Rp " + Calculator.formatCurrency(totalAmount));
-            lblTotalWeight.setText(Calculator.formatCurrency(totalWeight) + " kg");
+            lblTotalWeight.setText(Calculator.formatKg(totalWeight));
             // Jumlah baris yang sedang tampil. Sempat hilang tanpa ketahuan: barisnya
             // tertimpa blok lain, jadi labelnya terus menulis "0 baris" walaupun
             // tabelnya penuh - dan angka itu ikut dibaca orang yang mencocokkan uang.
