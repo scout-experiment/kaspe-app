@@ -353,9 +353,12 @@ public class PanelTransaction extends JPanel {
     private JPanel buildRightColumn() {
         JPanel kanan = new JPanel(new BorderLayout(0, 12));
         kanan.setOpaque(false);
-        // Jarak ke tepi kanan kartu. Tepi kartu sendiri hanya memberi 16px, sehingga
-        // tombolnya terlihat menempel di tepi; ditambah sedikit supaya ada udara.
-        kanan.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 20));
+        // Jarak ke tepi kanan kartu. Kolom ini dipaku ke tepi kanan oleh BorderLayout,
+        // jadi satu-satunya cara menggesernya ke kiri adalah memberi jarak di sini -
+        // memperkecil hurufnya tidak memindahkannya, hanya mempersempit kotak hasilnya.
+        // Tepi kartu sendiri hanya memberi 16px, dan dengan tambahan itu tombolnya
+        // terlihat menempel di tepi.
+        kanan.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 48));
         kanan.add(buildResult(), BorderLayout.NORTH);
 
         JPanel tombol = new JPanel(new BorderLayout());

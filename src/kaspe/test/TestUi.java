@@ -152,9 +152,26 @@ public class TestUi {
         // menambah lebar apa pun di situ bisa membuat tombol Simpan keluar layar saat jendela
         // dikecilkan - dan itu hanya ketahuan kalau diuji pada lebar minimum, bukan pada
         // lebar bawaan yang lega.
-        check("tombol tidak terpotong pada lebar jendela minimum",
+        // Lebar minimum itu berlaku untuk SELURUH halaman, jadi diuji pada semua halaman -
+        // bukan hanya halaman yang membuat angkanya ditetapkan. Kalau hanya diuji di situ,
+        // masalah "ada tapi tidak terjangkau" cuma pindah ke halaman lain.
+        check("tombol tidak terpotong pada lebar jendela minimum (transaksi)",
                 tombolTidakTerpotong(new PanelTransaction(), "Transaksi",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        check("tombol tidak terpotong pada lebar jendela minimum (data master)",
+                tombolTidakTerpotong(new PanelMaster(), "Data Master",
+                        kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        check("tombol tidak terpotong pada lebar jendela minimum (laporan)",
+                tombolTidakTerpotong(new PanelReport(), "Laporan",
+                        kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        // Halaman laporan punya tabel berkolom lebar tetap, dan tabelnya TIDAK punya
+        // penggeser mendatar: saat ruangnya kurang, kolomnya diperas dan isinya terpotong
+        // - termasuk di kertas, karena pencetakan memperkecil tabel apa adanya. Karena itu
+        // halaman inilah yang menentukan lebar minimum, dan diukur pada lebar itu.
+        check("kolom laporan utuh pada lebar jendela minimum",
+                kolomTabelUtuh(new PanelReport(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        check("kolom daftar tersimpan utuh pada lebar jendela minimum",
+                kolomTabelUtuh(new PanelTransaction(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -319,12 +336,16 @@ public class TestUi {
      * aplikasi, yaitu ukuran di {@link kaspe.ui.MainFrame}.
      */
     private static boolean kolomTabelUtuh(JPanel panel) throws Exception {
+        return kolomTabelUtuh(panel, 1320);
+    }
+
+    private static boolean kolomTabelUtuh(JPanel panel, int lebar) throws Exception {
         PagePanel halaman = new PagePanel();
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, "Laporan", "Rekap penjualan per periode.");
 
         // Ukuran jendela bawaan, dikurangi tinggi bilah judul jendela sistem.
-        layar.setSize(1320, 760);
+        layar.setSize(lebar, 760);
         for (int i = 0; i < 3; i++) {
             layar.doLayout();
             layoutDeep(layar);

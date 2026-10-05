@@ -1,7 +1,6 @@
 package kaspe.ui;
 
 import javax.swing.*;
-import java.awt.Dimension;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -12,13 +11,19 @@ public class MainFrame extends JFrame {
     /**
      * Lebar jendela terkecil yang masih menampilkan seluruh isinya.
      *
-     * <p>Form transaksi memakai isian berukuran tetap dan kolom kanannya tidak bisa
-     * dilipat, sedangkan daftar di bawahnya tidak punya penggeser mendatar. Di bawah lebar
-     * ini tombol Simpan dan angka hasilnya keluar dari layar tanpa satu pun tanda - ada di
-     * kode, tidak terjangkau. Diukur dari lebar yang diminta form (1003px) ditambah bilah
-     * samping dan tepi halaman, lalu diberi sedikit kelonggaran.
+     * <p>Dua hal menentukannya, dan keduanya diukur pada lebar ini oleh {@code TestUi}:
+     * form transaksi memakai isian berukuran tetap dengan kolom kanan yang tidak bisa
+     * dilipat, dan dua tabel - daftar pengiriman tersimpan serta tabel laporan - memakai
+     * lebar kolom tetap tanpa penggeser mendatar. Kalau ruangnya kurang, kolomnya diperas
+     * dan isinya terpotong; pada tabel laporan pemotongan itu ikut ke kertas, karena
+     * pencetakan memakai {@code FIT_WIDTH} yang memperkecil tabel apa adanya.
+     *
+     * <p>Yang paling menuntut adalah tabel-tabel itu: 1264px adalah lebar terkecil yang
+     * masih menampilkan seluruh kolomnya utuh. Diberi kelonggaran sedikit supaya perubahan
+     * lebar kolom yang wajar tidak langsung menggagalkan pengujian, tetapi tidak lebih -
+     * lebar ini membatasi berapa kecil jendelanya boleh dikecilkan.
      */
-    public static final int LEBAR_MINIMUM = 1220;
+    public static final int LEBAR_MINIMUM = 1272;
 
     /** Tinggi jendela terkecil yang masih menyisakan ruang untuk daftar di bawah form. */
     public static final int TINGGI_MINIMUM = 700;
