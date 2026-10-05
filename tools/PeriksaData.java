@@ -51,6 +51,19 @@ public class PeriksaData {
     private int jumlahMasalah = 0;
 
     public static void main(String[] args) throws Exception {
+        // Alat ini memeriksa buku catatan sungguhan milik pengguna, dan sambungannya
+        // dibuka sendiri lewat DriverManager, bukan lewat Db.get(). Kalau berkas
+        // setelannya rusak, Db memakai database bawaan (H2) tanpa suara, sehingga
+        // hasilnya menjawab "aman" untuk database yang salah sementara penggunanya
+        // merasa baru memeriksa database MySQL-nya. Jawaban yakin tentang database
+        // yang keliru lebih berbahaya daripada tidak menjawab, jadi berhenti di sini.
+        if (Db.configError() != null) {
+            System.err.println(Db.configError());
+            System.err.println();
+            System.err.println("Pemeriksaan dibatalkan: yang akan diperiksa bukan database"
+                    + " yang kamu maksud.");
+            System.exit(1);
+        }
         new PeriksaData().periksa();
     }
 

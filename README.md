@@ -557,6 +557,11 @@ besar-kecil huruf berbeda.
 tidak membuat tabel. Kalau berkas databasenya belum ada, ia berhenti dan mengatakannya —
 tidak membuat database kosong.
 
+Kalau berkas setelannya rusak, alat ini **menolak jalan** dan menyebut berkasnya, sama seperti
+aplikasinya (lihat "Kalau aplikasi tidak mau dibuka"). Alat ini memeriksa buku catatan
+sungguhan, jadi menjawab "aman" untuk database yang keliru lebih berbahaya daripada tidak
+menjawab.
+
 Jalankan dari folder aplikasi, setelah `./build.sh`:
 
 ```bash
