@@ -440,10 +440,9 @@ public final class Theme {
     /**
      * Jarak tepi luar kotak sorot ke tulisannya, dalam piksel.
      *
-     * <p>Dipakai bersama oleh kotak sorot dan tombol yang duduk di bawahnya: tombol
-     * dipasang sejajar dengan TULISAN di kotaknya, bukan dengan tepi kotaknya. Kalau
-     * angkanya ditulis dua kali di dua tempat, keduanya bisa berbeda tanpa ada yang
-     * menyadari, dan tombolnya kembali tidak sejajar.
+     * <p>Dipakai kotak sorot saja. Tombol yang duduk di bawahnya sengaja TIDAK memakai
+     * angka ini: tombolnya harus selebar kotaknya, bukan selebar tulisannya, supaya
+     * tepi kiri dan tepi kanannya lurus dengan kotak di atasnya.
      */
     public static final int STRIP_INSET = 15;
 

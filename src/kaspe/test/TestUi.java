@@ -283,12 +283,13 @@ public class TestUi {
         check("perataan judul kolom mengikuti isinya", perataanJudulIkutIsi(new PanelTransaction(), "Transaksi"));
         check("perataan judul kolom laporan mengikuti isinya", perataanJudulIkutIsi(new PanelReport(), "Laporan"));
         check("perataan judul kolom dialog data master mengikuti isinya", perataanJudulIkutIsi(new DialogDataMaster(), "Data Master"));
-        // Tombol Simpan dipasang sejajar dengan TULISAN di kotak hasil di atasnya, dan
-        // kedua angka di kotak itu memakai huruf yang sama. Keduanya mudah melenceng tanpa
-        // pesan apa pun: jarak tepinya dulu ditulis di dua tempat sehingga tombolnya
-        // menggantung keluar dari kotaknya, dan jumlah uang dulu lebih besar daripada berat
-        // bersih sehingga satu angka terlihat lebih penting padahal keduanya sederajat.
-        check("tombol Simpan sejajar dengan angka hasil di atasnya", simpanSejajarAngkaHasil());
+        // Tombol Simpan harus selebar KOTAK hasil di atasnya - tepi kiri dan kanannya
+        // lurus - dan kedua angka di kotak itu memakai huruf yang sama. Keduanya mudah
+        // melenceng tanpa pesan apa pun: tombolnya dulu dipasang sejajar dengan tulisan
+        // di dalam kotak sehingga tepinya masuk 15px sementara tepi kanannya mepet, dan
+        // jumlah uang dulu lebih besar daripada berat bersih sehingga satu angka
+        // terlihat lebih penting padahal keduanya sederajat.
+        check("tombol Simpan selebar kotak hasil di atasnya", simpanSejajarAngkaHasil());
         // Berkas CSV dipakai mengolah angkanya di Excel. Dua kesalahan yang sama-sama
         // tidak berbunyi: angka yang ikut membawa satuannya ("6.350 kg") tidak bisa
         // dijumlahkan sehingga berkasnya tidak berguna, dan jumlah yang berbeda dari
@@ -557,12 +558,20 @@ public class TestUi {
         return "perataan lain (" + rata + ")";
     }
 
-    /**
-     * Benar kalau tombol Simpan mulai dari tepi kiri yang sama dengan tulisan di kotak hasil
-     * di atasnya, dan kedua angka di kotak itu berhuruf sama.
+/**
+     * Benar kalau tombol Simpan sama lebar dengan kotak hasil di atasnya: tepi kirinya
+     * lurus dengan tepi kotak, dan tepi kanannya juga.
+     *
+     * <p>Ukurannya dibandingkan dengan KOTAKNYA, bukan dengan tulisan di dalamnya. Dulu
+     * tombolnya dipasang sejajar dengan tulisan "Berat Bersih", sehingga tepinya masuk
+     * 15px dari tepi kotaknya - kolom kanan itu terlihat miring walaupun tulisannya
+     * lurus. Angka yang dibaca dan tombol yang ditekan sekarang berdiri pada satu kolom
+     * dengan tepi yang lurus dua-duanya.
+     *
+     * <p>Dua angka di kotak itu juga harus berhuruf sama.
      */
     private static boolean simpanSejajarAngkaHasil() throws Exception {
-        PagePanel halaman = new PagePanel(admin());
+        PagePanel halaman = new PagePanel(penggunaUjiAdmin());
         JPanel layar = PagePanel.shell(halaman);
         PanelTransaction p = new PanelTransaction();
         halaman.showPanel(p, "Transaksi", "Catat pengiriman per truk.");
@@ -575,14 +584,22 @@ public class TestUi {
         JButton simpan = (JButton) field(p, "btnSimpan");
         JLabel netto = (JLabel) field(p, "lblNetWeight");
         JLabel uang = (JLabel) field(p, "lblTotalAmount");
+        Component kotak = netto.getParent();
 
         boolean ok = true;
         int kiriSimpan = kiriAbsolut(simpan);
-        int kiriNetto = kiriAbsolut(netto);
-        if (kiriSimpan != kiriNetto) {
+        int kiriKotak = kiriAbsolut(kotak);
+        if (kiriSimpan != kiriKotak) {
             System.out.println("        tombol Simpan mulai di x=" + kiriSimpan
-                    + ", tetapi angka hasil di atasnya mulai di x=" + kiriNetto
-                    + " - tombolnya menggantung keluar dari kotaknya");
+                    + ", tetapi tepi kiri kotak hasil di atasnya di x=" + kiriKotak
+                    + " - tombolnya tidak selebar kotaknya");
+            ok = false;
+        }
+        int kananSimpan = kiriSimpan + simpan.getWidth();
+        int kananKotak = kiriKotak + kotak.getWidth();
+        if (kananSimpan != kananKotak) {
+            System.out.println("        tombol Simpan berakhir di x=" + kananSimpan
+                    + ", tetapi tepi kanan kotak hasil di x=" + kananKotak);
             ok = false;
         }
         if (!netto.getFont().equals(uang.getFont())) {

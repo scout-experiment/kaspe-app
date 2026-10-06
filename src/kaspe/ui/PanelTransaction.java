@@ -418,11 +418,12 @@ public class PanelTransaction extends JPanel {
 
         JPanel tombol = new JPanel(new BorderLayout());
         tombol.setOpaque(false);
-        // Tombol Simpan dipasang sejajar dengan TULISAN di kotak hasil di atasnya, bukan
-        // dengan tepi kotaknya. Sebelumnya tombolnya menempel di tepi kotak, sehingga
-        // tepinya 15px lebih kiri daripada "Berat Bersih" dan "Jumlah Uang" - terlihat
-        // menggantung keluar dari kotaknya sendiri.
-        tombol.setBorder(BorderFactory.createEmptyBorder(0, Theme.STRIP_INSET, 0, 0));
+        // Tombol Simpan TIDAK diberi jarak tepi: lebarnya harus persis selebar kotak
+        // hasil di atasnya, supaya angka yang dibaca dan tombol yang ditekan berdiri
+        // pada satu kolom dengan tepi kiri dan kanan yang lurus. Sebelumnya tombolnya
+        // diberi jarak masuk sebesar STRIP_INSET supaya tepi kirinya sejajar dengan
+        // TULISAN di dalam kotak - tepinya jadi 15px masuk dari tepi kotaknya, dan
+        // kolom kanan itu terlihat miring walaupun tulisannya lurus.
         tombol.add(buildActions(), BorderLayout.NORTH);
         kanan.add(tombol, BorderLayout.CENTER);
         return kanan;

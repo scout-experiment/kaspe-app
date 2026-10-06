@@ -220,11 +220,14 @@ starts with `DELETE`, so it wipes the target database.
   is exactly what hides a small amount among large ones. `TestUi` compares header alignment against
   cell alignment on every visible column, because either mistake is otherwise silent.
 - **The result strip and the Simpan button are one unit.** Both live in `buildRightColumn`; the strip
-  is `Theme.strip()` and the button sits below it indented by `Theme.STRIP_INSET`, so the button's left
-  edge lines up with the *text* in the strip rather than with the strip's box. The two numbers in the
+  is `Theme.strip()` and the button below it is exactly as wide as the strip's BOX — left and right
+  edges line up, so the figure read and the button pressed stand on one column. It used to be indented
+  by `Theme.STRIP_INSET` to line up with the *text* inside the strip instead, which left the button's
+  left edge 15px inside the box while its right edge stayed flush: the column read as tilted. `STRIP_INSET`
+  now belongs to the strip alone. The two numbers in the
   strip (Berat Bersih, Jumlah Uang) use the SAME label helper and therefore the same size and weight —
   one of them being larger made a single figure look more important than its neighbour inside the same
-  box, which they are not. `TestUi` checks both the alignment and the font equality.
+  box, which they are not. `TestUi` checks both box edges against the strip and the font equality.
 - **Units live in the cells, not the column headers** (`Calculator.formatKg`, `formatPercent`) — the
   header text is what sets a column's width, so a "(kg)" in the header widens three columns at once,
   while the same unit inside the cell costs nothing because the header stays the longest string. This
@@ -434,7 +437,7 @@ starts with `DELETE`, so it wipes the target database.
   `Theme.MONEY` colour — green there means "this is a computed figure", not "this is money"). Making
   the money total larger made one figure look more important than its neighbour in the same box.
   The row count is deliberately NOT sized up: it would read as a third total. The Simpan button is
-  indented by `Theme.STRIP_INSET` so its left edge lines up with the *text* in the strip above it.
+  exactly as wide as the strip above it, both edges flush, so the figure and the button share one column.
 - **Laporan's "Ekspor CSV" and "Rekap per rental" sit in the totals row, not the filter row.** The
   filter row already asks for 1008px of the 1070px the card gives it at `LEBAR_MINIMUM`, leaving ~62px; a
   button added there wraps and
