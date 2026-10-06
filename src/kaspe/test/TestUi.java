@@ -1795,7 +1795,7 @@ public class TestUi {
      */
     private static boolean lantaiJendelaDialog() {
         boolean ok = true;
-        ok &= periksaLantai("dialog data master",
+        ok &= periksaLantai("dialog data master", new DialogDataMaster(),
                 DialogDataMaster.LEBAR_MINIMUM, DialogDataMaster.TINGGI_MINIMUM,
                 new java.util.function.Function<JPanel, java.awt.Dimension>() {
                     @Override
@@ -1803,7 +1803,7 @@ public class TestUi {
                         return DialogDataMaster.ukuranJendela(p);
                     }
                 });
-        ok &= periksaLantai("dialog pemilik",
+        ok &= periksaLantai("dialog pemilik", new DialogPemilik(),
                 DialogPemilik.LEBAR_MINIMUM, DialogPemilik.TINGGI_MINIMUM,
                 new java.util.function.Function<JPanel, java.awt.Dimension>() {
                     @Override
@@ -1814,7 +1814,7 @@ public class TestUi {
         return ok;
     }
 
-    private static boolean periksaLantai(String nama, int lebar, int tinggi,
+    private static boolean periksaLantai(String nama, JPanel isi, int lebar, int tinggi,
             java.util.function.Function<JPanel, java.awt.Dimension> produsen) {
         boolean ok = true;
         JPanel kecil = new JPanel();
@@ -1841,6 +1841,21 @@ public class TestUi {
             System.out.println("        " + nama + ": isi " + (lebar + 400) + "x" + (tinggi + 400)
                     + " digambar pada jendela " + melebar.width + "x" + melebar.height
                     + " - jendelanya lebih kecil dari isinya");
+            ok = false;
+        }
+
+        // Pernyataan paling langsung dari janjinya, dan satu-satunya yang memeriksa isi
+        // dialog SUNGGUHAN: jendelanya tidak boleh lebih kecil daripada isinya sendiri.
+        // Dua pemeriksaan di atas memakai isi buatan (isi kosong dan isi lantai+400), jadi
+        // keduanya bisa lolos sementara isi sungguhannya terpotong — misalnya ukuranJendela
+        // yang memakai lantai sampai isinya jauh di atasnya. Ketiganya diuji dengan matriks
+        // implementasi: yang ini menyala sendirian pada kasus itu, dan sebaliknya pemeriksaan
+        // "isi besar" punya kasus yang tidak tertangkap yang ini. Dua-duanya perlu.
+        java.awt.Dimension butuh = isi.getPreferredSize();
+        java.awt.Dimension dipakai = produsen.apply(isi);
+        if (dipakai.width < butuh.width || dipakai.height < butuh.height) {
+            System.out.println("        " + nama + ": jendela " + dipakai.width + "x" + dipakai.height
+                    + " lebih kecil dari isi dialognya " + butuh.width + "x" + butuh.height);
             ok = false;
         }
         return ok;
