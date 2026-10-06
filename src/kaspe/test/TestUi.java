@@ -390,6 +390,9 @@ public class TestUi {
         // Halaman Pengguna pernah menyisakan bidang kosong besar: tabelnya meregang
         // selebar halaman dan kotaknya setinggi tetap, padahal isinya cuma dua baris.
         check("daftar akun tidak mengambil ruang lebih dari isinya", daftarAkunTidakMelar());
+        // Tombolnya di bawah isian yang dikerjakannya, bukan dipaku ke dasar kartu:
+        // dengan dua baris saja, dasar kartu itu sekitar 500px di bawah isiannya.
+        check("tombol pengguna duduk di bawah isiannya", tombolPenggunaDiBawahIsian());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -4214,8 +4217,12 @@ public class TestUi {
      * <p>Dua kolom yang isinya pendek pernah dibiarkan meregang selebar halaman, dan
      * kotak tabelnya setinggi tetap — keduanya menyisakan bidang kosong besar, dan
      * itulah yang membuat halaman ini tampak lengang padahal isinya cuma beberapa akun.
-     * Diukur pada susunan yang benar-benar ditata, karena kerusakannya bukan pada lebar
-     * kolom yang dituliskan melainkan pada tabelnya yang ikut melebar mengikuti wadahnya.
+     *
+     * <p>Yang diukur lebar tabelnya dan jarak dasar kartu ke dasar tabelnya, bukan tinggi
+     * tabelnya: tinggi viewport dibagi dengan kepala kolomnya, dan kepala kolom itu belum
+     * terpasang pada pemeriksaan yang berjalan tanpa jendela — jadi angka tingginya di sini
+     * tidak sama dengan yang terlihat di layar, dan pemeriksaan yang mematoknya bisa hijau
+     * sementara baris terakhirnya terpotong.
      */
     private static boolean daftarAkunTidakMelar() throws Exception {
         PagePanel halaman = new PagePanel(penggunaUjiAdmin());
@@ -4228,19 +4235,70 @@ public class TestUi {
             layoutDeep(layar);
         }
         JTable t = (JTable) field(p, "tabel");
+        JScrollPane sp = (JScrollPane) SwingUtilities.getAncestorOfClass(JScrollPane.class, t);
         boolean ok = true;
         if (t.getWidth() > 520) {
             System.out.println("        lebar tabel " + t.getWidth()
                     + "px - tabelnya ikut melebar mengikuti halamannya");
             ok = false;
         }
-        int wajar = Theme.HEADER_HEIGHT + t.getRowCount() * Theme.ROW_HEIGHT;
-        if (t.getHeight() < wajar || t.getHeight() > wajar + 6) {
-            System.out.println("        tinggi tabel " + t.getHeight() + "px untuk "
-                    + t.getRowCount() + " baris, seharusnya sekitar " + wajar);
+        int dasarKartu = bawahAbsolut(p.getComponent(0));
+        int dasarTabel = bawahAbsolut(sp);
+        if (dasarKartu - dasarTabel > 24) {
+            System.out.println("        " + (dasarKartu - dasarTabel)
+                    + "px bidang kosong di dalam kartu di bawah tabelnya");
             ok = false;
         }
         return ok;
+    }
+
+    /**
+     * Tombol pengguna duduk tepat di bawah isiannya, bukan di dasar kartu.
+     *
+     * <p>Yang ditekan Tambah/Ubah/Hapus adalah isian di atasnya. Tombol yang dipaku ke
+     * dasar kartu menjauh sekitar 500px dari isian yang sedang dikerjakan begitu daftarnya
+     * cuma berisi dua baris, dan halamannya jadi terbaca sebagai dua bagian yang tidak
+     * berhubungan.
+     */
+    private static boolean tombolPenggunaDiBawahIsian() throws Exception {
+        PagePanel halaman = new PagePanel(penggunaUjiAdmin());
+        JPanel layar = PagePanel.shell(halaman);
+        layar.setSize(1320, 760);
+        PanelPengguna p = new PanelPengguna(penggunaUjiAdmin());
+        halaman.showPanel(p, "Pengguna", "Kelola akun dan perannya.");
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+        JTextField fNama = (JTextField) field(p, "fNama");
+        JButton tambah = (JButton) field(p, "btnTambah");
+        JTable t = (JTable) field(p, "tabel");
+        int jarak = atasAbsolut(tambah) - bawahAbsolut(fNama);
+        boolean ok = true;
+        if (jarak > 24) {
+            System.out.println("        tombol Tambah " + jarak
+                    + "px di bawah kotak isiannya");
+            ok = false;
+        }
+        if (atasAbsolut(tambah) >= atasAbsolut(t)) {
+            System.out.println("        tombol Tambah tidak berada di atas tabelnya");
+            ok = false;
+        }
+        return ok;
+    }
+
+    /** Jarak tepi atas sebuah komponen dari akar susunannya. */
+    private static int atasAbsolut(Component c) {
+        int y = 0;
+        for (Component k = c; k != null; k = k.getParent()) {
+            y += k.getY();
+        }
+        return y;
+    }
+
+    /** Jarak tepi bawah sebuah komponen dari akar susunannya. */
+    private static int bawahAbsolut(Component c) {
+        return atasAbsolut(c) + c.getHeight();
     }
 
     /**

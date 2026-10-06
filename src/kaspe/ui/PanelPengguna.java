@@ -69,6 +69,14 @@ public class PanelPengguna extends JPanel {
     private static final int LEBAR_TABEL = KOL_NAMA + KOL_PERAN;
     /** Di atas sebanyak ini, kotak tabelnya berhenti tumbuh dan barisnya digulir. */
     private static final int BARIS_MAKS = 8;
+    /**
+     * Tinggi kotak tabel saat belum ada akun, dalam baris.
+     *
+     * <p>Bukan satu baris: pesan "belum ada pengguna tercatat" digambar mulai
+     * {@code max(60, tinggi/3)} piksel dari atas, jadi kotak satu baris membuat pesannya
+     * mepet ke tepi atas kotaknya.
+     */
+    private static final int BARIS_KOSONG = 3;
 
     public PanelPengguna(Pengguna yangMasuk) {
         this.yangMasuk = yangMasuk;
@@ -112,7 +120,12 @@ public class PanelPengguna extends JPanel {
     // ---------- susunan ----------
 
     private JPanel buildIsi() {
-        JPanel p = new JPanel(new BorderLayout(0, 12));
+        // Satu kolom bertumpuk tegak, urutannya: isian, tombolnya, pesannya, lalu
+        // daftarnya. Tombol ditaruh DI BAWAH ISIAN - bukan di dasar kartu - karena
+        // yang ditekan Tambah/Ubah/Hapus adalah isian tepat di atasnya; jarak yang
+        // jauh membuat tombolnya terpisah dari yang sedang dikerjakannya.
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
         p.setOpaque(false);
 
         JPanel isian = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -121,7 +134,15 @@ public class PanelPengguna extends JPanel {
                 Theme.field("Nama", fNama),
                 Theme.field("Sandi", fSandi),
                 Theme.field("Peran", cmbPeran));
-        p.add(isian, BorderLayout.NORTH);
+
+        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        tombol.setOpaque(false);
+        Theme.fillRow(tombol, 8, btnTambah, btnUbah, btnHapus);
+
+        // Pesannya menempel pada tombol yang menyebabkannya, bukan di bawah tabel.
+        JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        status.setOpaque(false);
+        status.add(lblStatus);
 
         // Tabelnya TIDAK dibiarkan memakai seluruh lebar halaman. Dua kolom yang
         // isinya pendek akan membentang jadi dua kotak raksasa berisi satu kata,
@@ -130,23 +151,17 @@ public class PanelPengguna extends JPanel {
         // tingginya mengikuti jumlah baris - lihat pasangTinggiTabel().
         JScrollPane scroll = new JScrollPane(tabel);
         scroll.setBorder(BorderFactory.createEmptyBorder());
-        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
         // Dibungkus baris rata kiri supaya tinggal di lebar preferred-nya; kalau
-        // ditaruh langsung di CENTER, wadahnya yang melebar dan tabelnya ikut
-        // memakai ruang kosong di sebelah kanannya.
-        p.add(Theme.row(0, scroll), BorderLayout.CENTER);
+        // ditaruh langsung di dalam kolom, tabelnya ikut memakai ruang di kanannya.
+        JPanel barisTabel = Theme.row(0, scroll);
 
-        JPanel kaki = new JPanel(new BorderLayout(0, 8));
-        kaki.setOpaque(false);
-        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        tombol.setOpaque(false);
-        Theme.fillRow(tombol, 8, btnTambah, btnUbah, btnHapus);
-        kaki.add(tombol, BorderLayout.NORTH);
-        JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        status.setOpaque(false);
-        status.add(lblStatus);
-        kaki.add(status, BorderLayout.SOUTH);
-        p.add(kaki, BorderLayout.SOUTH);
+        p.add(isian);
+        p.add(Box.createVerticalStrut(14));
+        p.add(tombol);
+        p.add(Box.createVerticalStrut(8));
+        p.add(status);
+        p.add(Box.createVerticalStrut(16));
+        p.add(barisTabel);
         return p;
     }
 
@@ -157,11 +172,24 @@ public class PanelPengguna extends JPanel {
      * menyisakan bidang putih kosong di bawah baris terakhir - persis yang membuat
      * halamannya tampak lengang. Di atas {@link #BARIS_MAKS} baris, kotaknya berhenti
      * tumbuh dan barisnya bisa digulir.
+     *
+     * <p>{@code HEADER_HEIGHT} ikut dihitung, dan itu memang perlu: kepala kolom duduk di
+     * dalam kotak gulungnya, di atas viewport, jadi tingginya memakan ruang yang sama.
+     * Tanpa angka itu viewport-nya pas untuk barisnya tetapi kepalanya memakan satu baris
+     * penuh, dan baris terakhirnya terpotong - terlihat di gambar pratinjau, tidak
+     * terlihat oleh pemeriksaan yang berjalan tanpa jendela (di sana kepala kolomnya
+     * belum terpasang, jadi viewport-nya tidak dibagi dengan apa pun).
+     *
+     * <p>Daftar kosong diberi lantai {@link #BARIS_KOSONG} baris: pesan "belum ada"
+     * digambar dari {@code max(60, tinggi/3)}, jadi kotak satu baris membuat pesannya
+     * mepet ke tepi atas.
      */
     private void pasangTinggiTabel() {
-        int baris = Math.max(1, Math.min(tabel.getRowCount(), BARIS_MAKS));
-        tabel.setPreferredScrollableViewportSize(
-                new Dimension(LEBAR_TABEL, Theme.HEADER_HEIGHT + baris * Theme.ROW_HEIGHT + 2));
+        int baris = tabel.getRowCount() == 0
+                ? BARIS_KOSONG
+                : Math.min(tabel.getRowCount(), BARIS_MAKS);
+        tabel.setPreferredScrollableViewportSize(new Dimension(LEBAR_TABEL,
+                Theme.HEADER_HEIGHT + baris * Theme.ROW_HEIGHT + 2));
     }
 
     // ---------- data ----------

@@ -476,10 +476,21 @@ starts with `DELETE`, so it wipes the target database.
   above it so their right edges line up) and few rows, yet the default layout stretched it across
   the whole 1090px page inside a fixed tall box — two short columns in a mostly empty field. Its
   width now stops at its declared columns and its height tracks its rows
-  (`Theme.HEADER_HEIGHT + rows * Theme.ROW_HEIGHT + 2`, capped at 8 rows before it scrolls), the
-  card is pinned NORTH with natural height, and the buttons sit just under the table. `TestUi`
-  lays the page out for real and fails if the table is wider than 520px or its height does not
-  track the row count — the old layout measured 1090px wide and 452px tall for 3 rows.
+  (`Theme.HEADER_HEIGHT + rows * Theme.ROW_HEIGHT + 2`, floored at 3 rows for the empty state and
+  capped at 8 before it scrolls), and the card is pinned NORTH at its natural height so there is no
+  white field inside it. `TestUi` lays the page out for real and fails if the table is wider than
+  520px or if more than 24px of empty card is left under it — the old layout measured 1090px wide.
+- **`HEADER_HEIGHT` belongs in that sum, and a headless check cannot see why.** The column header
+  sits *inside* the scroll pane, above the viewport, so it eats into the same height the rows need:
+  without it, a 2-row table gets 66px, the header takes 34, and the last row renders clipped. The
+  preview PNG showed this while the headless probe showed 100px and a happy table — in headless the
+  header is not installed, so `sp.getColumnHeader()` is `null` and the viewport is not shared with
+  anything. Do not "fix" that number by removing it; do not pin a guard to the table's rendered
+  height either. This is a case where the render is more truthful than the measurement.
+- **Action buttons belong under the fields they act on, not at the bottom of the card.** Tambah /
+  Ubah / Hapus started in the card's `SOUTH`, which put them ~500px below the form with only two
+  accounts, so the page read as two unrelated halves. `TestUi` now asserts the first button is
+  within 24px of the input row and above the table.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -551,7 +562,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 85 — **376 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 86 — **377 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

@@ -331,7 +331,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>376 lulus <span>0 gagal</span></dd>
+        <dd>377 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>
