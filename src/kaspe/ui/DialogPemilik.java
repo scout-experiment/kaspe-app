@@ -194,6 +194,9 @@ public class DialogPemilik extends JPanel {
             fNama.setText("");
             muat();
             beritahu();
+        } catch (IllegalArgumentException e) {
+            // Penolakan yang disengaja (nama sudah dipakai), bukan kerusakan.
+            setStatus(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
         }
@@ -217,6 +220,9 @@ public class DialogPemilik extends JPanel {
             setStatus("");
             muat();
             beritahu();
+        } catch (IllegalArgumentException e) {
+            // Penolakan yang disengaja (nama sudah dipakai), bukan kerusakan.
+            setStatus(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
         }
@@ -232,12 +238,15 @@ public class DialogPemilik extends JPanel {
             // lebih dulu hanya menjanjikan hal yang tidak bisa ditepati.
             String penolakan = dao.rentalDeleteRefusal(rentalId);
             if (penolakan != null) {
-                JOptionPane.showMessageDialog(this, penolakan, "Tidak bisa dihapus",
-                        JOptionPane.INFORMATION_MESSAGE);
+                tolak(penolakan);
                 return;
             }
-            if (JOptionPane.showConfirmDialog(this, "Hapus pemilik ini?", "Konfirmasi",
-                    JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            // Tanpa layar tidak ada operator yang bisa menjawab; penghapusan dianggap
+            // boleh saja supaya jalur penolakannya tetap teruji - sama seperti di
+            // DialogDataMaster. Yang penting pemeriksaan penolakan di atas tetap jalan.
+            if (!GraphicsEnvironment.isHeadless()
+                    && JOptionPane.showConfirmDialog(this, "Hapus pemilik ini?", "Konfirmasi",
+                            JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
                 return;
             }
             dao.deleteRental(rentalId);
@@ -247,10 +256,24 @@ public class DialogPemilik extends JPanel {
             muat();
             beritahu();
         } catch (IllegalStateException e) {
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
-                    JOptionPane.INFORMATION_MESSAGE);
+            tolak(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
+        }
+    }
+
+    /**
+     * Tampilkan alasan penolakan, atau diam saja tanpa layar.
+     *
+     * <p>Tanpa layar, jendela pesan melempar {@code HeadlessException} dan jalur ini
+     * berhenti sebelum hasilnya bisa diperiksa - pemeriksaan yang tidak bisa diamati sama
+     * saja tidak ada. Diam di sini bukan menutupi kegagalan: yang menolak adalah
+     * pemeriksaan di atasnya, dan itu tetap berjalan.
+     */
+    private void tolak(String pesan) {
+        if (!GraphicsEnvironment.isHeadless()) {
+            JOptionPane.showMessageDialog(this, pesan, "Tidak bisa dihapus",
+                    JOptionPane.INFORMATION_MESSAGE);
         }
     }
 

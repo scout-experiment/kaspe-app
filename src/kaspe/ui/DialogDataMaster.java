@@ -417,6 +417,10 @@ public class DialogDataMaster extends JPanel {
             pemilikTruk = null;
             pasangMode(false);
             muat();
+        } catch (IllegalArgumentException e) {
+            // Penolakan yang disengaja (plat kembar), bukan kerusakan: ditulis di baris
+            // status, bukan di jendela "Gagal:" yang berbunyi seperti programnya rusak.
+            setStatus(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
         }

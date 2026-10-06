@@ -1120,6 +1120,33 @@ public class TestUi {
                         + nama0 + "' dan '" + nama1 + "'");
                 return false;
             }
+
+            // (3) Plat KEMBAR lewat jalur yang dipakai operator, disertai nama pemilik
+            // baru. Langkah ini yang menjaga urutannya: kalau tambahTruk kembali membuat
+            // pemiliknya lebih dulu lalu menyimpan truknya, penolakan plat kembar datang
+            // SETELAH pemilik barunya ter-commit - dan pemilik tanpa truk itu langsung
+            // muncul di setiap kotak pilihan pemilik sementara rekap uangnya terpecah.
+            // Penjaga yang memanggil simpanTrukBaru langsung tidak menangkap itu, karena
+            // yang rusak justru urutan di dalam dialognya.
+            isiPemilik(panel, "Rental Barokah");
+            isi(panel, "fPlat", "ZZ 1111 AA");
+            klik(panel, "tambahTruk");
+            if (dao.listRental().size() != 1) {
+                System.out.println("        plat kembar meninggalkan " + dao.listRental().size()
+                        + " pemilik, seharusnya tetap 1 - pemilik hampa lahir dari jalur tambah");
+                return false;
+            }
+            if (dao.listTrucks().size() != 2) {
+                System.out.println("        plat kembar mengubah jumlah truk menjadi "
+                        + dao.listTrucks().size() + ", seharusnya tetap 2");
+                return false;
+            }
+            String status = ((JLabel) field(panel, "lblStatus")).getText();
+            if (!status.contains("sudah terdaftar")) {
+                System.out.println("        penolakan plat kembar tidak terbaca di baris status: \""
+                        + status + "\"");
+                return false;
+            }
             return true;
         } finally {
             Db.setConfiguration("org.h2.Driver",
@@ -1526,6 +1553,50 @@ public class TestUi {
             String penolakan = dao.rentalDeleteRefusal(idPemilik);
             if (penolakan == null) {
                 System.out.println("        pemilik yang masih punya truk boleh dihapus");
+                return false;
+            }
+
+            // Mengganti nama menjadi nama yang SUDAH dipakai harus ditolak lewat jalur
+            // yang dipakai operator, dan penolakannya harus terbaca sebagai penolakan -
+            // bukan jendela "Gagal:" yang berbunyi seperti programnya rusak. Nama di
+            // barisnya tidak boleh ikut berubah, dan pemiliknya tidak boleh bertambah.
+            Rental lain = new Rental();
+            lain.setRentalName("Rental Lain");
+            dao.saveRental(lain);
+
+            tabel.setRowSelectionInterval(0, 0);
+            isi(panel, "fNama", "Rental Lain");
+            try {
+                klik(panel, "ubah");
+            } catch (Exception e) {
+                // Jalur yang salah menuliskan penolakannya lewat jendela "Gagal:" -
+                // dan tanpa layar jendela itu melempar HeadlessException. Ditangkap di
+                // sini supaya berakhir sebagai pemeriksaan yang GAGAL dengan nama, bukan
+                // sebagai tumpukan galat yang menghentikan seluruh berkas uji sebelum
+                // mencetak hasilnya - keluaran macam itu terbaca seperti uji yang rusak,
+                // bukan seperti cacat yang ketahuan.
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        penggantian nama ke nama kembar melempar "
+                        + sebab.getClass().getSimpleName()
+                        + " - seharusnya ditolak dengan pesan di baris status");
+                return false;
+            }
+            String statusKembar = ((JLabel) field(panel, "lblStatus")).getText();
+            if (!statusKembar.contains("sudah dipakai")) {
+                System.out.println("        penggantian nama menjadi nama kembar tidak ditolak: \""
+                        + statusKembar + "\"");
+                return false;
+            }
+            if (!"Rental Benar Ketik".equals(
+                    String.valueOf(dao.listRental().get(0).getRentalName()))
+                    && !"Rental Benar Ketik".equals(
+                            String.valueOf(dao.listRental().get(1).getRentalName()))) {
+                System.out.println("        nama pemilik ikut berubah jadi nama yang sudah dipakai");
+                return false;
+            }
+            if (dao.listRental().size() != 2) {
+                System.out.println("        percobaan nama kembar mengubah jumlah pemilik menjadi "
+                        + dao.listRental().size() + ", seharusnya tetap 2");
                 return false;
             }
             return true;
