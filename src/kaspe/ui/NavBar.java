@@ -208,15 +208,16 @@ public class NavBar extends JPanel {
      * tapi klik pada tombol ganti sudah menandai entrinya terpilih, jadi setelah
      * dialognya ditutup sorotan dikembalikan ke halaman yang benar-benar terbuka.
      *
-     * <p>Pemeriksaan pekerjaan yang belum disimpan tetap dijalankan: dialog modal dari
-     * halaman Transaksi sama-sama menutupi pekerjaan yang sedang dikerjakan, sama
-     * seperti kalau pindah halaman.
+     * <p>TIDAK ada pemeriksaan pekerjaan yang belum disimpan di sini, dan itu disengaja:
+     * tidak ada yang ditinggalkan. Halaman Transaksi tetap terbuka di belakang dialog,
+     * isiannya utuh, dan setelah dialog ditutup operator berdiri di tempat yang sama.
+     * Memeriksanya justru merusak: pertanyaannya akan berbunyi "Pindah ke Data Master dan
+     * tinggalkan isian itu?" — padahal tidak ada yang ditinggalkan — dan menjawab "Tidak"
+     * memblokir pengelolaan truk hanya karena ada isian transaksi setengah jadi.
+     * Pemeriksaan itu tetap berlaku untuk perpindahan halaman yang sungguhan, di
+     * {@code entry()}.
      */
     private void bukaDialogDataMaster() {
-        if (!bolehTinggalkanTransaksi("Data Master")) {
-            setActive(halamanAktif);
-            return;
-        }
         if (!GraphicsEnvironment.isHeadless()) {
             // buka() modal: baris berikutnya jalan setelah dialognya ditutup. Tanpa
             // layar (uji otomatis) dialog tidak bisa dibuat sama sekali, jadi

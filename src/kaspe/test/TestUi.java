@@ -5,6 +5,7 @@ import kaspe.dao.MasterDao;
 import kaspe.model.Rental;
 import kaspe.model.Truck;
 import kaspe.ui.DialogDataMaster;
+import kaspe.ui.DialogPemilik;
 import kaspe.ui.HeaderBar;
 import kaspe.ui.NavBar;
 import kaspe.ui.PagePanel;
@@ -97,11 +98,24 @@ public class TestUi {
         // boleh melahirkan pemilik kedua - kalau menjadi dua, rekap uang per pemilik
         // ikut terpecah tanpa satu pun pesan.
         check("ejaan pemilik berbeda tidak melahirkan pemilik kedua", ejaanPemilikTidakMembelah());
+        // Dialog pemilik memegang satu-satunya jalan mengganti nama pemilik yang salah
+        // ketik. Jalannya harus MENULIS ULANG barisnya: kalau melahirkan pemilik kedua,
+        // rekap uang per pemilik terpecah permanen. Pemilik yang sudah dipakai truk juga
+        // tidak boleh bisa dihapus - kunci tamunya ON DELETE SET NULL, jadi penghapusannya
+        // tidak gagal, tetapi diam-diam melepaskan seluruh truknya dari pemiliknya
+        // beserta rekap riwayatnya.
+        check("ganti nama pemilik menulis ulang barisnya tanpa menambah pemilik", gantiNamaPemilik());
         // Penghapusan massal diperiksa seluruhnya lebih dulu: selama satu saja baris
         // terpilih masih dipakai catatan pengiriman, tidak ada yang boleh terhapus.
         // Tiap penghapusan meng-commit sendiri, jadi setengah jalan tidak bisa
         // dibatalkan operator.
         check("hapus massal batal seluruhnya kalau satu baris terhalang", hapusMassalBatalSeluruhnya());
+        // Pemeriksaan yang sama lewat API yang bisa dipanggil tanpa layar, jadi buktinya
+        // bukan lagi catatan dao tiruan: plat yang terhalang disebut satu per satu,
+        // penjagaan lapis keduanya benar-benar menolak, dan penghapusan yang bebas
+        // benar-benar menghapus.
+        check("hapus massal tidak menghapus apa pun saat satu baris terhalang",
+                hapusMassalTidakMenghapusApaPun());
         // Rental yang tampil di layar transaksi harus sama dengan yang tercatat. Pernah
         // terjadi sebaliknya: layar membuka dengan plat milik satu rental dan nama rental
         // milik rental lain, dan plat yang baru diketik mewarisi rental baris sebelumnya.
@@ -1189,6 +1203,251 @@ public class TestUi {
             return false;
         }
         return true;
+    }
+
+    /**
+     * Penghapusan massal tidak boleh menghapus satu pun baris selama satu saja baris
+     * terpilih masih dipakai catatan pengiriman.
+     *
+     * <p>Penjaga {@link #hapusMassalBatalSeluruhnya()} membaca keputusannya dari dao
+     * tiruan, karena jalur tombolnya berhenti di jendela pesan yang tidak bisa dibuat
+     * tanpa layar. Sekarang pemeriksaan dan penghapusannya bisa dipanggil langsung,
+     * jadi yang diuji jalur yang benar-benar dipakai tombol itu: {@code platTerhalang}
+     * menunjuk TEPAT plat yang terpakai, {@code hapusSekaligus} pada truk terpakai
+     * ditolak penjagaan lapis keduanya di dao, dan penghapusan yang bebas benar-benar
+     * menghapus barisnya.
+     */
+    private static boolean hapusMassalTidakMenghapusApaPun() throws Exception {
+        Db.setConfiguration("org.h2.Driver",
+                "jdbc:h2:mem:uitest-hapus-massal;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa", "");
+        try {
+            // Data uji sendiri supaya penghapusan di sini tidak membongkar data uji
+            // pemeriksaan lain: satu pemilik, tiga truk, dan satu catatan pengiriman
+            // yang dibuat lewat jalan yang sama dengan aplikasi.
+            MasterDao dao = new MasterDao();
+            Rental pemilik = new Rental();
+            pemilik.setRentalName("Rental Uji Hapus");
+            dao.saveRental(pemilik);
+            int idPemilik = idRental(dao, "Rental Uji Hapus");
+            for (String plat : new String[]{"ZZ 1001 AA", "ZZ 1002 BB", "ZZ 1003 CC"}) {
+                Truck t = new Truck();
+                t.setPlate(plat);
+                t.setRentalId(idPemilik);
+                dao.saveTruck(t);
+            }
+            kaspe.model.Transaction kirim = new kaspe.model.Transaction();
+            kirim.setDate(java.time.LocalDate.of(2026, 10, 1));
+            new kaspe.dao.TransactionDao().save(kirim, java.util.Collections.singletonList(
+                    detail(dao.listTrucks(), "ZZ 1003 CC", 6000, 5920, 15, 1150)));
+
+            DialogDataMaster panel = new DialogDataMaster();
+            JTable tabel = (JTable) field(panel, "tableTruk");
+            if (tabel.getRowCount() != 3) {
+                System.out.println("        data uji tidak termuat: " + tabel.getRowCount() + " baris");
+                return false;
+            }
+            int barisBebas1 = -1;
+            int barisBebas2 = -1;
+            int barisTerpakai = -1;
+            for (int i = 0; i < tabel.getRowCount(); i++) {
+                String plat = String.valueOf(tabel.getValueAt(i, 0));
+                if ("ZZ 1001 AA".equals(plat)) {
+                    barisBebas1 = i;
+                }
+                if ("ZZ 1002 BB".equals(plat)) {
+                    barisBebas2 = i;
+                }
+                if ("ZZ 1003 CC".equals(plat)) {
+                    barisTerpakai = i;
+                }
+            }
+            if (barisBebas1 < 0 || barisBebas2 < 0 || barisTerpakai < 0) {
+                System.out.println("        truk uji tidak lengkap di daftar");
+                return false;
+            }
+            Truck terpakai = null;
+            for (Truck t : dao.listTrucks()) {
+                if ("ZZ 1003 CC".equals(t.getPlate())) {
+                    terpakai = t;
+                }
+            }
+            if (terpakai == null) {
+                System.out.println("        truk terpakai tidak terbaca dari database");
+                return false;
+            }
+
+            // Dua baris terpilih: satu bebas, satu terpakai. Daftar yang terhalang
+            // memang tidak diteruskan ke hapusSekaligus - yang bebas bisa terhapus
+            // duluan, dan justru itulah keadaan setengah jadi yang mau dicegah.
+            tabel.setRowSelectionInterval(barisBebas1, barisBebas1);
+            tabel.addRowSelectionInterval(barisTerpakai, barisTerpakai);
+            @SuppressWarnings("unchecked")
+            java.util.List<Truck> dipilih = (java.util.List<Truck>) ambil(panel, "trukTerpilih");
+            if (dipilih.size() != 2) {
+                System.out.println("        trukTerpilih mengembalikan " + dipilih.size()
+                        + " truk, seharusnya 2");
+                return false;
+            }
+            java.lang.reflect.Method cekPlat = panel.getClass()
+                    .getDeclaredMethod("platTerhalang", java.util.List.class);
+            cekPlat.setAccessible(true);
+            Object jawaban = cekPlat.invoke(panel, dipilih);
+            @SuppressWarnings("unchecked")
+            java.util.List<String> terhalang = (java.util.List<String>) jawaban;
+            if (terhalang.size() != 1 || !terhalang.get(0).equals(terpakai.getPlate())) {
+                System.out.println("        plat terhalang: " + terhalang + ", seharusnya hanya ["
+                        + terpakai.getPlate() + "]");
+                return false;
+            }
+
+            // Lapis kedua di dao: hapusSekaligus pada truk terpakai harus ditolak, dan
+            // penolakannya terjadi sebelum satu pun baris hilang.
+            java.lang.reflect.Method hapus = panel.getClass()
+                    .getDeclaredMethod("hapusSekaligus", java.util.List.class);
+            hapus.setAccessible(true);
+            try {
+                hapus.invoke(panel, java.util.Collections.singletonList(terpakai));
+                System.out.println("        penghapusan truk terpakai lolos dari penjagaan dao");
+                return false;
+            } catch (java.lang.reflect.InvocationTargetException e) {
+                if (!(e.getCause() instanceof IllegalStateException)) {
+                    System.out.println("        penolakan dao melempar " + e.getCause()
+                            + ", seharusnya IllegalStateException");
+                    return false;
+                }
+            }
+            if (tabel.getRowCount() != 3 || dao.listTrucks().size() != 3) {
+                System.out.println("        ada baris yang hilang: tabel " + tabel.getRowCount()
+                        + " baris, database " + dao.listTrucks().size() + " truk");
+                return false;
+            }
+
+            // Dua-duanya bebas: seluruhnya terhapus, jumlah baris berkurang dua.
+            tabel.setRowSelectionInterval(barisBebas1, barisBebas1);
+            tabel.addRowSelectionInterval(barisBebas2, barisBebas2);
+            @SuppressWarnings("unchecked")
+            java.util.List<Truck> duaBebas = (java.util.List<Truck>) ambil(panel, "trukTerpilih");
+            if (duaBebas.size() != 2) {
+                System.out.println("        dua truk bebas terbaca " + duaBebas.size() + " truk");
+                return false;
+            }
+            Object jawabanBebas = cekPlat.invoke(panel, duaBebas);
+            @SuppressWarnings("unchecked")
+            java.util.List<String> bebas = (java.util.List<String>) jawabanBebas;
+            if (!bebas.isEmpty()) {
+                System.out.println("        dua truk bebas dianggap terhalang: " + bebas);
+                return false;
+            }
+            try {
+                hapus.invoke(panel, duaBebas);
+            } catch (Exception e) {
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        menghapus dua truk bebas gagal: " + sebab);
+                return false;
+            }
+            klik(panel, "muat");
+            if (tabel.getRowCount() != 1 || dao.listTrucks().size() != 1) {
+                System.out.println("        setelah hapus dua truk bebas tersisa " + tabel.getRowCount()
+                        + " baris di tabel dan " + dao.listTrucks().size() + " truk di database");
+                return false;
+            }
+            if (!"ZZ 1003 CC".equals(String.valueOf(tabel.getValueAt(0, 0)))) {
+                System.out.println("        yang tersisa bukan truk terpakai: " + tabel.getValueAt(0, 0));
+                return false;
+            }
+            return true;
+        } finally {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:uitest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+        }
+    }
+
+    /**
+     * Dialog pemilik memegang satu-satunya jalan mengganti nama pemilik yang salah ketik.
+     *
+     * <p>Nama rental dibaca laporan lewat relasi, jadi mengganti nama harus MENULIS ULANG
+     * barisnya, bukan melahirkan pemilik kedua: kalau menjadi dua, rekap uang per pemilik
+     * terpecah permanen tanpa satu pun pesan. Pemilik yang sudah dipakai truk juga tidak
+     * boleh bisa dihapus - kunci tamunya ON DELETE SET NULL, jadi DELETE-nya sendiri
+     * tidak gagal, diam-diam melepaskan seluruh truknya dari pemiliknya.
+     */
+    private static boolean gantiNamaPemilik() throws Exception {
+        Db.setConfiguration("org.h2.Driver",
+                "jdbc:h2:mem:uitest-pemilik;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa", "");
+        try {
+            // Satu pemilik dengan satu truk: namanya mau diganti, dan karena sudah
+            // dipakai truk, penghapusannya harus ditolak.
+            MasterDao dao = new MasterDao();
+            Rental pemilik = new Rental();
+            pemilik.setRentalName("Rental Salah Ketik");
+            dao.saveRental(pemilik);
+            int idPemilik = idRental(dao, "Rental Salah Ketik");
+            Truck t = new Truck();
+            t.setPlate("ZZ 3131 XX");
+            t.setRentalId(idPemilik);
+            dao.saveTruck(t);
+
+            DialogPemilik panel = new DialogPemilik();
+            JTable tabel = (JTable) field(panel, "tableRental");
+            if (tabel.getRowCount() != 1) {
+                System.out.println("        pemilik uji tidak termuat: " + tabel.getRowCount()
+                        + " baris, seharusnya 1");
+                return false;
+            }
+
+            // Persis seperti operator: barisnya dipilih dulu (menyorotinya mengisi kotak
+            // namanya), lalu nama barunya diketik, lalu Simpan Perubahan ditekan.
+            tabel.setRowSelectionInterval(0, 0);
+            isi(panel, "fNama", "Rental Benar Ketik");
+            try {
+                klik(panel, "ubah");
+            } catch (Exception e) {
+                Throwable sebab = e.getCause() == null ? e : e.getCause();
+                System.out.println("        mengganti nama pemilik gagal: " + sebab);
+                return false;
+            }
+
+            // Nama di barisnya berubah, tetapi jumlah pemiliknya tidak: ganti nama,
+            // bukan pemilik baru.
+            if (tabel.getRowCount() != 1) {
+                System.out.println("        ganti nama menambah baris: " + tabel.getRowCount()
+                        + ", seharusnya 1");
+                return false;
+            }
+            String tampil = String.valueOf(tabel.getValueAt(0, 0));
+            if (!"Rental Benar Ketik".equals(tampil)) {
+                System.out.println("        nama di barisnya masih \"" + tampil + "\"");
+                return false;
+            }
+            java.util.List<Rental> sesudah = dao.listRental();
+            if (sesudah.size() != 1) {
+                System.out.println("        pemilik menjadi " + sesudah.size()
+                        + " di database, seharusnya 1");
+                return false;
+            }
+            if (sesudah.get(0).getRentalId() != idPemilik
+                    || !"Rental Benar Ketik".equals(sesudah.get(0).getRentalName())) {
+                System.out.println("        nama pemilik tidak tertulis ulang: id="
+                        + sesudah.get(0).getRentalId() + ", nama=\""
+                        + sesudah.get(0).getRentalName() + "\"");
+                return false;
+            }
+
+            // Pemilik yang sudah dipakai truk tidak boleh bisa dihapus.
+            String penolakan = dao.rentalDeleteRefusal(idPemilik);
+            if (penolakan == null) {
+                System.out.println("        pemilik yang masih punya truk boleh dihapus");
+                return false;
+            }
+            return true;
+        } finally {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:uitest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+        }
     }
 
     /** Id truk menurut platnya, atau 0 kalau tidak ada. */

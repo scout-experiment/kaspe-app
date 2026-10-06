@@ -93,12 +93,15 @@ public class BuatPratinjau {
                 "Ringkasan catatan pengiriman singkong.");
         gambar("01-dashboard.png");
 
-        // Data master - sekarang dialog, bukan halaman: satu tabel semua truk plus satu
-        // baris isian. Isinya memang JPanel, jadi cukup digambar di susunan jendela yang
-        // sama tanpa membuka JDialog (yang butuh layar dan akan gagal di sini).
-        halaman.showPanel(new DialogDataMaster(), "Data Master",
-                "Kelola pemilik truk dan plat nomornya.");
-        gambar("04-master.png");
+        // Data master - sekarang dialog, bukan halaman. Digambar SEBAGAI dialog: panelnya
+        // melayang di atas halaman Transaksi yang diredupkan, dengan bilah judulnya sendiri.
+        //
+        // Digambar sebagai halaman (lewat showPanel) hasilnya justru berbohong: bilah atas
+        // menulis "Data Master" dan sorotan menu ikut pindah, sehingga gambarnya persis
+        // seperti halaman yang masih ada - padahal kelasnya sudah dihapus. Isinya memang
+        // JPanel, jadi cukup digambar melayang tanpa membuka JDialog (yang butuh layar).
+        halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
+        gambarDialog("04-master.png", new DialogDataMaster(), 760, 560);
 
         // Laporan - filter bawaan sudah mencakup seluruh data
         halaman.showPanel(new PanelReport(), "Laporan", "Rekap penjualan per periode.");
@@ -193,6 +196,68 @@ public class BuatPratinjau {
         g.setColor(Theme.CANVAS);
         g.fillRect(0, 0, LEBAR, TINGGI);
         layar.paint(g);
+        g.dispose();
+
+        File f = KELUAR.resolve(nama).toFile();
+        ImageIO.write(img, "png", f);
+        System.out.println("   " + nama + " (" + f.length() + " bytes)");
+    }
+
+    /**
+     * Gambar sebuah dialog di atas halaman yang sedang terbuka, dengan latarnya diredupkan.
+     *
+     * <p>Jendela sungguhannya tidak dibuat: {@code JDialog} butuh layar dan alat ini
+     * berjalan tanpa layar. Yang digambar adalah panel isinya, ditambah bilah judul -
+     * supaya gambarnya memperlihatkan dialog, bukan halaman yang kebetulan berisi hal
+     * yang sama.
+     */
+    static void gambarDialog(String nama, JPanel isi, int lebarDialog, int tinggiDialog) throws Exception {
+        layar.setSize(LEBAR, TINGGI);
+        layar.doLayout();
+        layoutDalam(layar);
+        layar.setSize(LEBAR, TINGGI);
+        layar.doLayout();
+        layoutDalam(layar);
+
+        JPanel panel = Theme.card();
+        panel.setLayout(new BorderLayout());
+        JLabel judul = new JLabel("Kelola Data Truk");
+        judul.setFont(Theme.semibold(Theme.FONT_SIZE + 1f));
+        judul.setForeground(Theme.INK);
+        judul.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        JPanel bilah = new JPanel(new BorderLayout());
+        bilah.setOpaque(false);
+        bilah.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.LINE));
+        bilah.add(judul, BorderLayout.WEST);
+        JLabel silang = new JLabel("\u00d7");
+        silang.setForeground(Theme.INK_SOFT);
+        silang.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 14));
+        bilah.add(silang, BorderLayout.EAST);
+        panel.add(bilah, BorderLayout.NORTH);
+        isi.setOpaque(false);
+        isi.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
+        isi.setPreferredSize(new Dimension(lebarDialog - 2, tinggiDialog - 50));
+        panel.add(isi, BorderLayout.CENTER);
+        panel.setSize(lebarDialog, tinggiDialog);
+        layoutDalam(panel);
+
+        BufferedImage img = new BufferedImage(LEBAR, TINGGI, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setColor(Theme.CANVAS);
+        g.fillRect(0, 0, LEBAR, TINGGI);
+        layar.paint(g);
+        // Redupkan halaman di belakang, seperti jendela modal sungguhan.
+        g.setColor(new Color(0, 0, 0, 90));
+        g.fillRect(0, 0, LEBAR, TINGGI);
+        int x = (LEBAR - lebarDialog) / 2;
+        int y = (TINGGI - tinggiDialog) / 2;
+        g.setColor(new Color(0, 0, 0, 60));
+        g.fillRoundRect(x + 4, y + 6, lebarDialog, tinggiDialog, 16, 16);
+        g.translate(x, y);
+        panel.paint(g);
+        g.translate(-x, -y);
         g.dispose();
 
         File f = KELUAR.resolve(nama).toFile();

@@ -217,14 +217,20 @@ starts with `DELETE`, so it wipes the target database.
   share one button. `pindahTruk` MUST re-read the plate from the stored truck, never from
   `fPlat`: the box can be emptied, and an empty `String` satisfies `NOT NULL` — that once
   silently erased a truck's plate. "Hapus" is bulk (multi-select) and consults
-  `truckDeleteRefusal` for EVERY selected row BEFORE deleting any: each
+  `truckDeleteRefusal` for EVERY selected row BEFORE deleting any — the refusal set comes
+  from the package-private `platTerhalang(List<Truck>)`, deliberately returning a list rather
+  than showing the message itself, because a `JOptionPane` throws under `HeadlessException`
+  and a guard that cannot observe the outcome is no guard at all; each
   `MasterDao.deleteTruck` call opens its own connection and commits on its own, so
   one-by-one deletion is NOT atomic — if row 3 is refused after rows 1–2 are gone, the
   operator cannot reconstruct the half-deleted list. One refusal aborts the whole batch. The
   "×" button beside the plate box deletes whichever truck the typed plate matches (same
   refusal + confirmation path). "Kelola Pemilik..." in the footer opens `DialogPemilik`
   (add / rename / delete owners); renames propagate through the join so history follows, and
-  deletes are refused while the owner still owns trucks.
+  deletes are refused while the owner still owns trucks. Adding a truck checks the plate
+  BEFORE creating the owner: `pastikanRental` commits on its own connection, so creating the
+  owner first and then failing on a duplicate plate would leave an owner with no trucks —
+  litter that shows up in every owner dropdown and splits nothing but confuses everything.
 - **Dashboard is four stat cards, two rows of two, pinned to the top**: the big number keeps
   its all-time meaning and the month-to-date figure (`totalAmount(withDayOfMonth(1), now)`)
   goes in the caption — do not move the month figure into the headline, since changing a
@@ -430,7 +436,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 58 — **328 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 60 — **330 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

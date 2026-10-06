@@ -347,6 +347,14 @@ public class DialogDataMaster extends JPanel {
             return;
         }
         try {
+            // Plat diperiksa DULU, sebelum pemiliknya dibuat. Membuat pemilik lebih dulu
+            // lalu gagal menyimpan truknya meninggalkan pemilik tanpa truk sama sekali -
+            // pengotor yang sudah pernah nyata di aplikasi ini, dan ia langsung muncul di
+            // setiap kotak pilihan pemilik di seluruh aplikasi.
+            if (cariTruk(plat) != null) {
+                setStatus("Plat \"" + Truck.normalizePlate(plat) + "\" sudah terdaftar.");
+                return;
+            }
             Rental pemilik = pastikanRental(nama);
             Truck t = new Truck();
             t.setPlate(plat);
@@ -469,50 +477,93 @@ public class DialogDataMaster extends JPanel {
      * terhalang.
      */
     private void hapusTruk() {
-        List<Truck> dipilih = new ArrayList<>();
-        for (int baris : tableTruk.getSelectedRows()) {
-            dipilih.add(truk.get(tableTruk.convertRowIndexToModel(baris)));
-        }
+        List<Truck> dipilih = trukTerpilih();
         if (dipilih.isEmpty()) {
             setStatus("Pilih dulu truk yang mau dihapus.");
             return;
         }
         try {
-            List<String> terhalang = new ArrayList<>();
-            for (Truck t : dipilih) {
-                String penolakan = dao.truckDeleteRefusal(t.getTruckId());
-                if (penolakan != null) {
-                    terhalang.add(t.getPlate());
+            List<String> terhalang = platTerhalang(dipilih);
+            if (!terhalang.isEmpty()) {
+                if (!GraphicsEnvironment.isHeadless()) {
+                    JOptionPane.showMessageDialog(this,
+                            "Tidak ada yang dihapus. Plat berikut masih dipakai catatan pengiriman: "
+                                    + String.join(", ", terhalang)
+                                    + ".\n\nMenghapusnya akan menghilangkan platnya dari catatan yang "
+                                    + "sudah ada, termasuk laporan yang sudah dicetak.",
+                            "Tidak bisa dihapus", JOptionPane.INFORMATION_MESSAGE);
+                }
+                return;
+            }
+            // Tanpa layar tidak ada operator yang bisa menjawab; penghapusan dianggap
+            // boleh saja supaya jalurnya tetap teruji - sama seperti perpindahan halaman
+            // di NavBar.bolehTinggalkanTransaksi. Yang penting pemeriksaan di atas tetap
+            // berjalan, jadi yang terhalang tetap tidak ikut terhapus.
+            if (!GraphicsEnvironment.isHeadless()) {
+                String pesan = dipilih.size() == 1
+                        ? "Hapus truk " + dipilih.get(0).getPlate() + "?"
+                        : "Hapus " + dipilih.size() + " truk sekaligus?";
+                if (JOptionPane.showConfirmDialog(this, pesan, "Konfirmasi",
+                        JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+                    return;
                 }
             }
-            if (!terhalang.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "Tidak ada yang dihapus. Plat berikut masih dipakai catatan pengiriman: "
-                                + String.join(", ", terhalang)
-                                + ".\n\nMenghapusnya akan menghilangkan platnya dari catatan yang sudah "
-                                + "ada, termasuk laporan yang sudah dicetak.",
-                        "Tidak bisa dihapus", JOptionPane.INFORMATION_MESSAGE);
-                return;
-            }
-            String pesan = dipilih.size() == 1
-                    ? "Hapus truk " + dipilih.get(0).getPlate() + "?"
-                    : "Hapus " + dipilih.size() + " truk sekaligus?";
-            if (JOptionPane.showConfirmDialog(this, pesan, "Konfirmasi",
-                    JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
-                return;
-            }
-            for (Truck t : dipilih) {
-                dao.deleteTruck(t.getTruckId());
-            }
+            hapusSekaligus(dipilih);
             setStatus("");
             muat();
         } catch (IllegalStateException e) {
             // Penolakan yang disengaja, bukan galat: tidak ada yang berubah, jadi prefiks
             // "Gagal: " dari Theme.showError akan terbaca seperti programnya rusak.
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
-                    JOptionPane.INFORMATION_MESSAGE);
+            tolak(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
+        }
+    }
+
+    /**
+     * Tampilkan alasan penolakan, atau diam saja tanpa layar.
+     *
+     * <p>Tanpa layar, jendela pesan melempar {@code HeadlessException} dan jalur ini
+     * berhenti sebelum hasilnya bisa diperiksa. Diam di sini bukan menutupi kegagalan:
+     * yang menolak adalah pemeriksaan di atasnya, dan itu tetap berjalan.
+     */
+    private void tolak(String pesan) {
+        if (!GraphicsEnvironment.isHeadless()) {
+            JOptionPane.showMessageDialog(this, pesan, "Tidak bisa dihapus",
+                    JOptionPane.INFORMATION_MESSAGE);
+        }
+    }
+
+    /** Truk yang barisnya sedang dipilih, urut dari atas. */
+    List<Truck> trukTerpilih() {
+        List<Truck> dipilih = new ArrayList<>();
+        for (int baris : tableTruk.getSelectedRows()) {
+            dipilih.add(truk.get(tableTruk.convertRowIndexToModel(baris)));
+        }
+        return dipilih;
+    }
+
+    /**
+     * Plat yang TIDAK boleh dihapus dari daftar terpilih.
+     *
+     * <p>Dikembalikan sebagai daftar, bukan ditampilkan langsung ke jendela pesan, supaya
+     * aturannya bisa diperiksa tanpa layar - jendela pesan melempar {@code HeadlessException}
+     * dan pemeriksaan yang tidak bisa diamati sama saja tidak ada.
+     */
+    List<String> platTerhalang(List<Truck> dipilih) throws Exception {
+        List<String> terhalang = new ArrayList<>();
+        for (Truck t : dipilih) {
+            if (dao.truckDeleteRefusal(t.getTruckId()) != null) {
+                terhalang.add(t.getPlate());
+            }
+        }
+        return terhalang;
+    }
+
+    /** Hapus seluruh daftar, tanpa dialog apa pun. Pemanggilnya yang memutuskan lebih dulu. */
+    void hapusSekaligus(List<Truck> dipilih) throws Exception {
+        for (Truck t : dipilih) {
+            dao.deleteTruck(t.getTruckId());
         }
     }
 
@@ -521,12 +572,12 @@ public class DialogDataMaster extends JPanel {
         try {
             String penolakan = dao.truckDeleteRefusal(t.getTruckId());
             if (penolakan != null) {
-                JOptionPane.showMessageDialog(this, penolakan, "Tidak bisa dihapus",
-                        JOptionPane.INFORMATION_MESSAGE);
+                tolak(penolakan);
                 return;
             }
-            if (JOptionPane.showConfirmDialog(this, "Hapus truk " + t.getPlate() + "?",
-                    "Konfirmasi", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
+            if (!GraphicsEnvironment.isHeadless()
+                    && JOptionPane.showConfirmDialog(this, "Hapus truk " + t.getPlate() + "?",
+                            "Konfirmasi", JOptionPane.YES_NO_OPTION) != JOptionPane.YES_OPTION) {
                 return;
             }
             dao.deleteTruck(t.getTruckId());
@@ -534,8 +585,7 @@ public class DialogDataMaster extends JPanel {
             fPlat.setText("");
             muat();
         } catch (IllegalStateException e) {
-            JOptionPane.showMessageDialog(this, e.getMessage(), "Tidak bisa dihapus",
-                    JOptionPane.INFORMATION_MESSAGE);
+            tolak(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
         }
