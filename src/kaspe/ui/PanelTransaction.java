@@ -464,10 +464,8 @@ public class PanelTransaction extends JPanel {
 
         // Penyerap sisa lebar. Kotak ini melebar mengikuti kolomnya, dan GridBagLayout
         // MENENGAHKAN isinya di kelebihan lebar itu - jadi tulisan "Berat Bersih" bergeser
-        // mengikuti lebar kotak, bukan menempel di jarak tepinya. Akibatnya tombol di
-        // bawahnya tidak bisa dipasang sejajar dengan tulisan itu: begitu lebar kolomnya
-        // berubah, tulisan ikut bergeser sementara tombolnya tidak. Dengan penyerap ini,
-        // tulisannya terpaku di jarak tepi yang tetap.
+        // mengikuti lebar kotak, bukan menempel di jarak tepinya. Dengan penyerap ini,
+        // tulisannya terpaku di jarak tepi yang tetap, berapa pun lebar kotaknya.
         g.gridy = 0;
         g.gridx = 1;
         g.weightx = 1;
