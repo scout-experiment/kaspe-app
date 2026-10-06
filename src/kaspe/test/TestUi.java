@@ -1830,6 +1830,13 @@ public class TestUi {
         JPanel besar = new JPanel();
         besar.setPreferredSize(new Dimension(lebar + 400, tinggi + 400));
         java.awt.Dimension melebar = produsen.apply(besar);
+        // Terlihat seperti tidak bisa gagal — lagipula ukuranJendela memang max(lantai, isi),
+        // jadi dengan isi selebar ini jawabannya pasti lebar+400. Tetapi yang diuji di sini
+        // BUKAN aritmetika itu, melainkan janjinya: jendela mengikuti isinya, bukan berhenti
+        // di lantainya. Ganti ukuranJendela menjadi "return new Dimension(LEBAR_MINIMUM,
+        // TINGGI_MINIMUM)" dan pemeriksaan inilah yang menangkapnya — tanpa ini, lantainya
+        // bisa berubah jadi ukuran mati dan isi dialognya terpotong tanpa ada yang berbunyi.
+        // Jangan dihapus karena "tidak bisa gagal": ia gagal pada kerusakan yang masuk akal.
         if (melebar.width < lebar + 400 || melebar.height < tinggi + 400) {
             System.out.println("        " + nama + ": isi " + (lebar + 400) + "x" + (tinggi + 400)
                     + " digambar pada jendela " + melebar.width + "x" + melebar.height

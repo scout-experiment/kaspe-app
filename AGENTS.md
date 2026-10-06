@@ -298,9 +298,11 @@ starts with `DELETE`, so it wipes the target database.
 - **Grid columns must be declared, not inherited.** A `GridBagLayout` widens each column to its
   widest cell, so two rows with different cell widths get unequal columns and a hole appears mid-row —
   row 2 of `PanelTransaction`'s input grid once left 151px open between "Refraksi" and "Harga".
-  The grid names its four column widths (`KOL0`–`KOL3`) as *minimums*, gives every cell its column's
-  minimum, and sets `fill = HORIZONTAL` so no cell is narrower than its column. Both rows then end on
-  the same x. `fill = NONE` was tried first and is what produced the hole: a control narrower than its
+  The grid names its four column widths (`KOL0`–`KOL3`) as *minimums* and sets `fill = HORIZONTAL` so
+  no cell is narrower than its column. The six plain fields get `sized(..., KOLn)`; the two composite
+  cells (the plate row and the paid-date row) are left unpinned so they set their column's width
+  themselves — see the next bullet for why pinning them clips the button. Both rows then end on the
+  same x. `fill = NONE` was tried first and is what produced the hole: a control narrower than its
   column simply leaves the rest of the column empty. `TestUi` compares **rendered** widths per column,
   which is non-vacuous precisely because a cell that is not stretched shrinks below its column.
 - **Never pin a composite cell to its exact content width.** `sized(row, N)` on a row that contains a
