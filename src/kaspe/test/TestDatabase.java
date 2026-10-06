@@ -142,6 +142,7 @@ public class TestDatabase {
             record(Schema.tableExists(c, "truk"), "tabel truk terbuat");
             record(Schema.tableExists(c, "transaksi"), "tabel transaksi terbuat");
             record(Schema.tableExists(c, "transaksi_detail"), "tabel transaksi_detail terbuat");
+            record(Schema.tableExists(c, "pengguna"), "tabel pengguna terbuat");
 
             // Dijalankan lagi: tidak boleh gagal, dan tabelnya tidak boleh bertambah.
             Schema.ensure(c);

@@ -2,10 +2,12 @@ package kaspe.test;
 
 import kaspe.Db;
 import kaspe.Schema;
+import kaspe.Sandi;
 import kaspe.Calculator;
 import kaspe.dao.BackupDao;
 import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
+import kaspe.dao.UserDao;
 import kaspe.model.*;
 
 import java.io.File;
@@ -756,6 +758,8 @@ public class TestDao {
         ujiCadangkan();
         System.out.println("\n13. Cadangan sungguhan tertulis sebagai file zip ...");
         ujiCadangkanFile();
+        System.out.println("\n14. Akun pengguna: sandi, masuk, ubah, hapus ...");
+        ujiPengguna();
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         if (failed > 0) {
             System.exit(1);
@@ -1097,6 +1101,64 @@ public class TestDao {
                 st.execute(sql);
             }
         }
+    }
+
+    /** Uji akun pengguna: penyandian sandi, masuk, ubah, hapus. */
+    private static void ujiPengguna() throws Exception {
+        UserDao users = new UserDao();
+
+        // Penyandian murni: garam acak per pemanggilan, hasilnya bisa dicocokkan.
+        String salt1 = Sandi.saltBaru();
+        String salt2 = Sandi.saltBaru();
+        record(!salt1.equals(salt2), "garam baru selalu berbeda");
+        String hash1 = Sandi.hash("rahasia123", salt1);
+        record(Sandi.cocok("rahasia123", salt1, hash1), "sandi yang benar diterima");
+        record(!Sandi.cocok("rahasia124", salt1, hash1), "sandi yang salah ditolak");
+        record(!Sandi.hash("rahasia123", salt2).equals(hash1),
+                "garam berbeda menghasilkan hasil sandi berbeda");
+        record(!Sandi.cocok("rahasia123", salt1, "bukan base64"),
+                "hasil sandi yang rusak tidak dianggap cocok");
+
+        record(users.jumlah() == 0, "mulai tanpa akun tercatat");
+        users.simpan("admin", "rahasia123", Pengguna.ADMIN);
+        users.simpan("budi", "sandi4567", Pengguna.USER);
+        record(users.jumlah() == 2, "dua akun tersimpan");
+
+        Pengguna masuk = users.masuk("admin", "rahasia123");
+        record(masuk != null && masuk.admin(), "masuk dengan sandi benar mengembalikan admin");
+        record(users.masuk("admin", "salahsekali") == null, "sandi salah ditolak");
+        record(users.masuk("tiada", "apa pun") == null, "nama yang tidak dikenal ditolak");
+
+        boolean kembarDitolak = false;
+        try {
+            users.simpan("Admin", "sandi7890", Pengguna.USER);
+        } catch (IllegalArgumentException e) {
+            kembarDitolak = e.getMessage() != null && e.getMessage().contains("sudah dipakai");
+        }
+        record(kembarDitolak, "nama kembar ditolak dengan pesan yang terbaca");
+
+        Pengguna admin = users.cari("admin");
+        record(admin != null && "admin".equals(admin.getNama()), "cari menemukan menurut namanya");
+        record(users.cari("tiada") == null, "cari nama yang tidak ada mengembalikan null");
+
+        List<Pengguna> daftar = users.list();
+        record(daftar.size() == 2 && "admin".equals(daftar.get(0).getNama())
+                        && "budi".equals(daftar.get(1).getNama()),
+                "daftar akun diurut menurut nama");
+
+        // Ubah tanpa sandi baru: sandi lamanya tetap berlaku.
+        Pengguna budi = users.cari("budi");
+        users.ubah(budi.getId(), "budi", Pengguna.USER, null);
+        record(users.masuk("budi", "sandi4567") != null,
+                "ubah tanpa sandi baru membiarkan sandi lama berlaku");
+        // Ubah dengan sandi baru: yang lama mati, yang baru hidup.
+        users.ubah(budi.getId(), "budi", Pengguna.USER, "sandi9999");
+        record(users.masuk("budi", "sandi4567") == null, "sandi lama tidak berlaku lagi");
+        record(users.masuk("budi", "sandi9999") != null, "sandi baru berlaku");
+
+        // Hapus benar-benar menghapus.
+        users.hapus(budi.getId());
+        record(users.cari("budi") == null && users.jumlah() == 1, "hapus benar-benar menghapus");
     }
 
     private static void record(boolean ok, String name) {

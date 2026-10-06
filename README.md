@@ -82,9 +82,11 @@ export JAVA_HOME=/path/ke/jdk1.8.0_171
 Kalau ini pertama kalinya di komputermu, ikuti [Memasang di Windows](#memasang-di-windows) — di
 situ langkahnya lengkap, mulai dari memasang JDK 8-nya.
 
-Saat pertama kali dijalankan, aplikasi membuat sendiri database beserta seluruh tabelnya.
-Tidak ada langkah persiapan, dan tidak ada login — aplikasi langsung terbuka di halaman
-pembuka.
+Saat pertama kali dijalankan, aplikasi membuat sendiri database beserta seluruh tabelnya —
+tidak ada langkah persiapan. Yang terbuka lebih dulu adalah layar masuk: pada pemakaian
+pertama, layar yang sama sekalian menjadi pembuat akun admin pertama (nama, sandi, dan
+ulangi sandinya); setelah itu, setiap kali dibuka, aplikasi meminta nama pengguna dan sandi
+sebelum halaman pembukanya terbuka.
 
 ### 2. Letak data dan cara mencadangkan
 
@@ -228,7 +230,8 @@ compile.bat
 
 ### 5. Jalankan
 
-Klik dua kali `run-app.bat`. Jendela aplikasi akan terbuka di halaman pembuka.
+Klik dua kali `run-app.bat`. Jendela aplikasi terbuka di layar masuk; setelah berhasil masuk,
+halaman pembuka terbuka.
 
 Langkah 4 **tidak perlu diulang setiap hari** — `compile.bat` hanya perlu dijalankan lagi kalau
 kodenya diubah. Untuk pemakaian sehari-hari, cukup klik `run-app.bat`.
@@ -284,6 +287,15 @@ cukup nyalakan server MySQL-nya.
 
 ## Fitur utama
 
+- **Masuk dengan akun dan peran** — aplikasi terbuka di layar masuk; pemakaian pertama
+  sekalian membuat akun admin pertama (nama, sandi, ulangi sandi; sandi minimal 4 karakter).
+  Ada dua peran: **Admin** boleh mengelola akun di halaman Pengguna (tambah, ubah nama, peran,
+  atau sandi, hapus), sedangkan peran **Pengguna** mencatat transaksi dan melihat laporan
+  tanpa melihat halaman itu — bilah sisinya pun tidak memuat entri Pengguna. Sandi tidak
+  disimpan apa adanya, melainkan sebagai hasil penyandian PBKDF2 dengan garam sendiri per
+  akun. Gagal masuk selalu memunculkan satu pesan yang sama ("Nama atau sandi salah.") supaya
+  tidak ketahuan nama mana yang tercatat. Admin terakhir dan akun yang sedang dipakai tidak
+  bisa dihapus, supaya buku catatan tidak mengunci dirinya sendiri.
 - **Halaman pembuka** — empat kartu ringkasan: jumlah pengiriman, total uang (beserta uang
   bulan berjalan), total berat bersih, dan truk terdaftar.
 - **Satu pengiriman, satu catatan** — mengisi form lalu menekan Simpan langsung menulis ke
@@ -352,6 +364,12 @@ cukup nyalakan server MySQL-nya.
   berapa halaman dan di mana halamannya terpotong.
 - **Tampilan seragam** — memakai tema FlatLaf, jadi bentuk jendela sama di Windows maupun Linux,
   tidak ikut berganti mengikuti sistem operasi.
+
+> [!IMPORTANT]
+> Sandi tidak bisa dipulihkan dari dalam aplikasi. Kalau satu-satunya admin lupa sandinya,
+> tidak ada jalan masuk yang bisa dibuka lewat aplikasi — akun itu harus dibereskan langsung
+> di database-nya. Karena itu catat sandi admin di tempat yang aman. Tidak ada juga tombol
+> keluar (logout); menutup jendela aplikasi mengakhiri sesi.
 
 ---
 
@@ -628,11 +646,11 @@ pemasangan apa pun.
 | Berkas uji | Cakupan | Hasil |
 |------------|---------|-------|
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
-| `TestDatabase` | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 56 lulus |
-| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa) | 93 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 62 lulus |
+| `TestDatabase` | pembuatan tabel otomatis (termasuk tabel pengguna), skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 57 lulus |
+| `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa), akun pengguna (masuk dengan sandi benar/salah, garam berbeda menghasilkan hasil sandi berbeda, ubah nama/peran/sandi, ganti sandi tanpa menimpa yang lama, hapus) | 111 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping (menu Pengguna tampil untuk admin dan tidak tampil untuk pengguna biasa), pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik, layar masuk (pembuatan admin pertama, pesan gagal masuk yang selalu sama), dan penolakan hapus admin terakhir | 78 lulus |
 | `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul; batas di luar jangkauan data dirapikan; jangkauan yang gagal dibaca tidak menggeser batas), catatan tersembunyi oleh saringan diberitahu, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **341 lulus, 0 gagal** |
+| **Total** | | **369 lulus, 0 gagal** |
 
 ---
 
@@ -645,12 +663,14 @@ kaspe-app/
     Db.java                koneksi database
     Schema.java            pembuat tabel otomatis (dari schema.sql di dalam aplikasi)
     Calculator.java        mesin hitung (berat bersih, jumlah uang, susut)
+    Sandi.java             penyandi sandi (PBKDF2 + garam per akun)
     model/                 kelas data (Rental, Truck, Transaction,
-                           TransactionDetail, ReportRow)
-    dao/                   akses database (MasterDao, TransactionDao)
+                           TransactionDetail, ReportRow, Pengguna)
+    dao/                   akses database (MasterDao, TransactionDao, UserDao)
     ui/                    tampilan (MainFrame, NavBar, PagePanel, HeaderBar, Icons,
-                           PanelDashboard, PanelTransaction, DialogDataMaster,
-                           DialogPemilik, PanelReport, Theme)
+                           DialogLogin, PanelDashboard, PanelTransaction,
+                           DialogDataMaster, DialogPemilik, PanelReport,
+                           PanelPengguna, Theme)
     util/                  bantu (Dates)
     test/                  uji otomatis
   src/kaspe.properties     pengaturan database (bawaan: H2, tanpa install)

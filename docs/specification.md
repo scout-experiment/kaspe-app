@@ -8,8 +8,9 @@ Sistem informasi pencatatan transaksi singkong berbasis desktop. Mencatat setiap
 singkong per truk, menghitung berat bersih setelah potongan (refraksi), menghitung jumlah uang
 yang harus dibayar, dan menyajikan laporan per periode.
 
-Sistem menggantikan pencatatan manual pada buku tulis. Aplikasi dipakai oleh satu orang
-pengelola di satu komputer.
+Sistem menggantikan pencatatan manual pada buku tulis. Aplikasi dipakai lewat akun bernama
+yang dilindungi sandi: setiap pemakaian dimulai dari layar masuk, dengan dua peran — Admin
+(boleh mengelola akun pengguna) dan Pengguna (mencatat transaksi dan melihat laporan).
 
 ## 2. Kebutuhan fungsional
 
@@ -29,6 +30,8 @@ pengelola di satu komputer.
 | F-08a | Sistem dapat membuat cadangan database bawaan (H2) ke berkas bertanggal tanpa menimpa cadangan sebelumnya. Pada MySQL/MariaDB, pencadangan otomatis tidak dilakukan dan hal itu diberitahukan |
 | F-08b | Sistem menolak dibuka kalau berkas setelannya ada tetapi tidak memuat letak database, disertai penjelasan berkas mana yang bermasalah dan jalan keluarnya |
 | F-09 | Sistem menampilkan susut (selisih bobot lapak dan bobot pabrik) |
+| F-10 | Sistem meminta nama pengguna dan sandi sebelum halaman apa pun terbuka. Pada pemakaian pertama (tabel pengguna masih kosong), layar yang sama berubah menjadi pembuat admin pertama: nama, sandi, dan ulangi sandi (sandi minimal 4 karakter, keduanya harus sama). Gagal masuk selalu memunculkan satu pesan yang sama ("Nama atau sandi salah."), baik namanya tidak tercatat maupun sandinya salah, supaya tidak ketahuan nama mana yang tercatat |
+| F-11 | Sistem mengelola akun pengguna pada halaman Pengguna, yang hanya ditambahkan ke bilah samping untuk Admin: tambah akun, ubah nama, peran, atau sandi, dan hapus. Penghapusan ditolak kalau akunnya admin terakhir atau akun yang sedang dipakai masuk |
 
 ## 3. Kebutuhan non-fungsional
 
@@ -42,6 +45,7 @@ pengelola di satu komputer.
 | N-05 | Tabel database dibuat sendiri oleh aplikasi saat pertama kali dijalankan |
 | N-06 | Aplikasi dapat diarahkan ke MySQL/MariaDB lewat berkas pengaturan, untuk pemakaian beberapa komputer |
 | N-07 | Kalau berkas pengaturan ada tetapi tidak memuat letak database, aplikasi MENOLAK dibuka dan menjelaskan berkas mana yang bermasalah beserta jalan keluarnya. Aplikasi tidak pernah diam-diam memakai database lain daripada yang dimaksud penggunanya. Penolakan itu tidak membuat atau mengubah apa pun |
+| N-08 | Sandi tidak pernah tersimpan apa adanya: yang tercatat adalah hasil PBKDF2WithHmacSHA256 (100.000 putaran, kunci 256 bit) dengan garam acak segar 16 bita per akun, dan pemeriksaannya memakai perbandingan yang lamanya tetap. Semuanya dari pustaka bawaan Java, tanpa kebergantungan baru |
 
 ## 4. Aturan perhitungan
 
@@ -61,7 +65,7 @@ Skema lengkapnya ada di `src/kaspe/schema.sql`, ditulis dalam bentuk yang dimeng
 maupun MySQL. Aplikasi menjalankannya sendiri saat pertama kali dipakai, jadi tabel-tabel
 di bawah ini dibuat otomatis tanpa langkah pemasangan.
 
-Empat tabel dan satu view:
+Lima tabel dan satu view:
 
 | Tabel | Isi | Kunci utama | Relasi |
 |-------|-----|-------------|--------|
@@ -69,13 +73,19 @@ Empat tabel dan satu view:
 | truk | plat nomor | id_truk | id_rental ke rental |
 | transaksi | header nota (tanggal) | id_transaksi | - |
 | transaksi_detail | baris per plat | id_detail | id_transaksi ke transaksi, id_truk ke truk |
+| pengguna | akun masuk: nama, peran, sandi tersandi beserta garamnya | id_pengguna | - (berdiri sendiri) |
 | v_transaksi | view laporan | - | gabungan transaksi + detail + truk + rental |
 
 Relasi:
 
 ```
 rental 1 ---- n truk 1 ---- n transaksi_detail 1 ---- 1 transaksi
+
+pengguna (berdiri sendiri, tidak berelasi)
 ```
+
+Tabel `pengguna` tidak berhubungan dengan tabel transaksi: akun tidak terikat pada rental
+atau truk tertentu.
 
 Satu catatan pengiriman menempati satu baris `transaksi_detail` beserta satu baris
 `transaksi` sebagai tanggalnya. Database lama yang satu tanggalnya memuat beberapa
@@ -86,6 +96,8 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 
 - Lihat ringkasan di halaman pembuka: jumlah pengiriman, total uang beserta uang bulan
   berjalan, total berat bersih, dan truk terdaftar
+- Masuk dengan nama pengguna dan sandi; pemakaian pertama sekalian membuat admin pertama
+- Kelola akun pengguna beserta perannya (khusus Admin)
 - Kelola Truk beserta pemiliknya (Rental) lewat dialog Kelola Data Truk, yang dibuka dari
   tombol ikon di sebelah kotak Plat / Truk pada halaman Transaksi — termasuk mengganti
   nama pemilik atau menghapusnya lewat tombol Kelola Pemilik di dialog itu
@@ -127,6 +139,12 @@ pengiriman dirapikan otomatis saat aplikasi pertama kali dijalankan, sehingga be
 | 7 | Cetak laporan | klik tombol cetak | dialog cetak muncul |
 | 8 | Cadangkan database | klik Cadangkan Database | berkas cadangan bertanggal terbentuk, jalurnya diberitahukan |
 | 9 | Berkas setelan rusak | `kaspe.properties` tanpa `db.url` | aplikasi menolak dibuka, menjelaskan berkas dan jalan keluarnya; database tidak tersentuh |
+| 10 | Masuk | nama dan sandi yang benar | halaman pembuka terbuka sesuai peran akunnya |
+| 10a | Gagal masuk karena nama tidak tercatat | nama yang tidak ada di tabel pengguna | ditolak dengan pesan "Nama atau sandi salah." — sama seperti kalau sandinya salah, tidak mengungkapkan ada tidaknya nama itu |
+| 10b | Buat admin pertama | pemakaian pertama: nama, sandi, ulangi sandi | admin pertama tercatat dan langsung masuk; sandi di bawah 4 karakter atau ulangannya berbeda ditolak |
+| 10c | Hapus admin terakhir | akun admin yang tersisa satu-satunya | ditolak dengan pesan berbahasa Indonesia |
+| 10d | Hapus akun yang sedang dipakai | akun yang sedang masuk | ditolak dengan pesan berbahasa Indonesia |
+| 10e | Halaman Pengguna untuk peran Pengguna | masuk dengan peran Pengguna | entri Pengguna tidak tampil di bilah samping |
 
 ## 8. Hasil pengujian otomatis
 
@@ -135,8 +153,8 @@ Seluruh uji dijalankan lewat `./test.sh` dan lulus tanpa kegagalan:
 | Berkas uji | Cakupan | Hasil |
 |------------|---------|-------|
 | TestCalculator | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
-| TestDatabase | pembuatan tabel otomatis, skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama menjadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman dijalankan berulang) | 56 lulus |
-| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat, penolakan cadangan di luar H2, cadangan sungguhan pada H2 berbasis berkas | 93 lulus |
-| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, berkas CSV menyebut cakupan dan urutannya, panah penanda urut tergambar, judul kolom tidak terpotong saat panah urut tampil, kolom uang dan tanggal terurut menurut nilainya, pengurutan tahan baris belum lunas, kaki cetak menyebut urutan, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, memasang pembanding menyalakan pengurutnya sendiri, rekap per rental menghormati saringan, urutan nama tidak bergantung bahasa komputer, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik | 62 lulus |
+| TestDatabase | pembuatan tabel otomatis (termasuk tabel pengguna), skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama menjadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman dijalankan berulang) | 57 lulus |
+| TestDao | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman (hitungan diulang, tanggal ikut pindah, rental tidak tertimpa), hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (termasuk plat ejaan lama dan rental tanpa beda huruf besar-kecil), penolakan hapus truk/rental yang beriwayat, penolakan cadangan di luar H2, cadangan sungguhan pada H2 berbasis berkas, akun pengguna (penyandian sandi dengan garam berbeda, masuk benar/salah, ubah nama/peran/sandi, hapus) | 111 lulus |
+| TestUi | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, berkas CSV menyebut cakupan dan urutannya, panah penanda urut tergambar, judul kolom tidak terpotong saat panah urut tampil, kolom uang dan tanggal terurut menurut nilainya, pengurutan tahan baris belum lunas, kaki cetak menyebut urutan, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, memasang pembanding menyalakan pengurutnya sendiri, rekap per rental menghormati saringan, urutan nama tidak bergantung bahasa komputer, judul bilah atas ikut pindah halaman, baris menu bilah samping, pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik, layar masuk (pembuatan admin pertama, pesan gagal masuk yang selalu sama), menu Pengguna tampil untuk admin dan tidak tampil untuk pengguna biasa, penolakan hapus admin terakhir | 78 lulus |
 | TestAlur | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul, batas dirapikan), rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **341 lulus, 0 gagal** |
+| **Total** | | **369 lulus, 0 gagal** |

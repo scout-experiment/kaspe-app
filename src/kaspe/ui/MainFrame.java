@@ -1,6 +1,9 @@
 package kaspe.ui;
 
+import kaspe.model.Pengguna;
+
 import javax.swing.*;
+
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -53,9 +56,10 @@ public class MainFrame extends JFrame {
      */
     public static final int TINGGI_MINIMUM = 700;
 
-    private final PagePanel page = new PagePanel();
+    private final PagePanel page;
 
-    public MainFrame() {
+    public MainFrame(Pengguna pengguna) {
+        page = new PagePanel(pengguna);
         setTitle("Aplikasi Pencatatan Kaspe");
         // Menutup jendela tidak langsung keluar: kalau masih ada isian transaksi yang
         // belum disimpan, operator harus ditanya dulu — sama seperti saat pindah halaman.

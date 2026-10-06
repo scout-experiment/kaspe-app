@@ -1,5 +1,7 @@
 package kaspe.ui;
 
+import kaspe.model.Pengguna;
+
 import javax.swing.*;
 import java.awt.*;
 
@@ -13,6 +15,9 @@ public class PagePanel extends JPanel {
 
     private final HeaderBar header = new HeaderBar("Beranda", "");
     private final JPanel content = new JPanel(new BorderLayout());
+    /** Akun yang sedang masuk; menentukan halaman mana yang boleh dibuka. */
+    private final Pengguna pengguna;
+
 
     /**
      * Bilah samping yang harus ikut menandai halaman yang sedang dibuka.
@@ -24,8 +29,9 @@ public class PagePanel extends JPanel {
      */
     private NavBar nav;
 
-    public PagePanel() {
+    public PagePanel(Pengguna pengguna) {
         super(new BorderLayout());
+        this.pengguna = pengguna;
         setBackground(Theme.CANVAS);
 
         content.setOpaque(false);
@@ -77,5 +83,10 @@ public class PagePanel extends JPanel {
         content.add(panel, BorderLayout.CENTER);
         content.revalidate();
         content.repaint();
+    }
+
+    /** Akun yang sedang masuk lewat layar masuk. */
+    Pengguna pengguna() {
+        return pengguna;
     }
 }

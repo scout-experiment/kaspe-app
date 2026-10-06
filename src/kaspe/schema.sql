@@ -82,3 +82,15 @@ FROM transaksi_detail d
 JOIN transaksi t ON t.id_transaksi = d.id_transaksi
 LEFT JOIN truk tr  ON tr.id_truk = d.id_truk
 LEFT JOIN rental r ON r.id_rental = tr.id_rental;
+
+-- 5. PENGGUNA (akun masuk aplikasi)
+--    Sandi tidak disimpan apa adanya: yang tercatat hasil PBKDF2 (lihat kaspe.Sandi)
+--    bersama garamnya sendiri, jadi dua akun bersandi sama tetap tersimpan berbeda.
+CREATE TABLE IF NOT EXISTS pengguna (
+  id_pengguna  INT AUTO_INCREMENT PRIMARY KEY,
+  nama         VARCHAR(60)  NOT NULL UNIQUE,
+  sandi_hash   VARCHAR(120) NOT NULL,
+  sandi_salt   VARCHAR(40)  NOT NULL,
+  peran        VARCHAR(10)  NOT NULL,
+  dibuat       DATE         NOT NULL
+);

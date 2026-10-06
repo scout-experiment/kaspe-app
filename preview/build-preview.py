@@ -15,7 +15,7 @@ FOLDER = pathlib.Path(__file__).resolve().parent
 # (nama file, judul, keterangan)
 GALERI = [
     ("01-dashboard.png", "Halaman pembuka",
-     "Aplikasi dibuka langsung di halaman ini, tanpa login. Isinya empat kartu ringkasan: "
+     "Setelah berhasil masuk, aplikasi membuka halaman ini. Isinya empat kartu ringkasan: "
      "jumlah pengiriman, total uang beserta uang bulan berjalan, total berat bersih, dan truk "
      "terdaftar."),
     ("02-transaction-input.png", "Input transaksi",
@@ -33,6 +33,18 @@ GALERI = [
     ("05-report.png", "Laporan",
      "Filter rentang tanggal, tabel rinci per baris, serta total berat bersih "
      "dan total uang."),
+    ("06-login-pertama.png", "Buat admin pertama",
+     "Pemakaian pertama: tabel pengguna masih kosong, jadi layar masuk yang sama "
+     "berubah menjadi pembuat admin - nama, sandi, dan ulanginya diisi sekali, dan "
+     "akun itu langsung dipakai masuk."),
+    ("07-login.png", "Layar masuk",
+     "Setiap pemakaian dimulai di sini. Gagal masuk memunculkan satu pesan yang sama - "
+     "\"Nama atau sandi salah.\" - apa pun yang kelirunya, supaya nama yang benar-benar "
+     "tercatat tidak ketahuan."),
+    ("08-pengguna.png", "Pengguna",
+     "Hanya dilihat admin: daftar akun beserta perannya, menambah akun, mengubah nama, "
+     "peran, atau sandi, dan menghapus - admin terakhir serta akun yang sedang dipakai "
+     "tidak boleh dihapus."),
 ]
 
 def semat(path: pathlib.Path) -> str:
@@ -300,7 +312,7 @@ footer {
     <p><strong>Ini pratinjau statis, bukan aplikasi yang bisa diklik.</strong></p>
     <p>
       Semua gambar di bawah digambar langsung dari jendela aplikasi yang benar-benar dijalankan,
-      dengan database asli berisi 23 nota contoh ditambah 1 nota (2 baris) yang disimpan saat
+      dengan database asli berisi 64 nota contoh ditambah 3 nota yang disimpan saat
       pengambilan gambar. Tidak ada yang digambar ulang atau direkayasa.
       Untuk memakai aplikasinya sendiri, ikuti bagian <a href="#menjalankan">Menjalankan sendiri</a>.
     </p>
@@ -318,7 +330,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>341 lulus <span>0 gagal</span></dd>
+        <dd>369 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>
@@ -326,11 +338,11 @@ footer {
       </div>
       <div>
         <dt>Baris data contoh</dt>
-        <dd>66 baris <span>23 nota contoh + 1 baru</span></dd>
+        <dd>67 baris <span>64 nota contoh + 3 baru</span></dd>
       </div>
       <div>
         <dt>Selisih rumus</dt>
-        <dd>0 baris <span>dari 66 diperiksa</span></dd>
+        <dd>0 baris <span>dari 67 diperiksa</span></dd>
       </div>
     </dl>
   </section>

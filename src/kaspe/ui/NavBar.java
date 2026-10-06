@@ -35,6 +35,8 @@ public class NavBar extends JPanel {
     private final List<Item> items = new ArrayList<>();
     /** Memastikan hanya satu halaman yang bertanda sedang dibuka. */
     private final ButtonGroup group = new ButtonGroup();
+    /** Halaman yang diberi akun masuknya; halaman Pengguna membutuhkan akun itu. */
+    private final PagePanel page;
     /**
      * Panel transaksi yang disimpan, supaya dipakai lagi saat halamannya dibuka kembali.
      *
@@ -49,7 +51,7 @@ public class NavBar extends JPanel {
 
     private NavBar(PagePanel page) {
         super(new BorderLayout());
-        setBackground(Theme.CARD);
+        this.page = page;
         setPreferredSize(new Dimension(WIDTH, 100));
         setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.LINE));
 
@@ -65,6 +67,12 @@ public class NavBar extends JPanel {
         menu.add(entry(page, "Transaksi", "Catat pengiriman per truk.", Icons.NOTE));
         menu.add(gap(3));
         menu.add(entry(page, "Laporan", "Rekap penjualan per periode.", Icons.CHART));
+        // Halaman pengguna hanya untuk admin: yang bisa membuat dan menghapus akun
+        // seharusnya hanya yang sudah dipercaya mengelolanya.
+        if (page.pengguna().admin()) {
+            menu.add(gap(3));
+            menu.add(entry(page, "Pengguna", "Kelola akun dan perannya.", Icons.USER));
+        }
         menu.add(Box.createVerticalGlue());
         add(menu, BorderLayout.CENTER);
 
@@ -99,6 +107,9 @@ public class NavBar extends JPanel {
         }
         if ("Laporan".equals(name)) {
             return new PanelReport();
+        }
+        if ("Pengguna".equals(name)) {
+            return new PanelPengguna(page.pengguna());
         }
         return new PanelDashboard();
     }

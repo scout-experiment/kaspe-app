@@ -26,6 +26,8 @@ public final class Icons {
     public static final int BUILDING = 3;
     /** Truk — data master truk. */
     public static final int TRUCK = 4;
+    /** Orang — halaman pengguna. */
+    public static final int USER = 6;
     /** Lambang aplikasi. */
     public static final int BRAND = 5;
 
@@ -117,6 +119,11 @@ public final class Icons {
                             new int[]{9, 9, 12, 15, 15}, 5);
                     g2.fillOval(4, 14, 4, 4);
                     g2.fillOval(15, 14, 4, 4);
+                    break;
+                case USER:
+                    // Orang: kepala dan bahunya.
+                    g2.drawOval(8, 3, 8, 8);
+                    g2.drawArc(4, 13, 16, 9, 180, 180);
                     break;
                 default:
                     // Lambang aplikasi: keping hijau dengan biji putih di tengahnya.

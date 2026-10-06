@@ -1,8 +1,9 @@
 # Repository Guidelines
 
 KaspeApp — desktop Java 8 Swing app for recording cassava truck deliveries: net weight after
-refraction cut, amount payable, per-period report. Single operator, single machine, no login.
-Replaces a paper ledger. Language split is a hard rule: **identifiers in English, comments /
+refraction cut, amount payable, per-period report. A login gate protects the ledger: named
+accounts with two roles, ADMIN and USER, and only ADMIN manages accounts. Replaces a paper
+ledger. Language split is a hard rule: **identifiers in English, comments /
 Javadoc / docs / user-facing text in Indonesian, DB table and column names in Indonesian**
 (matches the partner's ledger terms).
 
@@ -16,14 +17,19 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
                                                 from bundled /kaspe/schema.sql
 ```
 
-- `Main.main` → `Theme.install()` (FlatLaf, must run before any component) →
-  `SwingUtilities.invokeLater(new MainFrame().setVisible(true))`.
+- `Main.main` → `Db.configError()` check (a present-but-broken config file aborts the run
+  before any window exists) → `Theme.install()` (FlatLaf, must run before any component) →
+  on the EDT `DialogLogin.buka(null)`; closing that screen without logging in exits, and only
+  then `new MainFrame(pengguna).setVisible(true)` — no page can be reached without a
+  logged-in account.
 - Navigation is **not** a `CardLayout`: `PagePanel.showPanel(JPanel, String, String)` does
   `content.removeAll() / add / revalidate / repaint`. Each sidebar entry builds a fresh panel
   **except Transaksi**, which `NavBar` keeps and reuses: that page holds rows the operator has
   entered but not yet saved, and rebuilding it threw them away without warning. Reusing it calls
   `refreshMaster()` so the plate/owner lists follow the master data without disturbing those rows.
-  The sidebar holds exactly three entries — Beranda, Transaksi, Laporan — and **Data Master**
+  The sidebar holds four entries for ADMIN — Beranda, Transaksi, Laporan, Pengguna — and
+  three for USER: the Pengguna entry is simply not added to the menu, the page is not drawn
+  at all for a non-admin. **Data Master**
   is not one of them: a small labelled button ("Kelola", with the plate box narrowed 200 -> 150px
   to make room for it) beside the
   "Plat / Truk" box on the Transaksi page opens the modal `DialogDataMaster.buka(owner)`
@@ -32,6 +38,30 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   standalone builders — `NavBar.build(page)` — so `tools/BuatPratinjau.java` and `TestUi`
   can rebuild the real shell headlessly. Never inline them into `MainFrame`: preview PNGs
   would silently stop representing the app.
+- **Login gate.** The app opens on `DialogLogin`, never straight to Beranda. When the
+  `pengguna` table is empty (fresh database), the SAME screen switches to first-run mode
+  "Buat Admin Pertama" (nama + sandi + ulangi sandi) and creates the ADMIN — there is no
+  separate setup wizard. Password rule: at least 4 characters; in first-run mode the two
+  entries must match. A failed login shows ONE Indonesian message, `"Nama atau sandi
+  salah."`, which deliberately does not reveal whether the name exists; the typed name is
+  left in place so only the password needs retyping.
+- **Roles.** `Pengguna.ADMIN` / `Pengguna.USER`. ADMIN sees and owns the Pengguna page
+  (`PanelPengguna`) — add accounts, rename, change role or password, delete. USER does
+  everything else (record deliveries, reports, data master) and never sees that page.
+  `MainFrame` receives the logged-in account and `NavBar`/`PagePanel` read it through
+  `page.pengguna()`.
+- **Password storage is `kaspe.Sandi`, stdlib only — no new dependency.** PBKDF2WithHmacSHA256,
+  100_000 iterations, 256-bit key, a fresh random 16-byte salt per account (Base64 in
+  `sandi_salt`), so two accounts with the same password store different hashes. Verification
+  goes through `MessageDigest.isEqual` (constant-time), never `String.equals`, which leaks
+  how close a guess was. `UserDao` never selects `sandi_hash` for list/cari reads.
+- **`PanelPengguna` invariants:** the last remaining ADMIN cannot be deleted, and neither can
+  the account currently logged in ("Akun yang sedang dipakai tidak bisa dihapus." /
+  "Admin terakhir tidak bisa dihapus."). Without both, the ledger could lock itself out.
+- **Deliberate omissions — do not "fix" these without asking:** there is no logout (closing
+  the window ends the session), and if the only ADMIN forgets the password there is no
+  in-app recovery: the account must be repaired directly in the database (the hash is
+  PBKDF2, so a new one can be minted with `Sandi.hash`), there is no reset path in the UI.
 - Table column widths in `PanelReport` are calibrated against the default 1320×760 window
   *with* the sidebar; `TestUi` has a guard that measures the widest text per column and fails
   if any column is too narrow. The report table is the printed artifact, so a clipped column
@@ -85,10 +115,10 @@ Never re-implement these inline in UI or DAO code; call `Calculator` so UI, repo
 
 | Path | Purpose |
 |------|---------|
-| `src/kaspe/` | Core: `Main`, `Db` (connection/config), `Schema` (auto table creation), `Calculator` |
-| `src/kaspe/model/` | Plain beans: `Rental`, `Truck`, `Transaction`, `TransactionDetail`, `ReportRow` |
-| `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals) |
-| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `PanelDashboard`, `PanelTransaction`, `DialogDataMaster`, `DialogPemilik`, `PanelReport`, `PrintPreview`, `Theme` |
+| `src/kaspe/` | Core: `Main`, `Db` (connection/config), `Schema` (auto table creation), `Calculator`, `Sandi` (password hashing) |
+| `src/kaspe/model/` | Plain beans: `Rental`, `Truck`, `Transaction`, `TransactionDetail`, `ReportRow`, `Pengguna` |
+| `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals), `UserDao` (accounts, login) |
+| `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `DialogLogin`, `PanelDashboard`, `PanelTransaction`, `DialogDataMaster`, `DialogPemilik`, `PanelReport`, `PanelPengguna`, `PrintPreview`, `Theme` |
 | `src/kaspe/util/` | `Dates` (display `dd-MM-yyyy`, lenient parse) |
 | `src/kaspe/test/` | Hand-rolled test harness (no JUnit) |
 | `src/kaspe/schema.sql` | Bundled DDL + `v_transaksi` view; run by the app at first start |
@@ -429,7 +459,8 @@ starts with `DELETE`, so it wipes the target database.
 
 ## Important Files
 
-- `src/kaspe/Main.java` — entry point (`Theme.install()` then `MainFrame`).
+- `src/kaspe/Main.java` — entry point (`Db.configError()` gate → `Theme.install()` →
+  `DialogLogin` → `MainFrame(pengguna)`).
 - `src/kaspe/Db.java` — config loading, connection factory, H2 error translation, MySQL bootstrap.
 - `src/kaspe/Schema.java` — `ensure(Connection)`, `readStatements()`, `tableExists()`,
   `columnExists()`, `dropObsoleteColumns()`, `splitSharedHeaders()`; the same SQL
@@ -493,7 +524,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 69 — **341 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 78 — **369 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real
@@ -503,7 +534,8 @@ CP="build:lib/*"
   `build/screenshots/*.png`. It does not test `MainFrame`, events, or table content.
   It also carries non-image guards that a blank-image check cannot catch: the report and transaction columns fit
   the default window (`kolomTabelUtuh`), the sidebar menu rows actually have a size
-  (`barisMenuTergambar`), the long date is Indonesian and weekday-correct (`tanggalPanjang`),
+  (`barisMenuTergambar`; the shell `TestUi` builds is logged in as an ADMIN, so the
+  menu-row count check pins all four entries), the long date is Indonesian and weekday-correct (`tanggalPanjang`),
   and the header bar shows the page name, not the app name (`headerMenulisNamaHalaman`).
   `pilihBarisMaster` catches panels that read a table by column index after the column
   layout changed — the image checks pass while clicking a row throws.

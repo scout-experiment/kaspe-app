@@ -662,7 +662,11 @@ public class TestAlur {
      */
     private static void pindahMenuTidakMembuangPekerjaan() throws Exception {
         System.out.println("16. Pindah menu lalu kembali ...");
-        PagePanel halaman = new PagePanel();
+        // Halaman membutuhkan akun yang masuk sejak layar masuk ada; uji ini
+        // memakai akun admin.
+        kaspe.model.Pengguna adminUji = new kaspe.model.Pengguna();
+        adminUji.setPeran(kaspe.model.Pengguna.ADMIN);
+        PagePanel halaman = new PagePanel(adminUji);
         JPanel layar = PagePanel.shell(halaman);
         klikMenu(layar, "Transaksi");
         PanelTransaction p = cariPanelTransaksi(halaman);

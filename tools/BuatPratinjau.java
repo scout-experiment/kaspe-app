@@ -1,7 +1,12 @@
+import com.formdev.flatlaf.ui.FlatLineBorder;
 import kaspe.Db;
+import kaspe.dao.UserDao;
+import kaspe.model.Pengguna;
 import kaspe.ui.DialogDataMaster;
+import kaspe.ui.DialogLogin;
 import kaspe.ui.PagePanel;
 import kaspe.ui.PanelDashboard;
+import kaspe.ui.PanelPengguna;
 import kaspe.ui.PanelReport;
 import kaspe.ui.PanelTransaction;
 import kaspe.ui.Theme;
@@ -62,7 +67,26 @@ public class BuatPratinjau {
 
         isiDataContoh();
 
-        halaman = new PagePanel();
+        // Layar masuk digambar paling awal, dan gambar "buat admin pertama" harus
+        // diambil SEBELUM akun apa pun tercatat - tabel pengguna yang kosong itulah
+        // yang membuat layarnya berganti rupa. Di aplikasinya layar ini muncul
+        // sendirian (DialogLogin.buka(null), jendela utama belum ada), karena itu
+        // gambarnya tanpa halaman di belakang.
+        gambarLogin("06-login-pertama.png", new DialogLogin());
+
+        // Dua akun contoh: admin yang masuk, dan satu pengguna biasa supaya halaman
+        // Pengguna memperlihatkan kedua perannya. Gambar "Masuk" mengisi namanya saja -
+        // sandi memang tidak pernah terbaca di layar, kotaknya kosong.
+        UserDao daoPengguna = new UserDao();
+        daoPengguna.simpan("admin", "sandi-admin", Pengguna.ADMIN);
+        daoPengguna.simpan("budi", "sandi-budi", Pengguna.USER);
+        DialogLogin masuk = new DialogLogin();
+        isi(masuk, "fNama", "admin");
+        gambarLogin("07-login.png", masuk);
+
+        // Pratinjau memakai mata admin: hanya dia yang melihat halaman Pengguna.
+        Pengguna admin = daoPengguna.cari("admin");
+        halaman = new PagePanel(admin);
         layar = PagePanel.shell(halaman);
 
         // Transaksi dikerjakan lebih dulu. Dua pengiriman disimpan lebih dulu supaya
@@ -115,6 +139,12 @@ public class BuatPratinjau {
         // Laporan - filter bawaan sudah mencakup seluruh data
         halaman.showPanel(new PanelReport(), "Laporan", "Rekap penjualan per periode.");
         gambar("05-report.png");
+
+        // Halaman Pengguna, khusus admin. Nama dan keterangannya sama persis dengan
+        // entrinya di bilah samping (NavBar), supaya gambar menulis halaman yang sama
+        // dengan yang dibuka aplikasi.
+        halaman.showPanel(new PanelPengguna(admin), "Pengguna", "Kelola akun dan perannya.");
+        gambar("08-pengguna.png");
 
         System.out.println("selesai -> " + KELUAR.toAbsolutePath());
     }
@@ -230,19 +260,7 @@ public class BuatPratinjau {
 
         JPanel panel = Theme.card();
         panel.setLayout(new BorderLayout());
-        JLabel judul = new JLabel("Kelola Data Truk");
-        judul.setFont(Theme.semibold(Theme.FONT_SIZE + 1f));
-        judul.setForeground(Theme.INK);
-        judul.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
-        JPanel bilah = new JPanel(new BorderLayout());
-        bilah.setOpaque(false);
-        bilah.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.LINE));
-        bilah.add(judul, BorderLayout.WEST);
-        JLabel silang = new JLabel("\u00d7");
-        silang.setForeground(Theme.INK_SOFT);
-        silang.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 14));
-        bilah.add(silang, BorderLayout.EAST);
-        panel.add(bilah, BorderLayout.NORTH);
+        panel.add(bilahJendela("Kelola Data Truk"), BorderLayout.NORTH);
         isi.setOpaque(false);
         isi.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 0));
         isi.setPreferredSize(new Dimension(lebarDialog - 2, tinggiDialog - 50));
@@ -272,6 +290,83 @@ public class BuatPratinjau {
         File f = KELUAR.resolve(nama).toFile();
         ImageIO.write(img, "png", f);
         System.out.println("   " + nama + " (" + f.length() + " bytes)");
+    }
+
+    /**
+     * Bilah judul jendela palsu: judulnya di kiri, tanda tutup di kanan, garis tipis
+     * di bawah - meniru bilah judul FlatLaf yang tidak bisa digambar sendiri tanpa
+     * layar. Dipakai bersama oleh gambar dialog dan gambar layar masuk.
+     */
+    static JPanel bilahJendela(String judulJendela) {
+        JLabel judul = new JLabel(judulJendela);
+        judul.setFont(Theme.semibold(Theme.FONT_SIZE + 1f));
+        judul.setForeground(Theme.INK);
+        judul.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
+        JPanel bilah = new JPanel(new BorderLayout());
+        bilah.setOpaque(false);
+        bilah.setBorder(BorderFactory.createMatteBorder(0, 0, 1, 0, Theme.LINE));
+        bilah.add(judul, BorderLayout.WEST);
+        JLabel silang = new JLabel("\u00d7");
+        silang.setForeground(Theme.INK_SOFT);
+        silang.setBorder(BorderFactory.createEmptyBorder(0, 0, 0, 14));
+        bilah.add(silang, BorderLayout.EAST);
+        return bilah;
+    }
+
+    /**
+     * Gambar layar masuk: satu jendela kecil di tengah kanvas, TANPA halaman di
+     * belakang dan tanpa peredupan - di aplikasinya layar ini dibuka sebelum jendela
+     * utama ada, jadi tidak ada yang perlu diredupkan.
+     *
+     * <p>Bilah judulnya palsu seperti pada dialog lain, tetapi isinya tidak disentuh
+     * sama sekali: jendela sungguhannya menjadikan panelnya sendiri sebagai
+     * contentPane lalu pack(), sehingga tepi yang dibawa DialogLogin adalah tepi yang
+     * diberikan jendelanya. Mengupasnya seperti isi dialog truk membuat gambarnya
+     * berbohong tentang jarak isinya. Ukurannya juga dari hitungan yang sama dengan
+     * aplikasi: selebar dan setinggi yang diminta isinya, tanpa angka tetap.
+     */
+    static void gambarLogin(String nama, DialogLogin isi) throws Exception {
+        JPanel panel = new JPanel(new BorderLayout());
+        Theme.applyCard(panel);
+        panel.setBorder(new FlatLineBorder(new java.awt.Insets(1, 1, 1, 1),
+                Theme.LINE, 1f, Theme.CARD_ARC));
+        panel.add(bilahJendela(judulJendela(isi)), BorderLayout.NORTH);
+        panel.add(isi, BorderLayout.CENTER);
+
+        java.awt.Dimension butuh = panel.getPreferredSize();
+        panel.setSize(butuh.width, butuh.height);
+        layoutDalam(panel);
+
+        // Tinggi kanvas mengikuti jendelanya: layar masuk jauh lebih tinggi daripada
+        // lebar jendelanya (GridLayout-nya menyamakan tinggi keempat barisnya), jadi
+        // kanvas tetap 760 seperti gambar lain akan memotong jendela yang sesungguhnya
+        // dibuka aplikasi. Lebar tetap sama dengan gambar lain supaya galerinya rapi.
+        int tinggi = panel.getHeight() + 120;
+        BufferedImage img = new BufferedImage(LEBAR, tinggi, BufferedImage.TYPE_INT_RGB);
+        Graphics2D g = img.createGraphics();
+        g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setColor(Theme.CANVAS);
+        g.fillRect(0, 0, LEBAR, tinggi);
+        int x = (LEBAR - panel.getWidth()) / 2;
+        int y = (tinggi - panel.getHeight()) / 2;
+        g.setColor(new Color(0, 0, 0, 60));
+        g.fillRoundRect(x + 4, y + 6, panel.getWidth(), panel.getHeight(), 16, 16);
+        g.translate(x, y);
+        panel.paint(g);
+        g.translate(-x, -y);
+        g.dispose();
+
+        File f = KELUAR.resolve(nama).toFile();
+        ImageIO.write(img, "png", f);
+        System.out.println("   " + nama + " (" + f.length() + " bytes)");
+    }
+
+    /** Judul jendela layar masuk, dibaca dari metode yang sama yang dipakai aplikasinya. */
+    static String judulJendela(DialogLogin isi) throws Exception {
+        Method m = DialogLogin.class.getDeclaredMethod("judulJendela");
+        m.setAccessible(true);
+        return (String) m.invoke(isi);
     }
 
     /** Paksa layout berulang; di luar layar, ukuran tidak dihitung sendiri. */

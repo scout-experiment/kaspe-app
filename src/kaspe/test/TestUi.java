@@ -2,14 +2,18 @@ package kaspe.test;
 
 import kaspe.Db;
 import kaspe.dao.MasterDao;
+import kaspe.dao.UserDao;
+import kaspe.model.Pengguna;
 import kaspe.model.Rental;
 import kaspe.model.Truck;
 import kaspe.ui.DialogDataMaster;
+import kaspe.ui.DialogLogin;
 import kaspe.ui.DialogPemilik;
 import kaspe.ui.HeaderBar;
 import kaspe.ui.NavBar;
 import kaspe.ui.PagePanel;
 import kaspe.ui.PanelDashboard;
+import kaspe.ui.PanelPengguna;
 import kaspe.ui.PanelReport;
 import kaspe.ui.PanelTransaction;
 import kaspe.ui.PrintPreview;
@@ -64,6 +68,15 @@ public class TestUi {
         render(new PanelReport(), "5-report.png", out);
         render(reportTanpaData(), "6-report-kosong.png", out);
         render(jendelaUtama(), "7-window.png", out);
+        // Layar masuk digambar pada KEDUA keadaannya: saat tabel pengguna masih
+        // kosong (membuat admin pertama) dan sesudah ada akun tercatat.
+        render(new DialogLogin(), "8-login-pertama.png", out);
+        // Sebelum ada akun apa pun: layar masuk yang sama harus membuat admin
+        // pertama, bukan menolak masuk.
+        check("layar masuk pertama membuat admin pertama", layarPertamaMembuatAdmin());
+        siapkanPenggunaUji();
+        render(new DialogLogin(), "9-login.png", out);
+        render(new PanelPengguna(penggunaUjiAdmin()), "10-pengguna.png", out);
 
         // Pemeriksaan yang tidak lewat gambar: bilah atas harus menulis nama HALAMAN,
         // bukan nama aplikasi. Nama aplikasi sudah ada di judul jendela.
@@ -348,6 +361,13 @@ public class TestUi {
         // halaman yang urutan pemanggilannya sudah benar tetap lulus tanpa penjagaan ini.
         check("memasang pembanding menyalakan pengurutnya sendiri", sortAngkaMenyalakanPengurut());
 
+        // Pintu masuk dan halaman pengguna.
+        check("menu Pengguna tampil untuk admin", menuPengguna(true));
+        check("menu Pengguna tidak tampil untuk pengguna biasa", menuPengguna(false));
+        check("sandi salah: satu pesan Indonesia, nama tetap tertulis", sandiSalahSatuPesan());
+        check("hapus admin terakhir ditolak", hapusAdminTerakhirDitolak());
+        check("hapus akun yang sedang dipakai ditolak", hapusAkunSendiriDitolak());
+
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
         if (failed > 0) {
@@ -361,7 +381,7 @@ public class TestUi {
      * salah satu bagiannya lupa dipasang, yang tergambar hanya sebagian jendela.
      */
     private static JPanel jendelaUtama() {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(new PanelReport(), "Laporan", "Rekap penjualan per periode.");
         return layar;
@@ -388,7 +408,7 @@ public class TestUi {
      * justru sambungan itulah yang pernah putus tanpa ada yang menyadari.
      */
     private static boolean judulIkutPindahHalaman() throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         PagePanel.shell(halaman);
         HeaderBar bar = (HeaderBar) field(halaman, "header");
 
@@ -445,7 +465,7 @@ public class TestUi {
      * sendirian, karena yang menjepitnya adalah pembagian ruang antar bagian halaman.
      */
     private static boolean daftarRiwayatPunyaTinggi() throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
 
@@ -516,7 +536,7 @@ public class TestUi {
      * di atasnya, dan kedua angka di kotak itu berhuruf sama.
      */
     private static boolean simpanSejajarAngkaHasil() throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         PanelTransaction p = new PanelTransaction();
         halaman.showPanel(p, "Transaksi", "Catat pengiriman per truk.");
@@ -581,7 +601,7 @@ public class TestUi {
      * begitu halaman dibuka.
      */
     private static boolean muatTanpaGulir(JPanel panel, String nama, int lebar, int tinggi) {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, nama, "keterangan");
         layar.setSize(lebar, tinggi);
@@ -662,7 +682,7 @@ public class TestUi {
     }
 
     private static boolean kolomTabelUtuh(JPanel panel, int lebar) throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, "Laporan", "Rekap penjualan per periode.");
 
@@ -1705,7 +1725,7 @@ public class TestUi {
     }
 
     private static boolean tombolTidakTerpotong(JPanel panel, String nama, int lebar) {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, nama, "keterangan");
         layar.setSize(lebar, 760);
@@ -1880,7 +1900,7 @@ public class TestUi {
      */
     private static boolean kisiIsianRataSebelah() {
         JPanel panel = new PanelTransaction();
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, "Transaksi", "Catat pengiriman per truk.");
         layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
@@ -2043,7 +2063,7 @@ public class TestUi {
         // Diukur pada lebar jendela minimum karena di situlah sisinya paling sempit:
         // tombolnya ikon + teks di baris isian berukuran tetap. Polanya sama dengan
         // cariTombolTerpotong: wadah langsungnya dulu, lalu tepi jendelanya.
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         halaman.showPanel(panel, "Transaksi", "Catat pengiriman per truk.");
         layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
@@ -3079,7 +3099,7 @@ public class TestUi {
      * jadi judul yang pas-pasan di kolom mana pun adalah cacat yang sama.
      */
     private static boolean judulMuatBersamaPanahUrut() throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         PanelReport panel = new PanelReport();
         halaman.showPanel(panel, "Laporan", "Rekap penjualan per periode.");
@@ -3446,7 +3466,7 @@ public class TestUi {
      * adalah lebarnya, karena lebar baris dihitung dari lebar bilahnya.
      */
     private static boolean barisMenuTergambar() {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         JPanel layar = PagePanel.shell(halaman);
         layar.setSize(1320, 760);
         for (int i = 0; i < 3; i++) {
@@ -3469,10 +3489,11 @@ public class TestUi {
                 return false;
             }
         }
-        // Bilah samping tiga baris - Beranda, Transaksi, Laporan - karena "Data Master"
-        // pindah menjadi dialog yang dibuka dari halaman Transaksi.
-        if (menu != 3) {
-            System.out.println("        jumlah baris menu " + menu + ", seharusnya 3");
+        // Bilah samping admin empat baris - Beranda, Transaksi, Laporan, Pengguna.
+        // Halaman Pengguna hanya dipasang untuk admin; pemeriksaan "menu Pengguna
+        // tidak tampil untuk pengguna biasa" yang menjaga sisi itu.
+        if (menu != 4) {
+            System.out.println("        jumlah baris menu " + menu + ", seharusnya 4");
             return false;
         }
         return true;
@@ -3863,7 +3884,7 @@ public class TestUi {
      * tanggal kemarin kalau tanggalnya hanya diisi sekali di konstruktor.
      */
     private static boolean tanggalHeaderSegarSaatPindah() throws Exception {
-        PagePanel halaman = new PagePanel();
+        PagePanel halaman = new PagePanel(admin());
         HeaderBar bar = (HeaderBar) field(halaman, "header");
         // Tulis tanggal basi, seperti aplikasi yang dibiarkan semalaman, lalu pindah halaman.
         ((JLabel) field(bar, "lblDate")).setText("Senin, 01 Januari 2001");
@@ -4073,6 +4094,180 @@ public class TestUi {
         d.setTotalAmount(kaspe.Calculator.totalAmount(netWeight, new java.math.BigDecimal(price)));
         d.setPaymentDate(paymentDate);
         return d;
+    }
+
+    /**
+     * Saat tabel pengguna masih kosong, layar masuk yang sama berubah menjadi
+     * pembuat admin pertama: nama, sandi, ulangi sandi. Tidak ada layar pasang
+     * tersendiri.
+     */
+    private static boolean layarPertamaMembuatAdmin() throws Exception {
+        UserDao dao = new UserDao();
+        DialogLogin p = new DialogLogin();
+        ((JTextField) field(p, "fNama")).setText("admin");
+        ((JPasswordField) field(p, "fSandi")).setText("rahasia123");
+        ((JPasswordField) field(p, "fUlangi")).setText("rahasia123");
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("masuk");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        Pengguna dibuat = dao.cari("admin");
+        boolean jadi = dibuat != null && dibuat.admin();
+        boolean masuk = field(p, "hasil") != null;
+        // Dibersihkan supaya akun uji sesudahnya dibuat dari nol oleh
+        // siapkanPenggunaUji, seperti pemakaian yang benar-benar pertama.
+        if (dibuat != null) {
+            dao.hapus(dibuat.getId());
+        }
+        return jadi && masuk;
+    }
+    /** Akun admin untuk membangun halaman; perannya saja yang dipakai di sini. */
+    private static Pengguna admin() {
+        Pengguna p = new Pengguna();
+        p.setNama("admin");
+        p.setPeran(Pengguna.ADMIN);
+        return p;
+    }
+
+    /** Akun pengguna biasa, untuk membandingkan menu bilah sampingnya. */
+    private static Pengguna penggunaBiasa() {
+        Pengguna p = new Pengguna();
+        p.setNama("budi");
+        p.setPeran(Pengguna.USER);
+        return p;
+    }
+
+    /** Isi tabel pengguna untuk uji: satu admin dan satu pengguna biasa. */
+    private static void siapkanPenggunaUji() throws Exception {
+        UserDao dao = new UserDao();
+        if (dao.jumlah() == 0) {
+            dao.simpan("admin", "rahasia123", Pengguna.ADMIN);
+            dao.simpan("budi", "sandibudi", Pengguna.USER);
+        }
+    }
+
+    /** Akun admin yang benar-benar tercatat di database uji. */
+    private static Pengguna penggunaUjiAdmin() throws Exception {
+        return penggunaUji("admin");
+    }
+
+    private static Pengguna penggunaUji(String nama) throws Exception {
+        Pengguna p = new UserDao().cari(nama);
+        if (p == null) {
+            throw new IllegalStateException("Pengguna uji tidak ditemukan: " + nama);
+        }
+        return p;
+    }
+
+    /**
+     * Entri "Pengguna" di bilah samping hanya untuk admin. Untuk pengguna biasa
+     * entrinya bukan sekali nonaktif — hilang sama sekali: menu yang terlihat
+     * adalah daftar halaman yang benar-benar bisa dibuka.
+     */
+    private static boolean menuPengguna(boolean untukAdmin) {
+        PagePanel halaman = new PagePanel(untukAdmin ? admin() : penggunaBiasa());
+        JPanel layar = PagePanel.shell(halaman);
+        return (cariTombolTeks(layar, "Pengguna") != null) == untukAdmin;
+    }
+
+    /** Tombol pertama yang tulisannya persis teks itu, atau null. */
+    private static AbstractButton cariTombolTeks(Container c, String teks) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof AbstractButton && teks.equals(((AbstractButton) anak).getText())) {
+                return (AbstractButton) anak;
+            }
+            if (anak instanceof Container) {
+                AbstractButton hasil = cariTombolTeks((Container) anak, teks);
+                if (hasil != null) {
+                    return hasil;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Sandi salah harus memunculkan SATU pesan Indonesia yang tidak membedakan
+     * nama tak dikenal dari sandi keliru, dan nama yang sudah diketik dibiarkan
+     * tertulis supaya tingkat sandinya saja yang diperbaiki.
+     */
+    private static boolean sandiSalahSatuPesan() throws Exception {
+        DialogLogin p = new DialogLogin();
+        JTextField fNama = (JTextField) field(p, "fNama");
+        JPasswordField fSandi = (JPasswordField) field(p, "fSandi");
+        fNama.setText("admin");
+        fSandi.setText("bukan sandinya");
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("masuk");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        String pesan = ((JLabel) field(p, "lblStatus")).getText();
+        boolean pesanBenar = pesan.toLowerCase().contains("nama atau sandi salah");
+        boolean namaTinggal = "admin".equals(fNama.getText());
+        if (!pesanBenar) {
+            System.out.println("        pesannya: \"" + pesan + "\"");
+        }
+        return pesanBenar && namaTinggal;
+    }
+
+    /** Baris pertama tabel yang menampilkan nama itu di kolom pertama, atau -1. */
+    private static int barisNama(JTable t, String nama) {
+        for (int i = 0; i < t.getRowCount(); i++) {
+            if (nama.equals(String.valueOf(t.getValueAt(i, 0)))) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Admin terakhir tidak boleh bisa dihapus — kalau boleh, aplikasi terkunci
+     * untuk selamanya: tidak ada yang bisa masuk lagi untuk membuat akun baru.
+     * Dicoba dari akun lain supaya penolakan admin terakhir yang diperiksa,
+     * bukan penolakan akun sendiri.
+     */
+    private static boolean hapusAdminTerakhirDitolak() throws Exception {
+        UserDao dao = new UserDao();
+        PanelPengguna p = new PanelPengguna(penggunaUji("budi"));
+        JTable t = (JTable) field(p, "tabel");
+        int baris = barisNama(t, "admin");
+        if (baris < 0) {
+            return false;
+        }
+        t.setRowSelectionInterval(baris, baris);
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("hapusTerpilih");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        String pesan = ((JLabel) field(p, "lblStatus")).getText();
+        boolean ditolak = pesan.toLowerCase().contains("admin terakhir");
+        boolean tetapAda = dao.cari("admin") != null;
+        if (!ditolak) {
+            System.out.println("        pesannya: \"" + pesan + "\"");
+        }
+        return ditolak && tetapAda;
+    }
+
+    /**
+     * Akun yang sedang dipakai juga tidak boleh bisa dihapus: penggunanya tetap
+     * masuk padahal akunnya sudah tiada.
+     */
+    private static boolean hapusAkunSendiriDitolak() throws Exception {
+        UserDao dao = new UserDao();
+        PanelPengguna p = new PanelPengguna(penggunaUjiAdmin());
+        JTable t = (JTable) field(p, "tabel");
+        int baris = barisNama(t, "admin");
+        if (baris < 0) {
+            return false;
+        }
+        t.setRowSelectionInterval(baris, baris);
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("hapusTerpilih");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        String pesan = ((JLabel) field(p, "lblStatus")).getText();
+        boolean ditolak = pesan.toLowerCase().contains("sedang dipakai");
+        boolean tetapAda = dao.cari("admin") != null;
+        if (!ditolak) {
+            System.out.println("        pesannya: \"" + pesan + "\"");
+        }
+        return ditolak && tetapAda;
     }
 
     private static void createSchema() throws Exception {

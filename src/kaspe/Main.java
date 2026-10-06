@@ -1,5 +1,7 @@
 package kaspe;
 
+import kaspe.model.Pengguna;
+import kaspe.ui.DialogLogin;
 import kaspe.ui.MainFrame;
 import kaspe.ui.Theme;
 
@@ -29,6 +31,15 @@ public class Main {
             System.exit(1);
         }
         Theme.install();
-        SwingUtilities.invokeLater(() -> new MainFrame().setVisible(true));
+        SwingUtilities.invokeLater(() -> {
+            // Pintu masuk dulu, jendela utama kemudian. Menutup layar masuk tanpa
+            // berhasil masuk berarti keluar dari aplikasi — tidak ada halaman yang
+            // bisa dibuka tanpa akun yang masuk.
+            Pengguna pengguna = DialogLogin.buka(null);
+            if (pengguna == null) {
+                System.exit(0);
+            }
+            new MainFrame(pengguna).setVisible(true);
+        });
     }
 }
