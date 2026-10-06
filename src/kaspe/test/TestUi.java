@@ -1587,10 +1587,16 @@ public class TestUi {
                         + statusKembar + "\"");
                 return false;
             }
-            if (!"Rental Benar Ketik".equals(
-                    String.valueOf(dao.listRental().get(0).getRentalName()))
-                    && !"Rental Benar Ketik".equals(
-                            String.valueOf(dao.listRental().get(1).getRentalName()))) {
+            // Dicari lewat idPemilik, bukan lewat posisi daftar: nomor posisi bisa
+            // berubah dan `get(1)` tanpa penjaga ukuran melempar IndexOutOfBounds yang
+            // menghentikan seluruh berkas uji, bukan gagal rapi.
+            boolean namaLamaUtuh = false;
+            for (Rental r : dao.listRental()) {
+                if (r.getRentalId() == idPemilik) {
+                    namaLamaUtuh = "Rental Benar Ketik".equals(r.getRentalName());
+                }
+            }
+            if (!namaLamaUtuh) {
                 System.out.println("        nama pemilik ikut berubah jadi nama yang sudah dipakai");
                 return false;
             }
