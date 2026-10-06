@@ -164,10 +164,12 @@ public class NavBar extends JPanel {
         JLabel name = new JLabel("Kaspe");
         name.setFont(Theme.bold(16f));
         name.setForeground(Theme.INK);
-        // Gap eksplisit lewat Theme.row, bukan hgap FlowLayout: hgap ikut
-        // menjorokkan baris dari tepi kiri.
+        // Jarak kiri 21 supaya lambangnya segaris dengan ikon menu (batas menu 10 +
+        // batas barisnya 11) dan tulisan versi di bawahnya. Sebelumnya 16 + hgap 10 = 26,
+        // jadi lambangnya 5px di kanan ikon menu; dengan Theme.row hgap-nya hilang dan
+        // angkanya harus ditulis di sini.
         JPanel p = Theme.row(10, new JLabel(Icons.of(Icons.BRAND, Theme.ACCENT, 28)), name);
-        p.setBorder(BorderFactory.createEmptyBorder(18, 16, 16, 16));
+        p.setBorder(BorderFactory.createEmptyBorder(18, 21, 16, 16));
         return p;
     }
 
@@ -193,7 +195,7 @@ public class NavBar extends JPanel {
         JLabel l = new JLabel("Versi 1.0.1");
         l.setFont(Theme.semibold(11f));
         l.setForeground(Theme.INK_SOFT);
-        l.setBorder(BorderFactory.createEmptyBorder(10, 22, 16, 16));
+        l.setBorder(BorderFactory.createEmptyBorder(10, 21, 16, 16));
         return l;
     }
 

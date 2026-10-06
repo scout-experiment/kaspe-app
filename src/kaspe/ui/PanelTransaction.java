@@ -208,18 +208,18 @@ public class PanelTransaction extends JPanel {
     private static final String EMPTY = "\u2014";
 
     /**
-     * Lebar kolom kisi isian: kedua baris memakai lebar yang sama supaya tepinya lurus.
+     * Lebar kolom kisi isian — lebar <b>minimum</b>, bukan lebar mati.
      *
-     * <p>KOL1 sengaja lebih lebar sedikit daripada kebutuhan persisnya (150px kotak plat
-     * + 6px sela + 89px tombol "Kelola" = 245px). Tombol itu milik huruf tema, sedangkan
-     * aplikasi ini bisa jatuh ke huruf sistem kalau Inter tidak terpasang — dan di sana
-     * tombolnya 1px lebih lebar, jadi tulisan "Kelola" terpotong tepat di mesin yang tidak
-     * memakai huruf bawaan. Sisa lebar kisi masih cukup untuk kelonggaran ini.
+     * <p>Kolom melebar mengikuti sel terlebarnya, dan {@code fill = HORIZONTAL} membuat sel
+     * yang lebih sempit ikut memenuhi kolomnya. Jadi kedua baris selalu berakhir di tepi yang
+     * sama, dan tidak ada isian yang bisa terpotong walau hurufnya berganti — beda dengan
+     * mematok lebar komposit secara pasti, yang menyisakan nol kelonggaran begitu hurufnya
+     * sedikit lebih lebar.
      */
     private static final int KOL0 = 150;
-    private static final int KOL1 = 251;
+    private static final int KOL1 = 150;
     private static final int KOL2 = 170;
-    private static final int KOL3 = 259;
+    private static final int KOL3 = 150;
 
     /** Tulisi hasil hitungan dan warnai sesuai keadaannya. */
     private static void setValue(JLabel label, String text) {
@@ -323,9 +323,15 @@ public class PanelTransaction extends JPanel {
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
         GridBagConstraints g = new GridBagConstraints();
-        // Kedua baris memakai empat lebar kolom yang sama (KOL0-KOL3), jadi tepi kiri
-        // dan kanan tiap isian lurus dengan pasangannya di baris sebelah; fill
-        // HORIZONTAL memastikan tiap sel memenuhi lebar kolomnya tepat.
+        // Kedua baris memakai empat kolom yang sama, jadi tepi kiri DAN kanan tiap isian
+        // lurus dengan pasangannya di baris sebelah. fill HORIZONTAL yang membuatnya: tiap
+        // sel dipaksa memenuhi lebar kolomnya.
+        //
+        // Dulu di sini fill NONE, supaya tiap isian tetap seukuran yang ditetapkan. Akibatnya
+        // tepi kanan kedua baris berbeda 139px dan di tengah baris kedua menganga lubang
+        // 151px antara "Refraksi" dan "Harga" - isian yang lebih sempit daripada kolomnya
+        // memang menyisakan ruang kosong di sebelahnya. Kerapian tepi dianggap lebih penting
+        // daripada isian yang tetap sempit, jadi isian baris kedua ikut selebar kolomnya.
         g.fill = GridBagConstraints.HORIZONTAL;
         g.anchor = GridBagConstraints.WEST;
 
@@ -346,7 +352,7 @@ public class PanelTransaction extends JPanel {
         g.gridx = 0;
         grid.add(Theme.field("Tanggal Nota", sized(spDate, KOL0)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Plat / Truk", sized(barisPlat(), KOL1)), g);
+        grid.add(Theme.field("Plat / Truk", barisPlat()), g);
         g.gridx = 2;
         grid.add(Theme.field("Rental", sized(cmbRental, KOL2)), g);
         g.gridx = 3;
@@ -370,7 +376,7 @@ public class PanelTransaction extends JPanel {
         // Dulu kotak ini duduk di bawah kolom "Rental", sehingga pembayaran terlihat
         // seperti bagian dari pemilik truk; sekarang ia menutup barisnya sendiri.
         JPanel kotakLunas = Theme.row(6, chkPaid, sized(spPaid, 130));
-        grid.add(Theme.field("Tanggal Lunas", sized(kotakLunas, KOL3)), g);
+        grid.add(Theme.field("Tanggal Lunas", kotakLunas), g);
         addSpacer(grid, g, 4);
 
         // Isian di kiri, hasil hitungan dan tombol simpan di kanan.

@@ -241,8 +241,9 @@ starts with `DELETE`, so it wipes the target database.
   heard, not a silent request to reuse the existing row.
 
 - **Dialog windows share their size floor with the test.** `DialogDataMaster.LEBAR_MINIMUM` /
-  `TINGGI_MINIMUM` (720x520) and `DialogPemilik`'s (460x420) are read by both `buka()` and `TestUi`,
-  through the same `ukuranJendela(JPanel)` helper. With the literal in two places the test kept
+  `TINGGI_MINIMUM` (720x520) and `DialogPemilik`'s (460x420) are read by `buka()`, `TestUi` and
+  `tools/BuatPratinjau.java` (which used to hardcode 760x560 and so rendered the dialog shorter than
+  its own floor), through the same `ukuranJendela(JPanel)` helper. With the literal in two places the test kept
   checking 720 while nothing guaranteed the window opened that wide — a guard silently testing a
   width the app no longer used. `DialogPemilik`'s 460 is inert (its content prefers 482px, so the
   content always wins); that is fine, the point is that the number cannot drift.
@@ -295,15 +296,19 @@ starts with `DELETE`, so it wipes the target database.
   centring has no edge padding to fix. `TestUi` guards this: every left-aligned row in the four
   surfaces must have its first child at `x=0`.
 - **Grid columns must be declared, not inherited.** A `GridBagLayout` widens each column to its
-  widest cell, so two rows with different cell widths get unequal columns and a hole appears mid-row.
-  `PanelTransaction`'s input grid therefore names its four column widths (`KOL0`–`KOL3`), sets every
-  cell to its column width and uses `fill = HORIZONTAL`. Widths are *requested* widths: with
-  `fill = HORIZONTAL` every cell renders at its column width, so a guard reading rendered widths can
-  never fail — `TestUi` compares `getPreferredSize().width` instead.
-- **Leave slack for the system font.** The app ships Inter but falls back to the system family
-  (`Theme.interUsable`), where the same label is a little wider. A cell sized to exactly the Inter
-  measurement clips its button on a machine that never had Inter — `KOL1` carries 5px of slack and
-  `TestUi` re-measures the row under `Font.SANS_SERIF` to keep it that way.
+  widest cell, so two rows with different cell widths get unequal columns and a hole appears mid-row —
+  row 2 of `PanelTransaction`'s input grid once left 151px open between "Refraksi" and "Harga".
+  The grid names its four column widths (`KOL0`–`KOL3`) as *minimums*, gives every cell its column's
+  minimum, and sets `fill = HORIZONTAL` so no cell is narrower than its column. Both rows then end on
+  the same x. `fill = NONE` was tried first and is what produced the hole: a control narrower than its
+  column simply leaves the rest of the column empty. `TestUi` compares **rendered** widths per column,
+  which is non-vacuous precisely because a cell that is not stretched shrinks below its column.
+- **Never pin a composite cell to its exact content width.** `sized(row, N)` on a row that contains a
+  button freezes the row at the width that button happened to render at. The app ships Inter but falls
+  back to the system family (`Theme.interUsable`), where the same label is ~1px wider — the frozen row
+  then wraps the button onto a second line inside a 30px cell and clips it, on a machine that never had
+  Inter. Let the composite size itself (it sets the column width) and let `fill = HORIZONTAL` stretch
+  the plain fields instead. Same reason `Theme.fixedWidth` exists for table columns.
 
 - **Table styling is centralized in `Theme`** — the only per-table decisions allowed are column
   widths and which columns are right-aligned/fixed:
@@ -486,7 +491,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 70 — **342 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 69 — **341 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

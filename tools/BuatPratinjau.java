@@ -103,7 +103,14 @@ public class BuatPratinjau {
         // gambarnya menyebut halaman yang tidak pernah ada. Isinya memang JPanel, jadi
         // cukup digambar melayang tanpa membuka JDialog (yang butuh layar).
         halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
-        gambarDialog("04-master.png", new DialogDataMaster(), 760, 560);
+        // Ukuran jendelanya diambil dari perhitungan yang sama dengan yang dipakai
+        // DialogDataMaster.buka(), bukan angka tetap: pratinjau ini yang dipakai untuk
+        // memeriksa tampilan, jadi ia harus menggambar dialog pada ukuran yang benar-benar
+        // dibuka aplikasi. Dengan angka tetap 760x560 isinya digambar 510px tinggi, lebih
+        // pendek daripada lantai jendelanya sendiri.
+        DialogDataMaster isiDialog = new DialogDataMaster();
+        java.awt.Dimension ukuranDialog = DialogDataMaster.ukuranJendela(isiDialog);
+        gambarDialog("04-master.png", isiDialog, ukuranDialog.width, ukuranDialog.height);
 
         // Laporan - filter bawaan sudah mencakup seluruh data
         halaman.showPanel(new PanelReport(), "Laporan", "Rekap penjualan per periode.");

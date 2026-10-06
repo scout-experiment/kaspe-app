@@ -508,6 +508,10 @@ public final class Theme {
      * <p>Dipisah dari {@link #row} karena sebagian baris berganti isi menurut mode
      * (mis. tombol Simpan/Batal menggantikan Tambah). Barisnya sendiri tetap panel yang
      * sama, jadi panelnya tidak boleh dibuat ulang di dalam method yang mengganti isinya.
+     *
+     * <p>Pemanggilnya wajib memanggil {@code revalidate()} dan {@code repaint()} pada baris
+     * itu sesudahnya — method ini hanya menukar isinya, dan tanpa itu barisnya tetap
+     * menggambar susunan yang lama.
      */
     public static void fillRow(JPanel row, int gap, JComponent... items) {
         row.removeAll();
