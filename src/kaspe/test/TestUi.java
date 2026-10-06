@@ -201,7 +201,7 @@ public class TestUi {
                 tombolTidakTerpotong(new PanelReport(), "Laporan",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM));
         // Pintu masuk satu-satunya ke dialog data master sejak menu bilah sampingnya
-        // dihapus: tombol ikon kecil di sebelah kotak "Plat / Truk" pada halaman
+        // dihapus: tombol "Kelola" di sebelah kotak "Plat / Truk" pada halaman
         // Transaksi. Diperiksa melebihi "tombolnya ada": penandanya harus terbaca
         // (tooltip/nama akses), ukurannya utuh pada lebar jendela minimum, dan
         // mengkliknya tanpa layar tidak boleh melempar.
@@ -1720,12 +1720,12 @@ public class TestUi {
     }
 
     /**
-     * Pintu masuk satu-satunya ke dialog data master: tombol ikon kecil di sebelah
+     * Pintu masuk satu-satunya ke dialog data master: tombol "Kelola" di sebelah
      * kotak "Plat / Truk" pada halaman Transaksi, pengganti entri menu "Data Master"
      * yang dihapus dari bilah samping.
      *
      * <p>Tombolnya dicari lewat tooltip dan nama aksesnya, bukan lewat posisinya di
-     * susunan: tombolnya ikon saja tanpa teks, dan sel grid tempatnya menempel adalah
+     * susunan: tombolnya ikon + teks pendek, dan sel grid tempatnya menempel adalah
      * uraian susunan yang bisa bergeser kapan saja - sedangkan tooltip itulah satu-
      * satunya penanda yang terbaca pengguna dan pembaca layar. Yang diperiksa
      * bernilai, bukan sekadar "ada": penandanya tidak kosong, ukurannya utuh pada
@@ -1758,7 +1758,7 @@ public class TestUi {
         }
 
         // Diukur pada lebar jendela minimum karena di situlah sisinya paling sempit:
-        // tombolnya ikon kecil di baris isian berukuran tetap. Polanya sama dengan
+        // tombolnya ikon + teks di baris isian berukuran tetap. Polanya sama dengan
         // cariTombolTerpotong: wadah langsungnya dulu, lalu tepi jendelanya.
         PagePanel halaman = new PagePanel();
         JPanel layar = PagePanel.shell(halaman);

@@ -24,7 +24,8 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   entered but not yet saved, and rebuilding it threw them away without warning. Reusing it calls
   `refreshMaster()` so the plate/owner lists follow the master data without disturbing those rows.
   The sidebar holds exactly three entries — Beranda, Transaksi, Laporan — and **Data Master**
-  is not one of them: a small icon-only button (tooltip only, no label) beside the
+  is not one of them: a small labelled button ("Kelola", with the plate box narrowed 200 -> 150px
+  to make room for it) beside the
   "Plat / Truk" box on the Transaksi page opens the modal `DialogDataMaster.buka(owner)`
   ("Kelola Data Truk") over that page, so the form below keeps its state.
   The shell is `NavBar` (sidebar, `WEST`) + `PagePanel` (header bar + content). Both are
@@ -195,7 +196,7 @@ starts with `DELETE`, so it wipes the target database.
   therefore also calls `dropObsoleteColumns` — when you delete a column, add it there, and
   `TestDatabase.checkObsoleteColumnsDropped` covers the migration.
 - **Data Master is a dialog, not a page** (`DialogDataMaster`, no `Type` enum). A small
-  icon-only button beside the "Plat / Truk" box on the Transaksi page opens it with
+  labelled button beside the "Plat / Truk" box on the Transaksi page opens it with
   `buka(Window)` as a modal "Kelola Data Truk" dialog; the class itself is
   the `JPanel` content, so `TestUi` and `tools/BuatPratinjau.java` can build it headlessly —
   the same split `PagePanel` uses against `MainFrame`. Shape: ONE table of all trucks
@@ -443,7 +444,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 62 — **332 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 62 — **334 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

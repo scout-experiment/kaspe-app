@@ -815,6 +815,13 @@ public class TestDao {
         System.out.println("   pesan: " + (pesanTruk == null ? "-" : pesanTruk));
         record(pesanTruk != null && !pesanTruk.isEmpty(),
                 "hapus master: truk berriwayat ditolak dengan pesan");
+        // Pesan penolakan menyuruh operator KE SUATU TEMPAT. Kalau tempatnya sudah tidak
+        // ada lagi - seperti saat halaman Data Master diganti dialog - pesannya menyesatkan
+        // tanpa ada satu pun uji yang gagal. Yang diperiksa bukan kalimatnya, melainkan
+        // bahwa yang disebut memang pintu masuk yang benar-benar ada.
+        record(pesanTruk != null && pesanTruk.contains("Kelola Data Truk")
+                        && !pesanTruk.contains("menu Data Master"),
+                "hapus master: pesan penolakan menunjuk tempat yang benar-benar ada");
         record(findTruck(master.listTrucks(), "BR 1010 AA") != null,
                 "hapus master: truk yang ditolak tetap ada");
         ReportRow barisRiwayat = cariBaris(transactionDao, idRiwayat);
@@ -851,6 +858,9 @@ public class TestDao {
         }
         record(pesanRental != null && !pesanRental.isEmpty() && rentalMasihAda,
                 "hapus master: rental yang masih punya truk ditolak dan tetap ada");
+        record(pesanRental != null && pesanRental.contains("Kelola Data Truk")
+                        && !pesanRental.contains("menu Data Master"),
+                "hapus master: pesan penolakan rental menunjuk tempat yang benar-benar ada");
         barisRiwayat = cariBaris(transactionDao, idRiwayat);
         record(barisRiwayat != null && "Rental Uji Hapus".equals(barisRiwayat.getRentalName()),
                 "hapus master: truk tetap melaporkan pemiliknya setelah rental ditolak");

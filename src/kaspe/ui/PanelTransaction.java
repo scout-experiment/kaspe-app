@@ -229,11 +229,19 @@ public class PanelTransaction extends JPanel {
      * aksesnya, dan tombolnya tetap bisa disorot dengan papan ketik.
      */
     private JComponent barisPlat() {
-        JButton btnMaster = Theme.plain("");
+        // Tombol pintu masuk dialog. Berlabel, bukan ikon polos: ini satu-satunya jalan
+        // mengelola plat dan pemilik, dan tombol ikon tanpa teks hanya terbaca lewat
+        // tooltip - perlu di-hover. Halaman ini sudah pernah menolak pola "ada di layar
+        // tapi tidak kelihatan" untuk menu klik-kanan.
+        //
+        // Kotak platnya dikecilkan 200 -> 150px supaya labelnya muat: baris form ini
+        // punya sisa sangat sedikit pada MainFrame.LEBAR_MINIMUM, dan tanpa mengecilkan
+        // kotak plat, tombol berlabel akan meluap dan menggagalkan penjaga "tombol tidak
+        // terpotong". 150px masih cukup untuk plat terpanjang ("BE 0000 ZZ") plus panahnya.
+        JButton btnMaster = Theme.plain("Kelola");
         btnMaster.setIcon(Icons.of(Icons.BUILDING, Theme.INK_SOFT, 16));
         btnMaster.setToolTipText("Kelola Data Truk: tambah, ubah, atau hapus plat dan pemiliknya");
         btnMaster.getAccessibleContext().setAccessibleName("Kelola Data Truk");
-        btnMaster.setPreferredSize(new Dimension(34, Theme.FIELD_HEIGHT));
         btnMaster.addActionListener(e -> {
             // JDialog melempar HeadlessException tanpa layar, sedangkan uji berjalan
             // tanpa layar — dialognya dilewati saja supaya jalur kliknya tetap teruji.
@@ -249,7 +257,7 @@ public class PanelTransaction extends JPanel {
 
         JPanel baris = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
         baris.setOpaque(false);
-        baris.add(sized(cmbPlate, 200));
+        baris.add(sized(cmbPlate, 150));
         baris.add(btnMaster);
         return baris;
     }
