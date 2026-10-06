@@ -48,6 +48,28 @@ public class PanelPengguna extends JPanel {
     /** Id pengguna tiap baris tabel, sejajar nomor barisnya. */
     private final List<Integer> idPerBaris = new ArrayList<>();
 
+    /**
+     * Lebar kolom tabel daftar akun, dalam piksel.
+     *
+     * <p>Jumlahnya 500px supaya tepi kanan tabel seujung dengan tepi kanan baris isian
+     * di atasnya (200 + 160 + 120 kotak isiannya, ditambah sela antar kolomnya).
+     */
+    private static final int KOL_NAMA = 320;
+    /** Lihat {@link #KOL_NAMA}. */
+    private static final int KOL_PERAN = 180;
+    /**
+     * Lebar kotak tabelnya: persis jumlah kolomnya, bukan lebih.
+     *
+     * <p>Lebihkan sedikit untuk penggeser tegak, dan kepala tabel ikut melebar melewati
+     * barisnya - garis abu-abu kepalanya menjulur keluar dari tabel yang digarisinya.
+     * Dengan sama persis, kolomnya berhenti di angka di atas, dan begitu penggeser tegak
+     * muncul (di atas {@link #BARIS_MAKS} baris) kolomnya yang menyempit sedikit - bukan
+     * muncul penggeser mendatar.
+     */
+    private static final int LEBAR_TABEL = KOL_NAMA + KOL_PERAN;
+    /** Di atas sebanyak ini, kotak tabelnya berhenti tumbuh dan barisnya digulir. */
+    private static final int BARIS_MAKS = 8;
+
     public PanelPengguna(Pengguna yangMasuk) {
         this.yangMasuk = yangMasuk;
         setLayout(new BorderLayout(0, 12));
@@ -66,7 +88,7 @@ public class PanelPengguna extends JPanel {
         btnHapus.addActionListener(e -> hapusTerpilih());
 
         Theme.styleTable(tabel);
-        Theme.widths(tabel, 280, 120);
+        Theme.widths(tabel, KOL_NAMA, KOL_PERAN);
         // Hapus boleh satu atau banyak baris; Ubah hanya satu — kalau dua, tidak
         // jelas mana yang mau diubah.
         tabel.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -78,7 +100,11 @@ public class PanelPengguna extends JPanel {
 
         JPanel kartu = Theme.card("Pengguna");
         kartu.add(buildIsi(), BorderLayout.CENTER);
-        add(kartu, BorderLayout.CENTER);
+        // Kartunya ditaruh di ATAS, bukan memenuhi halaman: isinya cuma satu baris
+        // isian, satu tabel pendek, dan tiga tombol. Kalau kartunya dipaksa setinggi
+        // halaman, sisa ruangnya jadi bidang putih kosong di dalam kartu - yang
+        // membuat halamannya tampak lengang, padahal isinya cuma sedikit.
+        add(kartu, BorderLayout.NORTH);
 
         muat();
     }
@@ -97,9 +123,18 @@ public class PanelPengguna extends JPanel {
                 Theme.field("Peran", cmbPeran));
         p.add(isian, BorderLayout.NORTH);
 
+        // Tabelnya TIDAK dibiarkan memakai seluruh lebar halaman. Dua kolom yang
+        // isinya pendek akan membentang jadi dua kotak raksasa berisi satu kata,
+        // dan itulah yang membuat halamannya tampak kosong. Lebarnya dikunci
+        // (Nama + Peran = 500px, seujung dengan baris isian di atasnya) dan
+        // tingginya mengikuti jumlah baris - lihat pasangTinggiTabel().
         JScrollPane scroll = new JScrollPane(tabel);
         scroll.setBorder(BorderFactory.createEmptyBorder());
-        p.add(scroll, BorderLayout.CENTER);
+        scroll.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
+        // Dibungkus baris rata kiri supaya tinggal di lebar preferred-nya; kalau
+        // ditaruh langsung di CENTER, wadahnya yang melebar dan tabelnya ikut
+        // memakai ruang kosong di sebelah kanannya.
+        p.add(Theme.row(0, scroll), BorderLayout.CENTER);
 
         JPanel kaki = new JPanel(new BorderLayout(0, 8));
         kaki.setOpaque(false);
@@ -113,6 +148,20 @@ public class PanelPengguna extends JPanel {
         kaki.add(status, BorderLayout.SOUTH);
         p.add(kaki, BorderLayout.SOUTH);
         return p;
+    }
+
+    /**
+     * Tinggi kotak tabel mengikuti banyaknya baris, sampai batas atas.
+     *
+     * <p>Daftar akun biasanya cuma berisi beberapa baris. Kotak setinggi tetap akan
+     * menyisakan bidang putih kosong di bawah baris terakhir - persis yang membuat
+     * halamannya tampak lengang. Di atas {@link #BARIS_MAKS} baris, kotaknya berhenti
+     * tumbuh dan barisnya bisa digulir.
+     */
+    private void pasangTinggiTabel() {
+        int baris = Math.max(1, Math.min(tabel.getRowCount(), BARIS_MAKS));
+        tabel.setPreferredScrollableViewportSize(
+                new Dimension(LEBAR_TABEL, Theme.HEADER_HEIGHT + baris * Theme.ROW_HEIGHT + 2));
     }
 
     // ---------- data ----------
@@ -131,6 +180,9 @@ public class PanelPengguna extends JPanel {
                 tabel.setRowSelectionInterval(terpilih, terpilih);
             }
             perbaruiTombol();
+            // Sesudah barisnya terisi: tingginya mengikuti banyaknya baris, jadi
+            // tidak ada bidang putih kosong di bawah baris terakhir.
+            pasangTinggiTabel();
         } catch (Exception e) {
             Theme.showError(this, e);
         }

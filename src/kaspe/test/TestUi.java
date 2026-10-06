@@ -387,6 +387,9 @@ public class TestUi {
         // tak satu pun pemeriksaan lain menyala: yang rusak bukan isinya, melainkan
         // tinggi barisnya. Diperiksa di sini karena hanya mengukur - tanpa layar.
         check("layar masuk tidak setinggi isinya", tinggiLayarMasukWajar());
+        // Halaman Pengguna pernah menyisakan bidang kosong besar: tabelnya meregang
+        // selebar halaman dan kotaknya setinggi tetap, padahal isinya cuma dua baris.
+        check("daftar akun tidak mengambil ruang lebih dari isinya", daftarAkunTidakMelar());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -4203,6 +4206,41 @@ public class TestUi {
             }
         }
         return null;
+    }
+
+    /**
+     * Daftar akun tidak mengambil ruang lebih dari isinya.
+     *
+     * <p>Dua kolom yang isinya pendek pernah dibiarkan meregang selebar halaman, dan
+     * kotak tabelnya setinggi tetap — keduanya menyisakan bidang kosong besar, dan
+     * itulah yang membuat halaman ini tampak lengang padahal isinya cuma beberapa akun.
+     * Diukur pada susunan yang benar-benar ditata, karena kerusakannya bukan pada lebar
+     * kolom yang dituliskan melainkan pada tabelnya yang ikut melebar mengikuti wadahnya.
+     */
+    private static boolean daftarAkunTidakMelar() throws Exception {
+        PagePanel halaman = new PagePanel(penggunaUjiAdmin());
+        JPanel layar = PagePanel.shell(halaman);
+        layar.setSize(1320, 760);
+        PanelPengguna p = new PanelPengguna(penggunaUjiAdmin());
+        halaman.showPanel(p, "Pengguna", "Kelola akun dan perannya.");
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+        JTable t = (JTable) field(p, "tabel");
+        boolean ok = true;
+        if (t.getWidth() > 520) {
+            System.out.println("        lebar tabel " + t.getWidth()
+                    + "px - tabelnya ikut melebar mengikuti halamannya");
+            ok = false;
+        }
+        int wajar = Theme.HEADER_HEIGHT + t.getRowCount() * Theme.ROW_HEIGHT;
+        if (t.getHeight() < wajar || t.getHeight() > wajar + 6) {
+            System.out.println("        tinggi tabel " + t.getHeight() + "px untuk "
+                    + t.getRowCount() + " baris, seharusnya sekitar " + wajar);
+            ok = false;
+        }
+        return ok;
     }
 
     /**

@@ -471,6 +471,15 @@ starts with `DELETE`, so it wipes the target database.
   `compareToIgnoreCase` the other. And a guard that lets a comparator's exception escape turns into a
   crash that stops the suite before `=== HASIL ===`, which reads like a broken test rather than a
   caught defect; `TestUi.urutkan(tabel, kolom, arah)` wraps every `setSortKeys` for that reason.
+- **A short table must not be stretched to fill its page.** The account table on `PanelPengguna`
+  has two short columns (Nama 320 + Peran 180 = 500px, deliberately the width of the input row
+  above it so their right edges line up) and few rows, yet the default layout stretched it across
+  the whole 1090px page inside a fixed tall box — two short columns in a mostly empty field. Its
+  width now stops at its declared columns and its height tracks its rows
+  (`Theme.HEADER_HEIGHT + rows * Theme.ROW_HEIGHT + 2`, capped at 8 rows before it scrolls), the
+  card is pinned NORTH with natural height, and the buttons sit just under the table. `TestUi`
+  lays the page out for real and fails if the table is wider than 520px or its height does not
+  track the row count — the old layout measured 1090px wide and 452px tall for 3 rows.
 - **Models**: plain beans, getters/setters, `toString()` used for combo display. Read-only tables use
   an anonymous `DefaultTableModel` overriding `isCellEditable → false`.
 - **UI text and Javadoc in Indonesian**, one-line Javadoc per class.
@@ -542,7 +551,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 84 — **375 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 85 — **376 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real
