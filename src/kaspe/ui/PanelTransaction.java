@@ -207,6 +207,20 @@ public class PanelTransaction extends JPanel {
     /** Isi awal kotak hasil sebelum angkanya ada. */
     private static final String EMPTY = "\u2014";
 
+    /**
+     * Lebar kolom kisi isian: kedua baris memakai lebar yang sama supaya tepinya lurus.
+     *
+     * <p>KOL1 sengaja lebih lebar sedikit daripada kebutuhan persisnya (150px kotak plat
+     * + 6px sela + 89px tombol "Kelola" = 245px). Tombol itu milik huruf tema, sedangkan
+     * aplikasi ini bisa jatuh ke huruf sistem kalau Inter tidak terpasang — dan di sana
+     * tombolnya 1px lebih lebar, jadi tulisan "Kelola" terpotong tepat di mesin yang tidak
+     * memakai huruf bawaan. Sisa lebar kisi masih cukup untuk kelonggaran ini.
+     */
+    private static final int KOL0 = 150;
+    private static final int KOL1 = 251;
+    private static final int KOL2 = 170;
+    private static final int KOL3 = 259;
+
     /** Tulisi hasil hitungan dan warnai sesuai keadaannya. */
     private static void setValue(JLabel label, String text) {
         boolean kosong = text == null || EMPTY.equals(text);
@@ -221,12 +235,11 @@ public class PanelTransaction extends JPanel {
     }
 
     /**
-     * Kotak plat dan tombol kecil bergambar gedung di sebelahnya: satu-satunya jalan
-     * ke dialog Kelola Data Truk, karena entri menunya di bilah samping sudah dihapus.
+     * Kotak plat dan tombol "Kelola" di sebelahnya: satu-satunya jalan ke dialog
+     * Kelola Data Truk, karena entri menunya di bilah samping sudah dihapus.
      *
-     * <p>Tombolnya ikon saja tanpa tulisan — lebar sisanya di kisi form ini cuma
-     * 68 px pada jendela terkecil — jadi maksudnya dijelaskan lewat petunjuk dan nama
-     * aksesnya, dan tombolnya tetap bisa disorot dengan papan ketik.
+     * <p>Labelnya sengaja pendek, jadi keterangan lengkapnya ada di petunjuk tombol;
+     * tombolnya juga tetap punya nama akses dan bisa disorot dengan papan ketik.
      */
     private JComponent barisPlat() {
         // Tombol pintu masuk dialog. Berlabel, bukan ikon polos: ini satu-satunya jalan
@@ -255,11 +268,7 @@ public class PanelTransaction extends JPanel {
             refreshMaster();
         });
 
-        JPanel baris = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        baris.setOpaque(false);
-        baris.add(sized(cmbPlate, 150));
-        baris.add(btnMaster);
-        return baris;
+        return Theme.row(6, sized(cmbPlate, 150), btnMaster);
     }
 
 
@@ -314,10 +323,10 @@ public class PanelTransaction extends JPanel {
         JPanel grid = new JPanel(new GridBagLayout());
         grid.setOpaque(false);
         GridBagConstraints g = new GridBagConstraints();
-        // Isian dibiarkan seukuran yang ditentukan (fill NONE). Kalau dibiarkan melar
-        // mengikuti lebar kartu, kotak "Bobot Lapak" jadi selebar kotak "Plat / Truk"
-        // dan barisnya terlihat renggang tanpa alasan.
-        g.fill = GridBagConstraints.NONE;
+        // Kedua baris memakai empat lebar kolom yang sama (KOL0-KOL3), jadi tepi kiri
+        // dan kanan tiap isian lurus dengan pasangannya di baris sebelah; fill
+        // HORIZONTAL memastikan tiap sel memenuhi lebar kolomnya tepat.
+        g.fill = GridBagConstraints.HORIZONTAL;
         g.anchor = GridBagConstraints.WEST;
 
         Theme.placeholder(txtFieldWeight, "kg");
@@ -335,36 +344,33 @@ public class PanelTransaction extends JPanel {
         g.gridy = 0;
         g.insets = new Insets(0, 0, 8, 14);
         g.gridx = 0;
-        grid.add(Theme.field("Tanggal Nota", sized(spDate, 150)), g);
+        grid.add(Theme.field("Tanggal Nota", sized(spDate, KOL0)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Plat / Truk", barisPlat()), g);
+        grid.add(Theme.field("Plat / Truk", sized(barisPlat(), KOL1)), g);
         g.gridx = 2;
-        grid.add(Theme.field("Rental", sized(cmbRental, 170)), g);
+        grid.add(Theme.field("Rental", sized(cmbRental, KOL2)), g);
         g.gridx = 3;
         g.insets = new Insets(0, 0, 8, 0);
-        grid.add(Theme.field("Bobot Lapak (kg)", sized(txtFieldWeight, 120)), g);
+        grid.add(Theme.field("Bobot Lapak (kg)", sized(txtFieldWeight, KOL3)), g);
         addSpacer(grid, g, 4);
 
         // baris 2 — sisa timbangan, potongan, harga, dan pembayarannya.
         g.gridy = 1;
         g.insets = new Insets(0, 0, 0, 14);
         g.gridx = 0;
-        grid.add(Theme.field("Bobot Pabrik (kg)", sized(txtFactoryWeight, 120)), g);
+        grid.add(Theme.field("Bobot Pabrik (kg)", sized(txtFactoryWeight, KOL0)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Refraksi (%)", sized(txtRefraction, 120)), g);
+        grid.add(Theme.field("Refraksi (%)", sized(txtRefraction, KOL1)), g);
         g.gridx = 2;
-        grid.add(Theme.field("Harga (Rp/kg)", sized(txtPrice, 120)), g);
+        grid.add(Theme.field("Harga (Rp/kg)", sized(txtPrice, KOL2)), g);
         g.gridx = 3;
         g.insets = new Insets(0, 0, 0, 0);
         // Centang "Sudah dibayar" + tanggal lunasnya dalam satu kotak yang sama:
         // keadaan "belum dibayar" adalah bagian dari isian tanggal lunas, bukan isian lain.
         // Dulu kotak ini duduk di bawah kolom "Rental", sehingga pembayaran terlihat
         // seperti bagian dari pemilik truk; sekarang ia menutup barisnya sendiri.
-        JPanel kotakLunas = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
-        kotakLunas.setOpaque(false);
-        kotakLunas.add(chkPaid);
-        kotakLunas.add(sized(spPaid, 130));
-        grid.add(Theme.field("Tanggal Lunas", kotakLunas), g);
+        JPanel kotakLunas = Theme.row(6, chkPaid, sized(spPaid, 130));
+        grid.add(Theme.field("Tanggal Lunas", sized(kotakLunas, KOL3)), g);
         addSpacer(grid, g, 4);
 
         // Isian di kiri, hasil hitungan dan tombol simpan di kanan.
@@ -553,20 +559,14 @@ public class PanelTransaction extends JPanel {
         // dipasang di konstruktor lewat pendengar pilihan.
         btnUbah.setEnabled(false);
         btnHapus.setEnabled(false);
-        JPanel ubahHapus = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        ubahHapus.setOpaque(false);
-        ubahHapus.add(btnUbah);
-        ubahHapus.add(btnHapus);
+        JPanel ubahHapus = Theme.row(8, btnUbah, btnHapus);
 
         // Cadangan database ditaruh di ujung kanan baris tombol yang sama, bukan di
         // baris baru: tinggi halaman ini dipatok (patokan kartu di bawah), dan baris
         // tambahan memakan ruang daftar pengiriman di atasnya.
         JButton btnCadangkan = Theme.plain("Cadangkan Database");
         btnCadangkan.addActionListener(e -> cadangkanDatabase());
-        JPanel cadangan = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        cadangan.setOpaque(false);
-        cadangan.add(btnCadangkan);
-        cadangan.add(Theme.caption(
+        JPanel cadangan = Theme.rowRight(8, btnCadangkan, Theme.caption(
                 "Menyimpan satu berkas cadangan bertanggal berisi seluruh isi buku catatan."));
 
         JPanel tombol = new JPanel(new BorderLayout());
@@ -594,19 +594,12 @@ public class PanelTransaction extends JPanel {
      * baris pada jendela bawaan; sisa lebarnya diserap kosong di ujung kanan.
      */
     private JPanel buildSaringanRiwayat() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        p.setOpaque(false);
-        p.add(Theme.label("Dari"));
-        p.add(sized(spFilterFrom, 110));
-        p.add(Theme.label("Sampai"));
-        p.add(sized(spFilterTo, 110));
-        p.add(Theme.label("Rental"));
-        p.add(sized(cmbFilterRental, 150));
-        p.add(Theme.label("Plat"));
-        p.add(sized(txtFilterPlat, 120));
-        p.add(btnFilterTampilkan);
-        p.add(btnFilterSemua);
-        return p;
+        return Theme.row(10,
+                Theme.label("Dari"), sized(spFilterFrom, 110),
+                Theme.label("Sampai"), sized(spFilterTo, 110),
+                Theme.label("Rental"), sized(cmbFilterRental, 150),
+                Theme.label("Plat"), sized(txtFilterPlat, 120),
+                btnFilterTampilkan, btnFilterSemua);
     }
 
     /**

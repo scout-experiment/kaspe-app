@@ -37,6 +37,10 @@ import java.util.List;
  */
 public class DialogDataMaster extends JPanel {
 
+    /** Ukuran jendela terkecil dialog truk; dipakai bersama uji penjaga supaya keduanya tidak saling menjauh. */
+    public static final int LEBAR_MINIMUM = 720;
+    public static final int TINGGI_MINIMUM = 520;
+
     private final MasterDao dao = new MasterDao();
 
     private final DefaultTableModel modelTruk = new DefaultTableModel(
@@ -67,9 +71,12 @@ public class DialogDataMaster extends JPanel {
     private Integer pemilikTruk = null;
     /** true = baris isian sedang dipakai mengubah baris yang dipilih. */
     private boolean ubahMode = false;
-    /** Panel tombol yang berganti isi menurut mode. */
-    private final JPanel barisTombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-    private final JPanel barisKotak = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+    /** Baris tombol komit (Tambah / Simpan-Batal), isinya berganti menurut mode. */
+    private final JPanel barisTombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    /** Baris isian plat dan pemiliknya. */
+    private final JPanel barisKotak = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+    /** Baris aksi atas baris terpilih; selalu ada supaya tinggi dialog tidak melompat saat ganti mode. */
+    private final JPanel barisAksi = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
     /** Pemilik yang tersimpan di tiap baris, sejajar nomor barisnya. */
     private final List<Truck> truk = new ArrayList<>();
 
@@ -101,6 +108,8 @@ public class DialogDataMaster extends JPanel {
 
         Theme.styleTable(tableTruk);
         Theme.widths(tableTruk, 170, 300);
+        // Kolom plat tetap; sisa lebar jendela diserap kolom pemiliknya.
+        Theme.fixedWidth(tableTruk, 0, 170);
         // Theme.styleTable memasang pemilihan TUNGGAL untuk semua tabel. "Hapus" di sini
         // harus bisa banyak baris sekaligus, seperti daftar transaksi tersimpan.
         tableTruk.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
@@ -122,10 +131,24 @@ public class DialogDataMaster extends JPanel {
         DialogDataMaster isi = new DialogDataMaster();
         dialog.setContentPane(isi);
         dialog.pack();
-        dialog.setSize(Math.max(720, isi.getPreferredSize().width),
-                Math.max(520, isi.getPreferredSize().height));
+        Dimension ukuran = ukuranJendela(isi);
+        dialog.setSize(ukuran.width, ukuran.height);
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
+    }
+
+    /**
+     * Ukuran jendela dialog: lantai {@link #LEBAR_MINIMUM} x {@link #TINGGI_MINIMUM},
+     * diperbesar kalau isinya minta lebih.
+     *
+     * <p>Dipakai bersama oleh {@link #buka} dan pemeriksaan di TestUi. Kalau angkanya
+     * dihitung di dua tempat, keduanya bisa berbeda tanpa ada yang menyadari, dan
+     * pemeriksaan itu diam-diam berhenti menguji ukuran yang benar-benar dipakai.
+     */
+    public static Dimension ukuranJendela(JPanel isi) {
+        Dimension butuh = isi.getPreferredSize();
+        return new Dimension(Math.max(LEBAR_MINIMUM, butuh.width),
+                Math.max(TINGGI_MINIMUM, butuh.height));
     }
 
     // ---------- susunan ----------
@@ -145,9 +168,16 @@ public class DialogDataMaster extends JPanel {
         p.setOpaque(false);
         barisKotak.setOpaque(false);
         barisTombol.setOpaque(false);
+        barisAksi.setOpaque(false);
 
         p.add(barisKotak, BorderLayout.NORTH);
-        p.add(barisTombol, BorderLayout.CENTER);
+
+        // Dua baris tengah dikelompokkan supaya baris status tetap jadi baris paling bawah.
+        JPanel tengah = new JPanel(new GridLayout(2, 1, 0, 8));
+        tengah.setOpaque(false);
+        tengah.add(barisTombol);
+        tengah.add(barisAksi);
+        p.add(tengah, BorderLayout.CENTER);
 
         JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
         status.setOpaque(false);
@@ -169,52 +199,41 @@ public class DialogDataMaster extends JPanel {
      */
     private void pasangMode(boolean ubah) {
         ubahMode = ubah;
-        barisKotak.removeAll();
-        barisKotak.add(Theme.field("Plat Nomor", fPlat));
         fPlat.setPreferredSize(new Dimension(150, Theme.FIELD_HEIGHT));
         if (ubah) {
-            barisKotak.add(btnHapusPlat);
-            barisKotak.add(btnSimpan);
-            barisKotak.add(btnBatal);
-            barisKotak.add(Theme.field("Rental pemiliknya", lblPemilik));
             lblPemilik.setText(pemilikTruk == null ? "-" : namaPemilik(pemilikTruk));
+            Theme.fillRow(barisKotak, 10,
+                    Theme.field("Plat Nomor", Theme.row(6, fPlat, btnHapusPlat)),
+                    Theme.field("Rental pemiliknya", lblPemilik));
+            Theme.fillRow(barisTombol, 8, btnSimpan, btnBatal);
+            Theme.fillRow(barisAksi, 8, btnPindah);
         } else {
-            barisKotak.add(btnHapusPlat);
-            barisKotak.add(btnTambah);
-            barisKotak.add(Theme.field("Rental pemiliknya", cmbRental));
-        }
-
-        barisTombol.removeAll();
-        if (ubah) {
-            barisTombol.add(btnPindah);
-        } else {
-            barisTombol.add(btnUbah);
-            barisTombol.add(btnPindah);
-            barisTombol.add(btnHapus);
+            Theme.fillRow(barisKotak, 10,
+                    Theme.field("Plat Nomor", Theme.row(6, fPlat, btnHapusPlat)),
+                    Theme.field("Rental pemiliknya", cmbRental));
+            Theme.fillRow(barisTombol, 8, btnTambah);
+            Theme.fillRow(barisAksi, 8, btnUbah, btnPindah, btnHapus);
         }
         barisKotak.revalidate();
         barisKotak.repaint();
         barisTombol.revalidate();
         barisTombol.repaint();
+        barisAksi.revalidate();
+        barisAksi.repaint();
         perbaruiTombol();
     }
 
     private JPanel buildKaki() {
         JPanel p = new JPanel(new BorderLayout(12, 0));
         p.setOpaque(false);
-        JPanel kiri = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        kiri.setOpaque(false);
         JButton kelola = Theme.plain("Kelola Pemilik...");
         kelola.addActionListener(e -> DialogPemilik.buka(SwingUtilities.getWindowAncestor(this), this::muat));
-        kiri.add(kelola);
-        kiri.add(Theme.caption("Pemilik yang masih punya truk tidak bisa dihapus."));
-        p.add(kiri, BorderLayout.WEST);
-        JPanel kanan = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        kanan.setOpaque(false);
+        p.add(Theme.row(8, kelola,
+                        Theme.caption("Pemilik yang masih punya truk tidak bisa dihapus.")),
+                BorderLayout.WEST);
         JButton tutup = Theme.plain("Tutup");
         tutup.addActionListener(e -> tutupJendela());
-        kanan.add(tutup);
-        p.add(kanan, BorderLayout.EAST);
+        p.add(Theme.rowRight(8, tutup), BorderLayout.EAST);
         return p;
     }
 

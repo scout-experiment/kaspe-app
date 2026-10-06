@@ -197,15 +197,6 @@ public class PanelReport extends JPanel {
     private JPanel buildFilter() {
         JPanel kartu = new JPanel(new BorderLayout(0, 8));
         Theme.applyCard(kartu);
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        p.add(Theme.label("Dari"));
-        p.add(spFrom);
-        p.add(Theme.label("Sampai"));
-        p.add(spTo);
-        p.add(Theme.label("Rental"));
-        p.add(sized(cmbRental, 150));
-        p.add(Theme.label("Plat"));
-        p.add(sized(txtPlat, 110));
 
         JButton btnShow = Theme.primary("Tampilkan");
         JButton btnPreview = Theme.plain("Pratinjau");
@@ -216,21 +207,24 @@ public class PanelReport extends JPanel {
         txtPlat.addActionListener(e -> reload());
         btnPreview.addActionListener(e -> pratinjau());
         btnPrint.addActionListener(e -> print());
-        p.add(btnShow);
-        p.add(btnPreview);
-        p.add(btnPrint);
 
         // Pesan tanggal yang tidak valid ditulis di sini, bukan lewat jendela
         // peringatan: jendela menutupi layar dan harus ditutup dulu sebelum kotaknya
         // bisa diperbaiki.
         lblStatus.setForeground(Theme.DANGER);
-        p.add(lblStatus);
+
+        // Gap eksplisit lewat Theme.row, bukan hgap FlowLayout: hgap ikut
+        // menjorokkan baris dari tepi kiri.
+        JPanel p = Theme.row(10,
+                Theme.label("Dari"), spFrom,
+                Theme.label("Sampai"), spTo,
+                Theme.label("Rental"), sized(cmbRental, 150),
+                Theme.label("Plat"), sized(txtPlat, 110),
+                btnShow, btnPreview, btnPrint, lblStatus);
         kartu.add(p, BorderLayout.NORTH);
 
         // Rentang cepat ditaruh di baris kedua karena baris pertama sudah selebar
         // jendela minimum — tombol tambahan di situ akan terlipat lalu terpotong.
-        JPanel cepat = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        cepat.add(Theme.label("Rentang cepat:"));
         JButton btnHariIni = Theme.plain("Hari ini");
         JButton btnBulanIni = Theme.plain("Bulan ini");
         JButton btnSemua = Theme.plain("Semua");
@@ -238,9 +232,7 @@ public class PanelReport extends JPanel {
         btnBulanIni.addActionListener(e -> rentang(LocalDate.now().withDayOfMonth(1), LocalDate.now()));
         btnSemua.addActionListener(e -> rentang(
                 tanggalTerawal(LocalDate.now().withDayOfMonth(1)), tanggalTerakhir(LocalDate.now())));
-        cepat.add(btnHariIni);
-        cepat.add(btnBulanIni);
-        cepat.add(btnSemua);
+        JPanel cepat = Theme.row(10, Theme.label("Rentang cepat:"), btnHariIni, btnBulanIni, btnSemua);
         kartu.add(cepat, BorderLayout.CENTER);
         return kartu;
     }
@@ -276,27 +268,20 @@ public class PanelReport extends JPanel {
         // dibesarkan, ia terbaca sebagai total ketiga yang setara dengan dua di sebelahnya.
         lblRowCount.setForeground(Theme.INK_SOFT);
 
-        JPanel a = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        a.setOpaque(false);
-        a.add(Theme.label("Total uang"));
-        a.add(lblTotalAmount);
+        JPanel a = Theme.row(8, Theme.label("Total uang"), lblTotalAmount);
         JPanel b = new JPanel(new FlowLayout(FlowLayout.CENTER, 8, 0));
         b.setOpaque(false);
         b.add(Theme.label("Total berat bersih"));
         b.add(lblTotalWeight);
-        JPanel c = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        c.setOpaque(false);
-        c.add(lblRowCount);
         // Ekspor ditaruh di sini, bukan di baris saringan di atas: baris itu sudah pas
         // selebar jendela minimum - sisanya hanya 10px - sehingga menambah satu tombol
         // di situ membuat tombolnya terlipat ke baris kedua lalu terpotong. Di sini
         // tempatnya juga berdampingan dengan totalnya, dan total itulah yang mau diolah.
         JButton btnRekap = Theme.plain("Rekap per rental");
         btnRekap.addActionListener(e -> tampilkanRekap());
-        c.add(btnRekap);
         JButton btnCsv = Theme.plain("Ekspor CSV");
         btnCsv.addActionListener(e -> eksporCsv());
-        c.add(btnCsv);
+        JPanel c = Theme.rowRight(8, lblRowCount, btnRekap, btnCsv);
 
         p.add(a);
         p.add(b);

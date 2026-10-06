@@ -239,6 +239,22 @@ starts with `DELETE`, so it wipes the target database.
   several machines over MySQL. Note it REFUSES an existing plate rather than reusing the
   truck the way `pastikanTruk` does — on this screen a duplicate is a typo that must be
   heard, not a silent request to reuse the existing row.
+
+- **Dialog windows share their size floor with the test.** `DialogDataMaster.LEBAR_MINIMUM` /
+  `TINGGI_MINIMUM` (720x520) and `DialogPemilik`'s (460x420) are read by both `buka()` and `TestUi`,
+  through the same `ukuranJendela(JPanel)` helper. With the literal in two places the test kept
+  checking 720 while nothing guaranteed the window opened that wide — a guard silently testing a
+  width the app no longer used. `DialogPemilik`'s 460 is inert (its content prefers 482px, so the
+  content always wins); that is fine, the point is that the number cannot drift.
+- **Dialog input rows are stacked, not mixed.** `DialogDataMaster.buildBaris()` keeps three
+  always-present rows — labelled fields, commit buttons (Tambah / Simpan Perubahan + Batal), then
+  selection actions (Ubah + Pindah + Hapus / Pindah) — in a `GridLayout(2, 1, 0, 8)` so the geometry
+  does not jump when the mode switches. Buttons must not share a `FlowLayout` row with
+  `Theme.field(...)` panels: a field stacks a caption above its input, so bare buttons centre against
+  the taller panel and float above the input boxes.
+- **`Theme.fixedWidth` any short table column.** An unpinned column absorbs its share of the leftover
+  window width, so in the 720px dialog the "Plat" column — ten characters of content — rendered 279px
+  wide because both columns were stretched equally. Let the column holding long text absorb the slack.
 - **Dashboard is four stat cards, two rows of two, pinned to the top**: the big number keeps
   its all-time meaning and the month-to-date figure (`totalAmount(withDayOfMonth(1), now)`)
   goes in the caption — do not move the month figure into the headline, since changing a
@@ -263,6 +279,32 @@ starts with `DELETE`, so it wipes the target database.
   no vendor-specific syntax). CRUD SQL is inline in DAOs, `PreparedStatement` for writes,
   `Statement` for reads, one try-with-resources block per call. Multi-row writes use one
   connection with `setAutoCommit(false)` / `commit` / `rollback` in catch / restore in `finally`.
+- **Horizontal rows go through `Theme.row`** — never a bare `new FlowLayout(FlowLayout.LEFT, gap, 0)`.
+  `FlowLayout` uses `hgap` as *both* the gap between children and padding at the leading edge, so a
+  button row written that way sits 6–10px right of the `caption`/field/table above it and the left
+  edges never line up. Measured on JDK 8: `hgap=6` puts the first child at `x=6`, `hgap=0` at `x=0`.
+
+  ```java
+  Theme.row(8, btnUbah, btnHapus);          // left-aligned, no leading pad
+  Theme.rowRight(8, btnCetak, btnTutup);    // right-aligned, no trailing pad
+  Theme.fillRow(barisTombol, 8, ...);       // refill a row whose contents switch per mode
+  ```
+
+  `Theme.row`/`rowRight` already set `opaque(false)`; `fillRow` needs its panel declared as
+  `new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0))`. Leave `FlowLayout.CENTER` rows alone —
+  centring has no edge padding to fix. `TestUi` guards this: every left-aligned row in the four
+  surfaces must have its first child at `x=0`.
+- **Grid columns must be declared, not inherited.** A `GridBagLayout` widens each column to its
+  widest cell, so two rows with different cell widths get unequal columns and a hole appears mid-row.
+  `PanelTransaction`'s input grid therefore names its four column widths (`KOL0`–`KOL3`), sets every
+  cell to its column width and uses `fill = HORIZONTAL`. Widths are *requested* widths: with
+  `fill = HORIZONTAL` every cell renders at its column width, so a guard reading rendered widths can
+  never fail — `TestUi` compares `getPreferredSize().width` instead.
+- **Leave slack for the system font.** The app ships Inter but falls back to the system family
+  (`Theme.interUsable`), where the same label is a little wider. A cell sized to exactly the Inter
+  measurement clips its button on a machine that never had Inter — `KOL1` carries 5px of slack and
+  `TestUi` re-measures the row under `Font.SANS_SERIF` to keep it that way.
+
 - **Table styling is centralized in `Theme`** — the only per-table decisions allowed are column
   widths and which columns are right-aligned/fixed:
 
@@ -444,7 +486,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 62 — **334 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 93, `TestAlur` 115, `TestUi` 70 — **342 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

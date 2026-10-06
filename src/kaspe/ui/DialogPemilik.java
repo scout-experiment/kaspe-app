@@ -69,8 +69,6 @@ public class DialogPemilik extends JPanel {
         kolom.add(Theme.field("Nama Pemilik", fNama));
         form.add(kolom, BorderLayout.NORTH);
 
-        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        tombol.setOpaque(false);
         JButton btnTambah = Theme.primary("Tambah");
         // "Tambah" dan "Simpan Perubahan" dipisah: satu tombol untuk dua maksud pernah
         // MENIMPA baris yang kebetulan tersorot, beserta seluruh riwayat pemiliknya.
@@ -79,9 +77,9 @@ public class DialogPemilik extends JPanel {
         btnTambah.addActionListener(e -> tambah());
         btnSimpan.addActionListener(e -> ubah());
         btnHapus.addActionListener(e -> hapus());
-        tombol.add(btnTambah);
-        tombol.add(btnSimpan);
-        tombol.add(btnHapus);
+        // hgap FlowLayout ikut menjadi padding awal, jadi baris ini dibuat lewat
+        // Theme.row agar tepi kirinya rata dengan kolom di atasnya.
+        JPanel tombol = Theme.row(8, btnTambah, btnSimpan, btnHapus);
         form.add(tombol, BorderLayout.CENTER);
 
         JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
@@ -105,16 +103,36 @@ public class DialogPemilik extends JPanel {
         isi.setelahBerubah = setelahBerubah;
         dialog.setContentPane(isi);
         dialog.pack();
-        dialog.setSize(Math.max(460, isi.getPreferredSize().width), Math.max(420, isi.getPreferredSize().height));
+        Dimension ukuran = ukuranJendela(isi);
+        dialog.setSize(ukuran.width, ukuran.height);
         dialog.setLocationRelativeTo(owner);
         dialog.setVisible(true);
     }
 
+    /** Lebar jendela terkecil dialog ini; dipakai bersama pemeriksaan di TestUi agar keduanya tidak berbeda sendiri. */
+    public static final int LEBAR_MINIMUM = 460;
+
+    /** Tinggi jendela terkecil dialog ini; dipakai bersama pemeriksaan di TestUi agar keduanya tidak berbeda sendiri. */
+    public static final int TINGGI_MINIMUM = 420;
+
+    /**
+     * Ukuran jendela dialog: lantai {@link #LEBAR_MINIMUM} x {@link #TINGGI_MINIMUM},
+     * diperbesar kalau isinya minta lebih.
+     *
+     * <p>Dipakai bersama oleh {@link #buka} dan pemeriksaan di TestUi. Kalau angkanya
+     * dihitung di dua tempat, keduanya bisa berbeda tanpa ada yang menyadari, dan
+     * pemeriksaan itu diam-diam berhenti menguji ukuran yang benar-benar dipakai.
+     */
+    public static Dimension ukuranJendela(JPanel isi) {
+        Dimension butuh = isi.getPreferredSize();
+        return new Dimension(Math.max(LEBAR_MINIMUM, butuh.width),
+                Math.max(TINGGI_MINIMUM, butuh.height));
+    }
+
     private Runnable setelahBerubah;
 
+    /** Baris tombol penutup, rata kanan tanpa padding tepi dari hgap FlowLayout. */
     private JPanel buildKaki() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        p.setOpaque(false);
         JButton tutup = Theme.plain("Tutup");
         tutup.addActionListener(e -> {
             Window w = SwingUtilities.getWindowAncestor(this);
@@ -122,8 +140,7 @@ public class DialogPemilik extends JPanel {
                 ((JDialog) w).dispose();
             }
         });
-        p.add(tutup);
-        return p;
+        return Theme.rowRight(8, tutup);
     }
 
     // ---------- data ----------

@@ -161,15 +161,13 @@ public class NavBar extends JPanel {
      * memaksa bilahnya melebar. Nama aplikasi yang lengkap sudah tertulis di judul jendela.
      */
     private static JPanel brand() {
-        JPanel p = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
-        p.setOpaque(false);
-        p.setBorder(BorderFactory.createEmptyBorder(18, 16, 16, 16));
-        p.add(new JLabel(Icons.of(Icons.BRAND, Theme.ACCENT, 28)));
-
         JLabel name = new JLabel("Kaspe");
         name.setFont(Theme.bold(16f));
         name.setForeground(Theme.INK);
-        p.add(name);
+        // Gap eksplisit lewat Theme.row, bukan hgap FlowLayout: hgap ikut
+        // menjorokkan baris dari tepi kiri.
+        JPanel p = Theme.row(10, new JLabel(Icons.of(Icons.BRAND, Theme.ACCENT, 28)), name);
+        p.setBorder(BorderFactory.createEmptyBorder(18, 16, 16, 16));
         return p;
     }
 

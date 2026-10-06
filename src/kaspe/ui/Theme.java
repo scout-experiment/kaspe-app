@@ -474,6 +474,67 @@ public final class Theme {
         return b;
     }
 
+    // ---------- baris mendatar ----------
+
+    /**
+     * Baris mendatar berjarak tetap, rata kiri, <b>tanpa jarak awal</b>.
+     *
+     * <p>{@code FlowLayout} memakai {@code hgap}-nya sekaligus sebagai jarak di kiri
+     * komponen pertama. Akibatnya baris tombol selalu duduk 8-10 px lebih kanan daripada
+     * label, kotak isian, dan tabel di atasnya — tepi kirinya jadi tidak lurus, dan
+     * jarak sebelum kolom berikutnya ikut membengkak. Di sini {@code hgap}-nya nol dan
+     * jaraknya dipasang sebagai sela di antara komponen, jadi komponen pertama menempel
+     * di tepi kiri dan jaraknya persis sebesar {@code gap}.
+     *
+     * <p>Dipakai untuk semua baris mendatar yang tepi kirinya harus lurus dengan
+     * tetangganya. Yang benar-benar perlu rata tengah boleh tetap memakai
+     * {@code FlowLayout} langsung: pada rata tengah {@code hgap} tidak menyisakan
+     * padding di tepi.
+     */
+    public static JPanel row(int gap, JComponent... items) {
+        return row(gap, FlowLayout.LEFT, items);
+    }
+
+    /** Baris mendatar rata kanan, tanpa jarak sisa di tepi kanan. Lihat {@link #row}. */
+    public static JPanel rowRight(int gap, JComponent... items) {
+        return row(gap, FlowLayout.RIGHT, items);
+    }
+
+    /**
+     * Isi ulang baris yang isinya berganti saat dipakai, dengan jarak yang sama seperti
+     * {@link #row}. Wadahnya harus memakai {@code FlowLayout} ber-{@code hgap} nol —
+     * itulah yang membuat tepi kirinya lurus.
+     *
+     * <p>Dipisah dari {@link #row} karena sebagian baris berganti isi menurut mode
+     * (mis. tombol Simpan/Batal menggantikan Tambah). Barisnya sendiri tetap panel yang
+     * sama, jadi panelnya tidak boleh dibuat ulang di dalam method yang mengganti isinya.
+     */
+    public static void fillRow(JPanel row, int gap, JComponent... items) {
+        row.removeAll();
+        for (int i = 0; i < items.length; i++) {
+            if (i > 0 && gap > 0) {
+                row.add(Box.createHorizontalStrut(gap));
+            }
+            row.add(items[i]);
+        }
+    }
+
+    private static JPanel row(int gap, int align, JComponent... items) {
+        JPanel p = new JPanel(new FlowLayout(align, 0, 0));
+        p.setOpaque(false);
+        if (align == FlowLayout.LEFT) {
+            fillRow(p, gap, items);
+        } else {
+            for (int i = 0; i < items.length; i++) {
+                if (i > 0 && gap > 0) {
+                    p.add(Box.createHorizontalStrut(gap));
+                }
+                p.add(items[i]);
+            }
+        }
+        return p;
+    }
+
     // ---------- tabel ----------
 
     /**

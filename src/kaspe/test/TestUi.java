@@ -215,6 +215,44 @@ public class TestUi {
                 kolomTabelUtuh(new PanelReport(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
         check("kolom daftar tersimpan utuh pada lebar jendela minimum",
                 kolomTabelUtuh(new PanelTransaction(), kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        // Kerapian tepi kiri. FlowLayout memakai hgap-nya SEKALIGUS sebagai jarak kiri, jadi
+        // new FlowLayout(FlowLayout.LEFT, 8, 0) menaruh komponen pertamanya 8px lebih kanan
+        // daripada label dan tabel di atasnya - tepi kirinya tidak lurus, dan tidak ada satu
+        // pun pesan yang muncul karena barisnya sendiri masih muat. Diukur langsung:
+        // hgap=6 -> anak pertama di x=6, hgap=0 -> x=0.
+        check("baris pada halaman transaksi tidak menyisakan jarak awal",
+                barisTanpaJarakAwal(new PanelTransaction(), "Transaksi"));
+        check("baris pada halaman laporan tidak menyisakan jarak awal",
+                barisTanpaJarakAwal(new PanelReport(), "Laporan"));
+        check("baris pada dialog data master tidak menyisakan jarak awal",
+                barisTanpaJarakAwal(new DialogDataMaster(), "Data Master"));
+        check("baris pada dialog pemilik tidak menyisakan jarak awal",
+                barisTanpaJarakAwal(new DialogPemilik(), "Pemilik"));
+        // Lantai ukuran jendela dialog dipakai DUA tempat: jendela yang membukanya dan
+        // pemeriksaan di berkas ini. Kalau angkanya ditulis dua kali, keduanya bisa berbeda
+        // tanpa ada yang menyadari - dan pemeriksaan yang menguji lebar yang tidak pernah
+        // dipakai aplikasi sama saja berhenti menjaga. Karena itu lantainya dibaca dari
+        // konstanta yang sama, sekaligus diperiksa masih cukup memuat isinya.
+        check("lantai jendela dialog sama dengan yang dipakai jendelanya",
+                lantaiJendelaDialog());
+        // Kisi isian halaman transaksi: kedua barisnya harus memakai lebar kolom yang sama.
+        // Kalau tidak, tepi kanan tiap baris berbeda dan di tengah baris kedua muncul lubang
+        // - dulu 151px antara "Refraksi" dan "Harga". Pemeriksaan ukuran dan tombol tetap
+        // lolos, karena kisi yang tidak rata tetap muat.
+        check("kisi isian transaksi memakai lebar kolom yang sama di kedua baris",
+                kisiIsianRataSebelah());
+        // Kolom pendek pada tabel dialog tidak boleh ikut melar mengisi jendela: kolom
+        // "Plat" yang isinya 10 huruf pernah tergambar 279px karena kedua kolomnya dibagi
+        // rata. Yang boleh melar hanya kolom yang isinya memang panjang.
+        check("kolom pendek pada tabel dialog tidak ikut melar",
+                kolomPendekTidakMelar());
+        // Sel "Plat / Truk" harus tetap memuat tombol "Kelola" walau hurufnya berganti.
+        // Aplikasi memakai huruf Inter yang ikut dikirim, tetapi jatuh ke huruf sistem kalau
+        // berkasnya tidak terpasang (Theme.interUsable), dan di sana tombolnya lebih lebar.
+        // Selnya pernah disetel persis selebar huruf tema, jadi tulisannya terpotong hanya
+        // di mesin tanpa huruf bawaan - satu tempat yang tidak pernah dilihat pembuatnya.
+        check("sel Plat / Truk memuat tombol Kelola pada huruf cadangan",
+                selPlatMuatHurufCadangan());
         // Tinggi minimum: yang diperiksa BUKAN "daftarnya cukup tinggi", karena daftarnya
         // ternyata tidak pernah terhimpit - di bawah sekitar 620px halaman luarnya yang
         // menggulir, dan tingginya berhenti di 175px. Pemeriksaan yang berbunyi "daftarnya
@@ -1692,20 +1730,338 @@ public class TestUi {
     }
 
     /**
+     * Benar kalau tidak ada baris mendatar yang menyisakan jarak di kiri komponen pertamanya.
+     *
+     * <p>{@code FlowLayout} memakai {@code hgap}-nya sekaligus sebagai jarak kiri, jadi
+     * {@code new FlowLayout(FlowLayout.LEFT, 8, 0)} menaruh komponen pertamanya 8px lebih
+     * kanan daripada label dan tabel di atasnya — tepi kirinya tidak lurus, dan tidak ada
+     * pesan apa pun yang muncul karena barisnya sendiri masih muat. Diukur langsung pada
+     * JDK 8: {@code hgap=6} menaruh anak pertama di {@code x=6}, {@code hgap=0} di
+     * {@code x=0}. Karena itu yang diperiksa di sini bukan angkanya, melainkan akibatnya:
+     * baris rata kiri tidak boleh menyisakan jarak awal.
+     *
+     * <p>Baris rata kanan dan rata tengah tidak diperiksa: pada rata kanan yang tersisa
+     * justru jarak di kanan, dan pada rata tengah jaraknya memang di kedua tepi.
+     */
+    private static boolean barisTanpaJarakAwal(JPanel isi, String nama) {
+        isi.setSize(1320, 900);
+        for (int i = 0; i < 3; i++) {
+            isi.doLayout();
+            layoutDeep(isi);
+        }
+        java.util.List<String> lapor = new java.util.ArrayList<String>();
+        cariBarisBersela(isi, lapor);
+        for (String t : lapor) {
+            System.out.println("        " + t);
+        }
+        return lapor.isEmpty();
+    }
+
+    private static void cariBarisBersela(Container c, java.util.List<String> hasil) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof JPanel && ((JPanel) anak).getLayout() instanceof FlowLayout) {
+                FlowLayout f = (FlowLayout) ((JPanel) anak).getLayout();
+                if (f.getAlignment() == FlowLayout.LEFT) {
+                    for (Component isi : ((JPanel) anak).getComponents()) {
+                        if (!isi.isVisible()) {
+                            continue;
+                        }
+                        if (isi.getX() > 0) {
+                            hasil.add("baris " + ringkasKomponen(isi) + " menyisakan "
+                                    + isi.getX() + "px di kiri komponen pertamanya");
+                        }
+                        break;
+                    }
+                }
+            }
+            if (anak instanceof Container) {
+                cariBarisBersela((Container) anak, hasil);
+            }
+        }
+    }
+
+    private static String ringkasKomponen(Component c) {
+        if (c instanceof AbstractButton) {
+            return "tombol \"" + ((AbstractButton) c).getText() + "\"";
+        }
+        if (c instanceof JLabel) {
+            return "label \"" + ((JLabel) c).getText() + "\"";
+        }
+        return c.getClass().getSimpleName();
+    }
+
+    /**
+     * Benar kalau lantai ukuran jendela benar-benar dipakai jendelanya.
+     *
+     * <p>Bahayanya bukan lantai yang salah angka, melainkan lantai yang ditulis ulang di
+     * dua tempat: jendelanya memakai satu angka, pemeriksaannya memakai angka lain, dan
+     * pemeriksaan itu diam-diam menguji ukuran yang tidak pernah dibuka aplikasi. Karena
+     * itu perhitungannya satu method bersama ({@code ukuranJendela}), dan method itulah
+     * yang diuji di sini: ia harus menyusut ke lantainya saat isinya kecil, dan membesar
+     * mengikuti isinya saat isinya besar.
+     */
+    private static boolean lantaiJendelaDialog() {
+        boolean ok = true;
+        ok &= periksaLantai("dialog data master", new DialogDataMaster(),
+                DialogDataMaster.LEBAR_MINIMUM, DialogDataMaster.TINGGI_MINIMUM,
+                new java.util.function.Function<JPanel, java.awt.Dimension>() {
+                    @Override
+                    public java.awt.Dimension apply(JPanel p) {
+                        return DialogDataMaster.ukuranJendela(p);
+                    }
+                });
+        ok &= periksaLantai("dialog pemilik", new DialogPemilik(),
+                DialogPemilik.LEBAR_MINIMUM, DialogPemilik.TINGGI_MINIMUM,
+                new java.util.function.Function<JPanel, java.awt.Dimension>() {
+                    @Override
+                    public java.awt.Dimension apply(JPanel p) {
+                        return DialogPemilik.ukuranJendela(p);
+                    }
+                });
+        return ok;
+    }
+
+    private static boolean periksaLantai(String nama, JPanel isi, int lebar, int tinggi,
+            java.util.function.Function<JPanel, java.awt.Dimension> produsen) {
+        boolean ok = true;
+        java.awt.Dimension dipakai = produsen.apply(isi);
+
+        JPanel kecil = new JPanel();
+        kecil.setPreferredSize(new Dimension(10, 10));
+        java.awt.Dimension lantai = produsen.apply(kecil);
+        if (lantai.width != lebar || lantai.height != tinggi) {
+            System.out.println("        " + nama + ": jendela isi kosong " + lantai.width + "x"
+                    + lantai.height + ", lantainya " + lebar + "x" + tinggi
+                    + " - angkanya tidak dipakai jendelanya");
+            ok = false;
+        }
+
+        JPanel besar = new JPanel();
+        besar.setPreferredSize(new Dimension(lebar + 400, tinggi + 400));
+        java.awt.Dimension melebar = produsen.apply(besar);
+        if (melebar.width < lebar + 400 || melebar.height < tinggi + 400) {
+            System.out.println("        " + nama + ": isi " + (lebar + 400) + "x" + (tinggi + 400)
+                    + " digambar pada jendela " + melebar.width + "x" + melebar.height
+                    + " - jendelanya lebih kecil dari isinya");
+            ok = false;
+        }
+
+        java.awt.Dimension butuh = isi.getPreferredSize();
+        if (dipakai.width < butuh.width || dipakai.height < butuh.height) {
+            System.out.println("        " + nama + ": jendela " + dipakai.width + "x" + dipakai.height
+                    + " lebih kecil dari isinya " + butuh.width + "x" + butuh.height);
+            ok = false;
+        }
+        return ok;
+    }
+
+    /**
+     * Benar kalau kedua baris kisi isian halaman Transaksi memakai lebar kolom yang sama.
+     *
+     * <p>Kisi bermodel {@code GridBagLayout} melebarkan tiap kolom mengikuti sel terlebarnya.
+     * Karena itu yang diperiksa di sini adalah lebar yang <b>diminta</b> tiap sel, bukan
+     * lebar yang akhirnya tergambar: dengan {@code fill = HORIZONTAL} setiap sel mengisi
+     * kolomnya, jadi lebar tergambarnya selalu sama dan pemeriksaan atas angka itu tidak
+     * akan pernah bisa gagal. Yang bisa berbeda — dan memang pernah berbeda — adalah
+     * permintaannya: baris kedua memakai isian 120px di kolom yang di baris pertama 245px.
+     *
+     * <p>Akibatnya tepi kanan kedua baris tidak lurus dan di tengah baris kedua muncul
+     * lubang — dulu 151px antara "Refraksi" dan "Harga". Kisi yang tidak rata tetap muat,
+     * jadi tidak ada pemeriksaan ukuran yang bisa menangkapnya.
+     */
+    private static boolean kisiIsianRataSebelah() {
+        JPanel panel = new PanelTransaction();
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(panel, "Transaksi", "Catat pengiriman per truk.");
+        layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        JPanel kisi = kisiIsian(layar);
+        if (kisi == null) {
+            System.out.println("        kisi isian tidak ketemu di halaman transaksi");
+            return false;
+        }
+
+        GridBagLayout gbl = (GridBagLayout) kisi.getLayout();
+        java.util.Map<Integer, Integer> lebarKolom = new java.util.LinkedHashMap<Integer, Integer>();
+        boolean rata = true;
+        for (Component anak : kisi.getComponents()) {
+            if (!anak.isVisible() || anak.getWidth() == 0) {
+                continue;
+            }
+            // Kolom penyerap sisa lebar: lebarnya memang mengikuti ruang kosong, jadi tidak
+            // punya pasangan yang harus disamai. Dikenali dari isinya yang kosong.
+            if (anak instanceof JLabel && ((JLabel) anak).getText().isEmpty()) {
+                continue;
+            }
+            int diminta = anak.getPreferredSize().width;
+            GridBagConstraints g = gbl.getConstraints(anak);
+            Integer sebelumnya = lebarKolom.get(g.gridx);
+            if (sebelumnya == null) {
+                lebarKolom.put(g.gridx, diminta);
+            } else if (sebelumnya != diminta) {
+                System.out.println("        kolom " + g.gridx + " tidak rata: baris pertama"
+                        + " meminta " + sebelumnya + "px, baris kedua " + diminta + "px");
+                rata = false;
+            }
+        }
+        return rata;
+    }
+
+    private static JPanel kisiIsian(Container c) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof JPanel && ((JPanel) anak).getLayout() instanceof GridBagLayout
+                    && anak.getWidth() > 400) {
+                return (JPanel) anak;
+            }
+            if (anak instanceof Container) {
+                JPanel r = kisiIsian((Container) anak);
+                if (r != null) {
+                    return r;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Benar kalau kolom pendek pada tabel dialog data master tidak ikut melar.
+     *
+     * <p>Seluruh kolom yang tidak dibatasi ikut dibagi ruang sisa, jadi kolom "Plat" yang
+     * isinya sepuluh huruf pernah tergambar 279px di dialog 720px — dua kolomnya kebagian
+     * tambahan yang sama banyak, padahal hanya kolom pemilik yang isinya panjang. Ruang
+     * sisa memang harus terpakai, tetapi oleh kolom yang memerlukannya.
+     */
+    private static boolean kolomPendekTidakMelar() {
+        JPanel panel = new DialogDataMaster();
+        java.awt.Dimension ukuran = DialogDataMaster.ukuranJendela(panel);
+        panel.setSize(ukuran.width, ukuran.height);
+        for (int i = 0; i < 3; i++) {
+            panel.doLayout();
+            layoutDeep(panel);
+        }
+        JTable t = tabel(panel);
+        if (t == null) {
+            System.out.println("        tabel dialog data master tidak ketemu");
+            return false;
+        }
+        javax.swing.table.TableColumn plat = t.getColumnModel().getColumn(0);
+        if (plat.getWidth() != plat.getPreferredWidth()) {
+            System.out.println("        kolom \"" + plat.getHeaderValue() + "\" melar jadi "
+                    + plat.getWidth() + "px dari " + plat.getPreferredWidth() + "px");
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Benar kalau sel "Plat / Truk" masih memuat tombol "Kelola" pada huruf sistem.
+     *
+     * <p>Aplikasi memakai huruf Inter yang ikut dikirim supaya tampilannya sama di semua
+     * komputer, tetapi huruf itu dilewati di beberapa versi Java dan di komputer yang
+     * berkasnya tidak ada — di situ huruf sistem yang dipakai ({@code Theme.interUsable}).
+     * Lebar tombolnya ikut berubah sedikit, dan selnya pernah disetel persis selebar huruf
+     * tema, sehingga "Kelola" terpotong hanya di mesin yang tidak memakai huruf bawaan.
+     * Persis jenis cacat yang tidak akan pernah terlihat oleh pembuatnya.
+     *
+     * <p>Yang diperiksa: lebar yang DIMINTA seluruh isi barisnya, bukan lebar yang tergambar.
+     * Baris itu sudah dipatok selebar kolomnya, jadi lebar tergambarnya selalu sama dan
+     * pemeriksaan atas angka itu tidak akan pernah bisa gagal. Yang bisa berbeda — dan
+     * memang berbeda — adalah kebutuhan isinya saat hurufnya berganti.
+     */
+    private static boolean selPlatMuatHurufCadangan() {
+        JPanel panel = new PanelTransaction();
+        JButton kelola = null;
+        for (Component k : semuaKomponen(panel)) {
+            if (k instanceof JButton && ((JButton) k).getToolTipText() != null
+                    && ((JButton) k).getToolTipText().contains("Kelola Data Truk")) {
+                kelola = (JButton) k;
+            }
+        }
+        if (kelola == null) {
+            System.out.println("        tombol \"Kelola\" tidak ketemu");
+            return false;
+        }
+        Container baris = kelola.getParent();
+        if (!(baris instanceof JPanel) || baris.getLayout() == null) {
+            System.out.println("        baris \"Plat / Truk\" tidak ketemu");
+            return false;
+        }
+
+        java.awt.Font asli = kelola.getFont();
+        java.awt.Font cadangan = new java.awt.Font(java.awt.Font.SANS_SERIF,
+                java.awt.Font.PLAIN, Theme.FONT_SIZE);
+        int lebarSel;
+        int butuhTema;
+        int butuhCadangan;
+        try {
+            kelola.setFont(asli);
+            lebarSel = baris.getPreferredSize().width;
+            butuhTema = lebarIsiBaris(baris);
+            kelola.setFont(cadangan);
+            butuhCadangan = lebarIsiBaris(baris);
+        } finally {
+            kelola.setFont(asli);
+        }
+
+        System.out.println("        baris \"Plat / Truk\": lebar sel " + lebarSel
+                + "px, butuh " + butuhTema + "px pada huruf tema dan " + butuhCadangan
+                + "px pada huruf sistem");
+        if (butuhCadangan > lebarSel) {
+            System.out.println("        tombol \"Kelola\" terpotong "
+                    + (butuhCadangan - lebarSel) + "px pada huruf sistem: selnya disetel"
+                    + " persis selebar huruf tema");
+            return false;
+        }
+        return true;
+    }
+
+    /** Jumlah lebar yang diminta seluruh isi satu baris, termasuk selanya. */
+    private static int lebarIsiBaris(Container baris) {
+        int total = 0;
+        for (Component k : baris.getComponents()) {
+            if (k.isVisible()) {
+                total += k.getPreferredSize().width;
+            }
+        }
+        return total;
+    }
+
+    private static java.util.List<Component> semuaKomponen(Container c) {
+        java.util.List<Component> out = new java.util.ArrayList<Component>();
+        for (Component k : c.getComponents()) {
+            out.add(k);
+            if (k instanceof Container) {
+                out.addAll(semuaKomponen((Container) k));
+            }
+        }
+        return out;
+    }
+
+    /**
      * Benar kalau tidak ada tombol dialog data master yang tergambar keluar dari wadahnya.
      *
      * <p>Dialog itu bukan halaman dan tidak pernah masuk susunan {@link PagePanel};
-     * ukurannya ditetapkan sendiri oleh jendela pembukanya: sekurang-kurangnya
-     * 720x520, atau lebih besar kalau isinya minta. Karena itu diperiksa pada ukuran
-     * yang benar-benar dipakai dialognya - memeriksa lebar halaman berarti menguji
-     * lebar yang tidak pernah memuatnya. Ukurannya juga cuma satu: tidak ada
-     * pemeriksaan kedua pada "lebar jendela minimum" seperti halaman, karena dialognya
-     * memang tidak pernah lebih sempit dari itu.
+     * ukurannya ditetapkan sendiri oleh jendela pembukanya lewat
+     * {@link DialogDataMaster#ukuranJendela}. Karena itu diperiksa pada ukuran yang
+     * benar-benar dipakai dialognya — memeriksa lebar halaman berarti menguji lebar yang
+     * tidak pernah memuatnya. Ukurannya juga cuma satu: tidak ada pemeriksaan kedua pada
+     * "lebar jendela minimum" seperti halaman, karena dialognya memang tidak pernah lebih
+     * sempit dari itu.
+     *
+     * <p>Ukurannya diambil dari method yang sama dengan yang dipakai jendelanya, bukan
+     * ditulis ulang di sini. Angka yang ditulis dua kali bisa berbeda tanpa ada yang
+     * menyadari, dan pemeriksaan ini lalu diam-diam menguji ukuran yang tidak pernah dibuka
+     * aplikasi — tetap hijau, tetapi tidak menjaga apa pun.
      */
     private static boolean tombolDialogTidakTerpotong() {
         DialogDataMaster panel = new DialogDataMaster();
-        panel.setSize(Math.max(720, panel.getPreferredSize().width),
-                Math.max(520, panel.getPreferredSize().height));
+        java.awt.Dimension ukuran = DialogDataMaster.ukuranJendela(panel);
+        panel.setSize(ukuran.width, ukuran.height);
         for (int i = 0; i < 3; i++) {
             panel.doLayout();
             layoutDeep(panel);

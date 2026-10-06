@@ -85,20 +85,13 @@ public class PrintPreview extends JDialog {
         JPanel p = new JPanel(new BorderLayout(12, 0));
         p.setBorder(BorderFactory.createEmptyBorder(10, 14, 12, 14));
 
-        JPanel kiri = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 0));
-        kiri.setOpaque(false);
-        kiri.add(btnSebelum);
-        kiri.add(btnSesudah);
-        kiri.add(lblHalaman);
+        JPanel kiri = Theme.row(8, btnSebelum, btnSesudah, lblHalaman);
 
-        JPanel kanan = new JPanel(new FlowLayout(FlowLayout.RIGHT, 8, 0));
-        kanan.setOpaque(false);
         JButton btnCetak = Theme.primary("Cetak");
         JButton btnTutup = Theme.plain("Tutup");
         btnCetak.addActionListener(e -> cetak());
         btnTutup.addActionListener(e -> dispose());
-        kanan.add(btnCetak);
-        kanan.add(btnTutup);
+        JPanel kanan = Theme.rowRight(8, btnCetak, btnTutup);
 
         p.add(kiri, BorderLayout.WEST);
         p.add(kanan, BorderLayout.EAST);
