@@ -227,10 +227,15 @@ starts with `DELETE`, so it wipes the target database.
   "×" button beside the plate box deletes whichever truck the typed plate matches (same
   refusal + confirmation path). "Kelola Pemilik..." in the footer opens `DialogPemilik`
   (add / rename / delete owners); renames propagate through the join so history follows, and
-  deletes are refused while the owner still owns trucks. Adding a truck checks the plate
-  BEFORE creating the owner: `pastikanRental` commits on its own connection, so creating the
-  owner first and then failing on a duplicate plate would leave an owner with no trucks —
-  litter that shows up in every owner dropdown and splits nothing but confuses everything.
+  deletes are refused while the owner still owns trucks. Adding a truck goes through
+  `MasterDao.simpanTrukBaru(plat, nama)` — ONE transaction that checks the duplicate plate,
+  finds-or-creates the owner and inserts the truck, rolling back on any failure. Doing it in
+  pieces does not work: `saveRental` commits on its own connection, so creating the owner
+  first and then failing on a duplicate plate leaves an owner with no trucks, and checking
+  the plate in memory first does not close it either, because the app may be run from
+  several machines over MySQL. Note it REFUSES an existing plate rather than reusing the
+  truck the way `pastikanTruk` does — on this screen a duplicate is a typo that must be
+  heard, not a silent request to reuse the existing row.
 - **Dashboard is four stat cards, two rows of two, pinned to the top**: the big number keeps
   its all-time meaning and the month-to-date figure (`totalAmount(withDayOfMonth(1), now)`)
   goes in the caption — do not move the month figure into the headline, since changing a
@@ -436,7 +441,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 60 — **330 lulus, 0 gagal**.
+`TestDatabase` 56, `TestDao` 91, `TestAlur` 115, `TestUi` 61 — **331 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

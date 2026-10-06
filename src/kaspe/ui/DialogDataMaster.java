@@ -347,50 +347,22 @@ public class DialogDataMaster extends JPanel {
             return;
         }
         try {
-            // Plat diperiksa DULU, sebelum pemiliknya dibuat. Membuat pemilik lebih dulu
-            // lalu gagal menyimpan truknya meninggalkan pemilik tanpa truk sama sekali -
-            // pengotor yang sudah pernah nyata di aplikasi ini, dan ia langsung muncul di
-            // setiap kotak pilihan pemilik di seluruh aplikasi.
-            if (cariTruk(plat) != null) {
-                setStatus("Plat \"" + Truck.normalizePlate(plat) + "\" sudah terdaftar.");
-                return;
-            }
-            Rental pemilik = pastikanRental(nama);
-            Truck t = new Truck();
-            t.setPlate(plat);
-            t.setRentalId(pemilik.getRentalId());
-            dao.saveTruck(t);
+            // Satu transaksi untuk pemilik + truknya. Memeriksa plat di memori lalu
+            // membuat pemiliknya lebih dulu TIDAK cukup: aplikasi ini boleh dipakai
+            // beberapa komputer lewat MySQL, dan setiap kegagalan setelah pemiliknya
+            // ter-commit meninggalkan pemilik tanpa truk yang muncul di semua kotak
+            // pilihan sementara rekap uangnya terpecah. DAO yang mengurus urutannya.
+            dao.simpanTrukBaru(plat, nama);
             setStatus("");
             fPlat.setText("");
             muat();
+        } catch (IllegalArgumentException e) {
+            // Penolakan yang disengaja (plat kembar, isian kosong), bukan kerusakan:
+            // ditulis di baris status, bukan di jendela "Gagal:".
+            setStatus(e.getMessage());
         } catch (Exception e) {
             Theme.showError(this, e);
         }
-    }
-
-    /**
-     * Pemilik menurut namanya, dibuat kalau belum ada.
-     *
-     * <p>Pencocokannya lewat {@link Rental#matchKey}, bukan {@code WHERE nama=?}: beda
-     * besar-kecil huruf atau spasi berlebih tidak boleh melahirkan pemilik kedua yang
-     * memecah rekap uangnya.
-     */
-    private Rental pastikanRental(String nama) throws Exception {
-        String kunci = Rental.matchKey(nama);
-        for (Rental r : dao.listRental()) {
-            if (kunci.equals(Rental.matchKey(r.getRentalName()))) {
-                return r;
-            }
-        }
-        Rental baru = new Rental();
-        baru.setRentalName(nama);
-        dao.saveRental(baru);
-        for (Rental r : dao.listRental()) {
-            if (kunci.equals(Rental.matchKey(r.getRentalName()))) {
-                return r;
-            }
-        }
-        throw new IllegalStateException("Pemilik \"" + nama + "\" gagal disimpan.");
     }
 
     /** Masuk mode ubah untuk baris yang tersorot. */

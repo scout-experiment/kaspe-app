@@ -116,6 +116,13 @@ public class TestUi {
         // benar-benar menghapus.
         check("hapus massal tidak menghapus apa pun saat satu baris terhalang",
                 hapusMassalTidakMenghapusApaPun());
+        // Menambah truk dengan plat yang sudah terdaftar harus ditolak tanpa
+        // meninggalkan pemilik hampa. Jalur lamanya membuat pemiliknya lebih dulu
+        // di koneksi sendiri, jadi penolakan plat kembar datang SETELAH pemiliknya
+        // ter-commit - pemilik tanpa satu pun truk itu lalu tampil di setiap kotak
+        // pilihan pemilik sementara rekap uangnya terpecah.
+        check("plat kembar ditolak tanpa meninggalkan pemilik hampa",
+                platKembarTidakMeninggalkanPemilikHampa());
         // Rental yang tampil di layar transaksi harus sama dengan yang tercatat. Pernah
         // terjadi sebaliknya: layar membuka dengan plat milik satu rental dan nama rental
         // milik rental lain, dan plat yang baru diketik mewarisi rental baris sebelumnya.
@@ -1354,6 +1361,85 @@ public class TestUi {
             }
             if (!"ZZ 1003 CC".equals(String.valueOf(tabel.getValueAt(0, 0)))) {
                 System.out.println("        yang tersisa bukan truk terpakai: " + tabel.getValueAt(0, 0));
+                return false;
+            }
+            return true;
+        } finally {
+            Db.setConfiguration("org.h2.Driver",
+                    "jdbc:h2:mem:uitest;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                    "sa", "");
+        }
+    }
+
+    /**
+     * Menambah truk dengan plat yang sudah terdaftar tidak boleh meninggalkan
+     * pemilik hampa.
+     *
+     * <p>Jalur lamanya membuat pemiliknya lebih dulu di koneksi sendiri, jadi saat
+     * plat kembar ditolak, yang batal hanya truknya - pemiliknya sudah ter-commit
+     * dan diam-diam lahir tanpa satu pun truk, lalu tampil di setiap kotak pilihan
+     * pemilik sementara rekap uangnya terpecah. {@code simpanTrukBaru} mengerjakan
+     * semuanya dalam satu transaksi, dan penjaga ini memastikan penolakannya
+     * benar-benar membatalkan seluruhnya: pemeriksaannya bernilai (jumlah pemilik
+     * dan truk yang tersisa, nama pemiliknya), bukan sekadar tidak melempar.
+     */
+    private static boolean platKembarTidakMeninggalkanPemilikHampa() throws Exception {
+        Db.setConfiguration("org.h2.Driver",
+                "jdbc:h2:mem:uitest-plat-kembar;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1",
+                "sa", "");
+        try {
+            MasterDao dao = new MasterDao();
+
+            // (1) Truk pertama sekaligus melahirkan pemiliknya.
+            dao.simpanTrukBaru("BE 1111 AA", "Rental Satu");
+
+            // (2) Plat yang sama dengan ejaan huruf berbeda, disertai nama pemilik
+            // BARU: harus ditolak. Penolakan inilah yang dulu datang terlambat,
+            // setelah pemilik "Rental Dua" ter-commit.
+            try {
+                dao.simpanTrukBaru("be 1111 aa", "Rental Dua");
+                System.out.println("        plat kembar diterima begitu saja");
+                return false;
+            } catch (IllegalArgumentException e) {
+                // penolakan yang diharapkan
+            } catch (SQLException e) {
+                System.out.println("        penolakan plat kembar melempar "
+                        + e.getClass().getSimpleName() + ", seharusnya IllegalArgumentException");
+                return false;
+            }
+
+            // (3) Penolakan itu tidak boleh meninggalkan jejak: pemilik hampa tidak
+            // lahir, truknya juga tidak lahir, dan pemilik yang tersisa tetap yang asli.
+            if (dao.listRental().size() != 1) {
+                System.out.println("        penolakan meninggalkan " + dao.listRental().size()
+                        + " pemilik, seharusnya tetap 1");
+                return false;
+            }
+            if (dao.listTrucks().size() != 1) {
+                System.out.println("        penolakan meninggalkan " + dao.listTrucks().size()
+                        + " truk, seharusnya tetap 1");
+                return false;
+            }
+            if (!"Rental Satu".equals(dao.listRental().get(0).getRentalName())) {
+                System.out.println("        pemilik yang tersisa berubah menjadi '"
+                        + dao.listRental().get(0).getRentalName() + "'");
+                return false;
+            }
+
+            // (4) Jalur biasanya tetap jalan: pemilik kedua lahir bersama truknya.
+            dao.simpanTrukBaru("BE 2222 BB", "Rental Dua");
+            if (dao.listRental().size() != 2 || dao.listTrucks().size() != 2) {
+                System.out.println("        setelah truk kedua: " + dao.listRental().size()
+                        + " pemilik dan " + dao.listTrucks().size() + " truk, seharusnya 2 dan 2");
+                return false;
+            }
+
+            // (5) Ejaan pemilik yang beda besar-kecil huruf dan beda spasinya menunjuk
+            // pemilik yang sama, jadi jumlah pemilik tetap 2.
+            dao.simpanTrukBaru("BE 3333 CC", "rental  dua");
+            if (dao.listRental().size() != 2) {
+                System.out.println("        ejaan kedua melahirkan pemilik ketiga: "
+                        + dao.listRental().size() + " pemilik, seharusnya tetap 2");
                 return false;
             }
             return true;

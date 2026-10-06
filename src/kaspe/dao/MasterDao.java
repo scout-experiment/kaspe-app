@@ -361,6 +361,91 @@ public class MasterDao {
         return ketemu;
     }
 
+    /**
+     * Simpan TRUK BARU beserta pemiliknya dalam satu transaksi.
+     *
+     * <p>Kalau platnya sudah terdaftar, atau ada apa pun yang gagal di tengah jalan, seluruh
+     * pekerjaan dibatalkan — termasuk pemilik yang mungkin baru dibuat. Itu intinya: membuat
+     * pemilik dulu lalu gagal menyimpan truknya meninggalkan PEMILIK TANPA TRUK yang sudah
+     * ter-commit, dan ia langsung muncul di setiap kotak pilihan pemilik sementara rekap
+     * uangnya terpecah. Pola yang sama dipakai
+     * {@link #pastikanTruk(Connection, String, String)} dari jalur transaksi.
+     *
+     * <p>Bedanya dengan {@code pastikanTruk}: yang ini MENOLAK plat yang sudah ada, bukan
+     * memakai ulang truknya. Di dialog, menambah plat yang sudah terdaftar adalah salah
+     * ketik yang harus terdengar — bukan permintaan diam-diam untuk memakai truk yang ada.
+     *
+     * @return truk yang baru tersimpan
+     * @throws IllegalArgumentException kalau platnya sudah terdaftar
+     */
+    public Truck simpanTrukBaru(String plat, String namaRental) throws SQLException {
+        String normalized = Truck.normalizePlate(plat);
+        if (normalized == null || normalized.isEmpty()) {
+            throw new IllegalArgumentException("plat nomor wajib diisi");
+        }
+        String rapi = Rental.normalizeName(namaRental);
+        if (rapi == null || rapi.isEmpty()) {
+            throw new IllegalArgumentException("pemilik wajib dipilih");
+        }
+        Connection c = null;
+        boolean selesai = false;
+        try {
+            c = Db.get();
+            c.setAutoCommit(false);
+
+            // Plat kembar diperiksa DI DALAM transaksi. Memeriksanya di memori dulu
+            // (seperti versi pertama) tidak menutup apa pun: aplikasi ini boleh dipakai
+            // beberapa komputer lewat MySQL, dan komputer lain bisa menambah plat yang
+            // sama di antara pemeriksaan dan penyimpanan.
+            if (cariIdTruk(c, normalized) != null) {
+                throw new IllegalArgumentException(
+                        "Plat \"" + normalized + "\" sudah terdaftar.");
+            }
+
+            Integer idRental = cariIdRental(c, Rental.matchKey(rapi));
+            if (idRental == null) {
+                try (PreparedStatement ps = c.prepareStatement(
+                        "INSERT INTO rental (nama_rental) VALUES (?)")) {
+                    ps.setString(1, rapi);
+                    ps.executeUpdate();
+                }
+                idRental = cariIdRental(c, Rental.matchKey(rapi));
+            }
+
+            try (PreparedStatement ps = c.prepareStatement(
+                    "INSERT INTO truk (plat,id_rental) VALUES (?,?)")) {
+                ps.setString(1, normalized);
+                ps.setInt(2, idRental);
+                ps.executeUpdate();
+            }
+
+            c.commit();
+            selesai = true;
+            return bacaTruk(c, normalized);
+        } catch (SQLException | RuntimeException e) {
+            if (c != null) {
+                try {
+                    c.rollback();
+                    selesai = true;
+                } catch (SQLException rb) {
+                    // Kegagalan rollback tidak boleh menenggelamkan galat aslinya.
+                    e.addSuppressed(rb);
+                }
+            }
+            throw e;
+        } finally {
+            if (c != null) {
+                try {
+                    if (selesai) {
+                        c.setAutoCommit(true);
+                    }
+                } finally {
+                    c.close();
+                }
+            }
+        }
+    }
+
     /** Satu truk beserta nama rentalnya. */
     private Truck bacaTruk(Connection c, String plate) throws SQLException {
         // Truknya dibaca lewat cara yang sama dengan pencarian di atas, supaya yang
