@@ -93,13 +93,15 @@ public class BuatPratinjau {
                 "Ringkasan catatan pengiriman singkong.");
         gambar("01-dashboard.png");
 
-        // Data master - sekarang dialog, bukan halaman. Digambar SEBAGAI dialog: panelnya
-        // melayang di atas halaman Transaksi yang diredupkan, dengan bilah judulnya sendiri.
+        // Data master - sekarang dialog, bukan halaman. Di aplikasinya dibuka lewat tombol
+        // ikon di sebelah kotak "Plat / Truk" pada halaman Transaksi. Digambar SEBAGAI
+        // dialog: panelnya melayang di atas halaman Transaksi yang diredupkan, dengan
+        // bilah judulnya sendiri.
         //
         // Digambar sebagai halaman (lewat showPanel) hasilnya justru berbohong: bilah atas
-        // menulis "Data Master" dan sorotan menu ikut pindah, sehingga gambarnya persis
-        // seperti halaman yang masih ada - padahal kelasnya sudah dihapus. Isinya memang
-        // JPanel, jadi cukup digambar melayang tanpa membuka JDialog (yang butuh layar).
+        // menulis "Data Master" padahal bilah samping sudah tidak punya entrinya, sehingga
+        // gambarnya menyebut halaman yang tidak pernah ada. Isinya memang JPanel, jadi
+        // cukup digambar melayang tanpa membuka JDialog (yang butuh layar).
         halaman.showPanel(new PanelTransaction(), "Transaksi", "Catat pengiriman per truk.");
         gambarDialog("04-master.png", new DialogDataMaster(), 760, 560);
 

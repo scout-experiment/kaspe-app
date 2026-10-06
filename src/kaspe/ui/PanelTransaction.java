@@ -220,6 +220,40 @@ public class PanelTransaction extends JPanel {
         return c;
     }
 
+    /**
+     * Kotak plat dan tombol kecil bergambar gedung di sebelahnya: satu-satunya jalan
+     * ke dialog Kelola Data Truk, karena entri menunya di bilah samping sudah dihapus.
+     *
+     * <p>Tombolnya ikon saja tanpa tulisan — lebar sisanya di kisi form ini cuma
+     * 68 px pada jendela terkecil — jadi maksudnya dijelaskan lewat petunjuk dan nama
+     * aksesnya, dan tombolnya tetap bisa disorot dengan papan ketik.
+     */
+    private JComponent barisPlat() {
+        JButton btnMaster = Theme.plain("");
+        btnMaster.setIcon(Icons.of(Icons.BUILDING, Theme.INK_SOFT, 16));
+        btnMaster.setToolTipText("Kelola Data Truk: tambah, ubah, atau hapus plat dan pemiliknya");
+        btnMaster.getAccessibleContext().setAccessibleName("Kelola Data Truk");
+        btnMaster.setPreferredSize(new Dimension(34, Theme.FIELD_HEIGHT));
+        btnMaster.addActionListener(e -> {
+            // JDialog melempar HeadlessException tanpa layar, sedangkan uji berjalan
+            // tanpa layar — dialognya dilewati saja supaya jalur kliknya tetap teruji.
+            if (!GraphicsEnvironment.isHeadless()) {
+                DialogDataMaster.buka(SwingUtilities.getWindowAncestor(this));
+            }
+            // Plat atau pemilik yang baru ditambah lewat dialog harus langsung terlihat
+            // di kotak pilihan ini. Aman dipanggil di luar kawalan headless: menyegarkan
+            // daftar tidak butuh layar, dan tanpa dialog yang terbuka isinya memang
+            // tidak berubah.
+            refreshMaster();
+        });
+
+        JPanel baris = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 0));
+        baris.setOpaque(false);
+        baris.add(sized(cmbPlate, 200));
+        baris.add(btnMaster);
+        return baris;
+    }
+
 
     private JPanel buildCenter() {
         JPanel outer = new JPanel(new BorderLayout(0, 12));
@@ -295,7 +329,7 @@ public class PanelTransaction extends JPanel {
         g.gridx = 0;
         grid.add(Theme.field("Tanggal Nota", sized(spDate, 150)), g);
         g.gridx = 1;
-        grid.add(Theme.field("Plat / Truk", sized(cmbPlate, 200)), g);
+        grid.add(Theme.field("Plat / Truk", barisPlat()), g);
         g.gridx = 2;
         grid.add(Theme.field("Rental", sized(cmbRental, 170)), g);
         g.gridx = 3;
@@ -1269,12 +1303,12 @@ public class PanelTransaction extends JPanel {
 
         // Plat yang sudah dikenal tidak boleh diam-diam berganti pemilik di sini.
         // Memindahkan pemilik mengubah seluruh laporan lama, jadi harus disengaja
-        // lewat menu Data Master — bukan lewat ketikan yang kebetulan berbeda.
+        // lewat dialog Kelola Data Truk — bukan lewat ketikan yang kebetulan berbeda.
         Truck dikenal = trukPerPlat.get(plat);
         if (dikenal != null && dikenal.getRentalName() != null
                 && !Rental.matchKey(dikenal.getRentalName()).equals(Rental.matchKey(rental))) {
             setStatus("Truk " + plat + " terdaftar milik \"" + dikenal.getRentalName()
-                    + "\". Pindahkan pemiliknya lewat menu Data Master > Pindah Pemilik.");
+                    + "\". Pindahkan pemiliknya lewat Kelola Data Truk > Pindah Pemilik.");
             return false;
         }
         return true;

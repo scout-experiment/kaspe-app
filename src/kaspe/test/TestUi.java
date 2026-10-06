@@ -41,6 +41,11 @@ public class TestUi {
     private static int failed = 0;
 
     public static void main(String[] args) throws Exception {
+        // Mode tanpa layar dipaksa dari sini, bukan hanya dari baris jalannya, seperti
+        // di TestAlur: penjaga di bawah ada yang mengklik tombol pembuka dialog modal -
+        // dijalankan dengan tangan tanpa -Djava.awt.headless=true, dialognya menunggu
+        // ditutup selamanya alih-alih gagal.
+        System.setProperty("java.awt.headless", "true");
         System.out.println("=== UJI TAMPILAN (headless, hasil berupa PNG) ===\n");
 
         Theme.install();
@@ -195,6 +200,13 @@ public class TestUi {
         check("tombol tidak terpotong pada lebar jendela minimum (laporan)",
                 tombolTidakTerpotong(new PanelReport(), "Laporan",
                         kaspe.ui.MainFrame.LEBAR_MINIMUM));
+        // Pintu masuk satu-satunya ke dialog data master sejak menu bilah sampingnya
+        // dihapus: tombol ikon kecil di sebelah kotak "Plat / Truk" pada halaman
+        // Transaksi. Diperiksa melebihi "tombolnya ada": penandanya harus terbaca
+        // (tooltip/nama akses), ukurannya utuh pada lebar jendela minimum, dan
+        // mengkliknya tanpa layar tidak boleh melempar.
+        check("pintu dialog data master terpasang dan terbaca di halaman transaksi",
+                tombolPintuDataMaster());
         // Halaman laporan punya tabel berkolom lebar tetap, dan tabelnya TIDAK punya
         // penggeser mendatar: saat ruangnya kurang, kolomnya diperas dan isinya terpotong
         // - termasuk di kertas, karena pencetakan memperkecil tabel apa adanya. Karena itu
@@ -328,9 +340,11 @@ public class TestUi {
     private static boolean headerMenulisNamaHalaman() {
         HeaderBar bar = new HeaderBar("Beranda", "Ringkasan catatan pengiriman singkong.");
         boolean awalBenar = "Beranda".equals(bar.pageName());
-        bar.setPage("Data Master · Truk / Plat", "Kelola plat nomor truk.");
-        boolean gantiBenar = "Data Master · Truk / Plat".equals(bar.pageName());
-        boolean keteranganBenar = "Kelola plat nomor truk.".equals(bar.subtitle());
+        // Halaman keduanya memakai nama yang nyata: "Data Master" bukan halaman lagi
+        // sejak entrinya pindah menjadi dialog yang dibuka dari halaman Transaksi.
+        bar.setPage("Transaksi", "Catat pengiriman per truk.");
+        boolean gantiBenar = "Transaksi".equals(bar.pageName());
+        boolean keteranganBenar = "Catat pengiriman per truk.".equals(bar.subtitle());
         boolean bukanNamaAplikasi = !bar.pageName().contains("Kaspe");
         boolean adaTanggal = bar.dateText() != null && !bar.dateText().isEmpty();
         return awalBenar && gantiBenar && keteranganBenar && bukanNamaAplikasi && adaTanggal;
@@ -1706,6 +1720,121 @@ public class TestUi {
     }
 
     /**
+     * Pintu masuk satu-satunya ke dialog data master: tombol ikon kecil di sebelah
+     * kotak "Plat / Truk" pada halaman Transaksi, pengganti entri menu "Data Master"
+     * yang dihapus dari bilah samping.
+     *
+     * <p>Tombolnya dicari lewat tooltip dan nama aksesnya, bukan lewat posisinya di
+     * susunan: tombolnya ikon saja tanpa teks, dan sel grid tempatnya menempel adalah
+     * uraian susunan yang bisa bergeser kapan saja - sedangkan tooltip itulah satu-
+     * satunya penanda yang terbaca pengguna dan pembaca layar. Yang diperiksa
+     * bernilai, bukan sekadar "ada": penandanya tidak kosong, ukurannya utuh pada
+     * lebar jendela minimum, dan mengkliknya tanpa layar tidak melempar.
+     */
+    private static boolean tombolPintuDataMaster() {
+        PanelTransaction panel = new PanelTransaction();
+        JButton pintu = cariPintuDataMaster(panel);
+        if (pintu == null) {
+            System.out.println("        tombol pintu dialog data master tidak ketemu:"
+                    + " tidak ada JButton dengan tooltip/nama akses \"Kelola Data Truk\"");
+            return false;
+        }
+
+        boolean ok = true;
+        // Pintu masuk satu-satunya tidak boleh jadi tombol bisu: harus bisa disorot
+        // dengan papan tombol dan punya tooltip DAN nama akses, dua-duanya.
+        if (!pintu.isFocusable()) {
+            System.out.println("        tombol pintu tidak bisa disorot");
+            ok = false;
+        }
+        if (pintu.getToolTipText() == null || pintu.getToolTipText().isEmpty()) {
+            System.out.println("        tooltip tombol pintu kosong");
+            ok = false;
+        }
+        String akses = pintu.getAccessibleContext().getAccessibleName();
+        if (akses == null || akses.isEmpty()) {
+            System.out.println("        nama akses tombol pintu kosong");
+            ok = false;
+        }
+
+        // Diukur pada lebar jendela minimum karena di situlah sisinya paling sempit:
+        // tombolnya ikon kecil di baris isian berukuran tetap. Polanya sama dengan
+        // cariTombolTerpotong: wadah langsungnya dulu, lalu tepi jendelanya.
+        PagePanel halaman = new PagePanel();
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(panel, "Transaksi", "Catat pengiriman per truk.");
+        layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+        if (pintu.getWidth() <= 0 || pintu.getHeight() <= 0) {
+            System.out.println("        tombol pintu berukuran "
+                    + pintu.getWidth() + "x" + pintu.getHeight());
+            ok = false;
+        } else {
+            Container induk = pintu.getParent();
+            if (pintu.getX() + pintu.getWidth() > induk.getWidth()
+                    || pintu.getY() + pintu.getHeight() > induk.getHeight()) {
+                System.out.println("        tombol pintu keluar dari wadahnya "
+                        + induk.getWidth() + "x" + induk.getHeight());
+                ok = false;
+            } else {
+                int kiri = 0;
+                for (Component k = pintu; k != null && k != layar; k = k.getParent()) {
+                    kiri += k.getX();
+                }
+                if (kiri + pintu.getWidth() > layar.getWidth()) {
+                    System.out.println("        tombol pintu melewati tepi jendela:"
+                            + " ujung kanannya di " + (kiri + pintu.getWidth())
+                            + ", lebar jendela " + layar.getWidth());
+                    ok = false;
+                }
+            }
+        }
+
+        // Klik tanpa layar harus aman: DialogDataMaster.buka dijaga isHeadless(), jadi
+        // kliknya hanya menyegarkan daftar plat. Dijaga di sini sekaligus supaya
+        // lemparannya jadi kegagalan bernama, bukan meledak keluar dari uji.
+        try {
+            pintu.doClick();
+        } catch (Throwable t) {
+            System.out.println("        klik tombol pintu melempar: " + t);
+            ok = false;
+        }
+        return ok;
+    }
+
+    /**
+     * Cari tombol pintu dialog data master di pohon komponen: satu-satunya JButton
+     * yang tooltip atau nama aksesnya menyebut "Kelola Data Truk".
+     */
+    private static JButton cariPintuDataMaster(Container c) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof JButton) {
+                JButton b = (JButton) anak;
+                if (menyebutKelolaDataTruk(b.getToolTipText())
+                        || menyebutKelolaDataTruk(b.getAccessibleContext().getAccessibleName())) {
+                    return b;
+                }
+            }
+            if (anak instanceof Container) {
+                JButton hasil = cariPintuDataMaster((Container) anak);
+                if (hasil != null) {
+                    return hasil;
+                }
+            }
+        }
+        return null;
+    }
+
+    /** Benar kalau teks itu menyebut pengelolaan data truk, huruf besar diabaikan. */
+    private static boolean menyebutKelolaDataTruk(String teks) {
+        return teks != null
+                && teks.toLowerCase(java.util.Locale.ROOT).contains("kelola data truk");
+    }
+
+    /**
      * Cari tombol yang tidak terjangkau pengguna, lewat DUA jalan yang berbeda.
      *
      * <p>Yang pertama: tombolnya keluar dari wadahnya sendiri. Itu yang terjadi waktu tombol
@@ -3057,8 +3186,10 @@ public class TestUi {
                 return false;
             }
         }
-        if (menu != 4) {
-            System.out.println("        jumlah baris menu " + menu + ", seharusnya 4");
+        // Bilah samping tiga baris - Beranda, Transaksi, Laporan - karena "Data Master"
+        // pindah menjadi dialog yang dibuka dari halaman Transaksi.
+        if (menu != 3) {
+            System.out.println("        jumlah baris menu " + menu + ", seharusnya 3");
             return false;
         }
         return true;
