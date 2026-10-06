@@ -48,6 +48,10 @@ public class NavBar extends JPanel {
     private PanelTransaction panelTransaksi;
     /** Halaman yang sedang terbuka, untuk tahu kapan operator MENINGGALKAN transaksi. */
     private String halamanAktif;
+    /** Tombol keluar akun di kaki bilah; jalannya dipasang dari jendela utama. */
+    private final JButton btnKeluar = Theme.plain("Keluar");
+    /** Aksi keluar akun; selama belum dipasang, tombolnya ada tetapi diam. */
+    private Runnable aksiKeluar;
 
     private NavBar(PagePanel page) {
         super(new BorderLayout());
@@ -76,7 +80,7 @@ public class NavBar extends JPanel {
         menu.add(Box.createVerticalGlue());
         add(menu, BorderLayout.CENTER);
 
-        add(version(), BorderLayout.SOUTH);
+        add(kaki(), BorderLayout.SOUTH);
         page.setNav(this);
         setActive("Beranda");
     }
@@ -208,6 +212,41 @@ public class NavBar extends JPanel {
         l.setForeground(Theme.INK_SOFT);
         l.setBorder(BorderFactory.createEmptyBorder(10, 21, 16, 16));
         return l;
+    }
+
+    /**
+     * Kaki bilah samping: nomor versi dan tombol keluar akun.
+     *
+     * <p>Tombol keluar ada untuk SEMUA peran — keluar akun bukan urusan admin
+     * saja, berbeda dari baris menu Pengguna di atasnya yang memang khusus
+     * admin.
+     */
+    private JPanel kaki() {
+        JPanel kaki = new JPanel();
+        kaki.setLayout(new BoxLayout(kaki, BoxLayout.Y_AXIS));
+        kaki.setOpaque(false);
+        // Sejajar dengan tulisan versi di atasnya, bukan dengan ikon menu:
+        // keduanya bagian kaki, bukan baris menu.
+        btnKeluar.setAlignmentX(Component.LEFT_ALIGNMENT);
+        btnKeluar.setBorder(BorderFactory.createEmptyBorder(0, 21, 16, 16));
+        btnKeluar.addActionListener(e -> {
+            if (aksiKeluar != null) {
+                aksiKeluar.run();
+            }
+        });
+        kaki.add(version());
+        kaki.add(btnKeluar);
+        return kaki;
+    }
+
+    /**
+     * Pasang aksi untuk tombol Keluar. Dipanggil jendela utama setelah bilahnya
+     * ditemukan; tanpa aksi (atau sebelum dipasang) tombolnya tetap tampil
+     * tetapi tidak melakukan apa pun — bilah ini dipakai juga pembuat gambar
+     * pratinjau, yang tidak punya layar masuk untuk kembali.
+     */
+    public void setKeluar(Runnable aksi) {
+        this.aksiKeluar = aksi;
     }
 
     private static Component gap(int height) {

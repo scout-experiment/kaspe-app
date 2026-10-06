@@ -30,6 +30,12 @@ public class DialogLogin extends JPanel {
     private final JLabel lblStatus = new JLabel();
     private final JButton btnMasuk = Theme.primary("Masuk");
 
+    /**
+     * Lebar satu-satunya kolom isian. Tombol masuk dibentangkan selebar ini juga,
+     * supaya tepi kiri layar menjadi satu garis lurus dari judul sampai tombol.
+     */
+    private static final int LEBAR_KOLOM = 280;
+
     /** true = tabel pengguna masih kosong, layar ini membuat admin pertama. */
     private final boolean pertama;
     /** Akun yang berhasil masuk; null selama belum. */
@@ -40,17 +46,31 @@ public class DialogLogin extends JPanel {
 
         setLayout(new BorderLayout());
         setBackground(Theme.CARD);
-        setBorder(BorderFactory.createEmptyBorder(20, 20, 16, 20));
+        setBorder(BorderFactory.createEmptyBorder(24, 26, 20, 26));
 
+        // Judulnya sebesar judul halaman di bilah atas (HeaderBar): layar ini adalah
+        // halaman pertama yang dilihat operator, jadi gayanya mengikuti halaman lain.
         JLabel judul = new JLabel(pertama ? "Buat Admin Pertama" : "Masuk");
-        judul.setFont(Theme.semibold(16f));
+        judul.setFont(Theme.semibold(17f));
         judul.setForeground(Theme.INK);
 
-        fNama.setPreferredSize(new Dimension(240, Theme.FIELD_HEIGHT));
-        fSandi.setPreferredSize(new Dimension(240, Theme.FIELD_HEIGHT));
-        fUlangi.setPreferredSize(new Dimension(240, Theme.FIELD_HEIGHT));
+        // Keterangan kecil di bawah judul: apa yang harus dilakukan di layar ini.
+        JLabel subjudul = new JLabel(pertama
+                ? "Belum ada akun. Buat akun admin pertama."
+                : "Masuk untuk mulai mencatat pengiriman.");
+        subjudul.setFont(Theme.semibold(12f));
+        subjudul.setForeground(Theme.INK_SOFT);
+
+        fNama.setPreferredSize(new Dimension(LEBAR_KOLOM, Theme.FIELD_HEIGHT));
+        fSandi.setPreferredSize(new Dimension(LEBAR_KOLOM, Theme.FIELD_HEIGHT));
+        fUlangi.setPreferredSize(new Dimension(LEBAR_KOLOM, Theme.FIELD_HEIGHT));
         Theme.placeholder(fNama, "mis. admin");
         lblStatus.setForeground(Theme.DANGER);
+        // Tinggi baris status dipatok setinggi satu baris teks walau sedang kosong:
+        // kalau tingginya mengikuti isi, tombol dan kotak isian ikut bergeser
+        // setiap kali pesan kesalahan muncul atau hilang.
+        lblStatus.setPreferredSize(new Dimension(LEBAR_KOLOM,
+                lblStatus.getFontMetrics(lblStatus.getFont()).getHeight()));
         if (pertama) {
             btnMasuk.setText("Buat dan Masuk");
         }
@@ -62,7 +82,7 @@ public class DialogLogin extends JPanel {
         fUlangi.addActionListener(e -> masuk());
         btnMasuk.addActionListener(e -> masuk());
 
-        add(buildIsi(judul), BorderLayout.NORTH);
+        add(buildIsi(judul, subjudul), BorderLayout.NORTH);
     }
 
     /**
@@ -100,7 +120,7 @@ public class DialogLogin extends JPanel {
 
     // ---------- susunan ----------
 
-    private JPanel buildIsi(JLabel judul) {
+    private JPanel buildIsi(JLabel judul, JLabel subjudul) {
         // Bertumpuk tegak dengan jarak tetap, dan TIDAK memakai GridLayout: GridLayout
         // menyamakan tinggi semua barisnya dengan baris TERTINGGI, sehingga judul, tombol,
         // dan baris status masing-masing ikut setinggi blok tiga kotak isian. Jendelanya
@@ -109,11 +129,22 @@ public class DialogLogin extends JPanel {
         JPanel kolom = new JPanel();
         kolom.setLayout(new BoxLayout(kolom, BoxLayout.Y_AXIS));
         kolom.setOpaque(false);
-        // Judulnya dibungkus baris rata kiri seperti tombol dan status di bawahnya:
-        // BoxLayout menengahkan label yang lebarnya pas teksnya, sehingga judulnya
-        // berdiri di tengah sementara kotak isiannya rata kiri.
+
+        // Blok identitas: gema kecil merek di bilah samping (lambang + nama), supaya
+        // layar pertama yang dilihat operator jelas milik aplikasi yang sama. Judul
+        // dan keterangannya dibungkus baris rata kiri seperti baris status di bawah:
+        // BoxLayout menengahkan label yang lebarnya pas teksnya, sehingga tanpa
+        // pembungkus mereka berdiri di tengah sementara kotak isiannya rata kiri.
+        JLabel merek = new JLabel("Kaspe");
+        merek.setFont(Theme.bold(15f));
+        merek.setForeground(Theme.INK);
+        kolom.add(Theme.row(8, new JLabel(Icons.of(Icons.BRAND, Theme.ACCENT, 22)), merek));
+        kolom.add(Box.createVerticalStrut(14));
+
         kolom.add(Theme.row(0, judul));
-        kolom.add(Box.createVerticalStrut(12));
+        kolom.add(Box.createVerticalStrut(6));
+        kolom.add(Theme.row(0, subjudul));
+        kolom.add(Box.createVerticalStrut(16));
 
         JPanel baris = new JPanel(new GridLayout(pertama ? 3 : 2, 1, 0, 10));
         baris.setOpaque(false);
@@ -123,18 +154,22 @@ public class DialogLogin extends JPanel {
             baris.add(Theme.field("Ulangi sandi", fUlangi));
         }
         kolom.add(baris);
-        kolom.add(Box.createVerticalStrut(12));
+        kolom.add(Box.createVerticalStrut(14));
 
-        JPanel tombol = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        tombol.setOpaque(false);
-        tombol.add(btnMasuk);
-        kolom.add(tombol);
-        kolom.add(Box.createVerticalStrut(12));
+        // Tombolnya dibentangkan selebar kolom, bukan dibiarkan kecil di kiri: aksi
+        // utama layar ini memang yang paling menonjol, dan tepi kirinya tetap satu
+        // garis lurus dengan kotak isian di atasnya. Dua halangan harus disingkirkan:
+        // bawaan JButton membatasi ukuran maksimumnya selebar teksnya, dan BoxLayout
+        // menafsirkan alignmentX 0 sebagai "selebar sisa kanan saja" — tombolnya malah
+        // terdorong ke kanan. alignmentX 0.5 (seperti baris-baris lainnya) plus
+        // maksimum yang dilonggarkan membuatnya terentang selebar kolom.
+        btnMasuk.setMaximumSize(new Dimension(Integer.MAX_VALUE,
+                btnMasuk.getPreferredSize().height));
+        btnMasuk.setAlignmentX(CENTER_ALIGNMENT);
+        kolom.add(btnMasuk);
+        kolom.add(Box.createVerticalStrut(8));
 
-        JPanel status = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
-        status.setOpaque(false);
-        status.add(lblStatus);
-        kolom.add(status);
+        kolom.add(Theme.row(0, lblStatus));
         return kolom;
     }
 

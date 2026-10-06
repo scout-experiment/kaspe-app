@@ -57,6 +57,8 @@ public class MainFrame extends JFrame {
     public static final int TINGGI_MINIMUM = 700;
 
     private final PagePanel page;
+    /** Aksi sesi berikutnya: dibuka jendela utama lagi lewat Main setelah keluar akun. */
+    private Runnable sesiBerikutnya;
 
     public MainFrame(Pengguna pengguna) {
         page = new PagePanel(pengguna);
@@ -80,18 +82,54 @@ public class MainFrame extends JFrame {
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
-                if (nav != null && nav.adaKerjaBelumDisimpan()) {
-                    int jwb = JOptionPane.showConfirmDialog(MainFrame.this,
-                            "Masih ada isian transaksi yang belum disimpan.\nKeluar tanpa menyimpan?",
-                            "Belum disimpan", JOptionPane.YES_NO_OPTION,
-                            JOptionPane.WARNING_MESSAGE);
-                    if (jwb != JOptionPane.YES_OPTION) {
-                        return;
-                    }
+                // Menekan X menghentikan aplikasinya sekalian, bukan sekadar
+                // keluar akun — tetap dengan pertanyaan yang sama kalau masih
+                // ada isian transaksi yang belum disimpan.
+                if (nav != null && nav.adaKerjaBelumDisimpan() && !yakinBuangKerja()) {
+                    return;
                 }
                 System.exit(0);
             }
         });
+
+        // Keluar akun: tombolnya di kaki bilah samping, aksinya dipasang di sini
+        // karena bilahnya dibuat PagePanel.shell dan tidak diserahkan ke siapa pun.
+        if (nav != null) {
+            nav.setKeluar(() -> keluar(nav));
+        }
+    }
+
+    /**
+     * Pasang aksi yang berjalan setelah jendela ditutup karena keluar akun —
+     * yaitu membuka layar masuk untuk sesi berikutnya.
+     */
+    public void setSesiBerikutnya(Runnable aksi) {
+        this.sesiBerikutnya = aksi;
+    }
+
+    /**
+     * Keluar akun: jendela ini dibuang lalu layar masuk dibuka lagi. Jalannya
+     * berbeda dari menekan X — itu menghentikan aplikasinya sekalian. Isian
+     * transaksi yang belum disimpan ditanya dulu, dengan pesan yang sama
+     * seperti saat menutup jendela.
+     */
+    private void keluar(NavBar nav) {
+        if (nav.adaKerjaBelumDisimpan() && !yakinBuangKerja()) {
+            return;
+        }
+        dispose();
+        if (sesiBerikutnya != null) {
+            sesiBerikutnya.run();
+        }
+    }
+
+    /** Tanya dulu sebelum membuang isian transaksi yang belum disimpan. */
+    private boolean yakinBuangKerja() {
+        int jwb = JOptionPane.showConfirmDialog(this,
+                "Masih ada isian transaksi yang belum disimpan.\nKeluar tanpa menyimpan?",
+                "Belum disimpan", JOptionPane.YES_NO_OPTION,
+                JOptionPane.WARNING_MESSAGE);
+        return jwb == JOptionPane.YES_OPTION;
     }
 
     /**

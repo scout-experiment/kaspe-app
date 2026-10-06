@@ -14,11 +14,13 @@ import java.util.List;
  * Hanya admin yang sampai ke sini — entrinya tidak dipasang di bilah samping
  * untuk pengguna biasa (lihat {@link NavBar}).
  *
- * <p>Dua penghapusan ditolak di sini, bukan di database: admin TERAKHIR tidak
- * boleh dihapus (aplikasi bisa terkunci untuk selamanya), dan akun yang sedang
- * dipakai juga tidak — penggunanya akan tetap masuk padahal akunnya sudah tiada.
- * Seperti penghapusan massal di halaman transaksi, seluruh baris terpilih
- * diperiksa dulu: selama satu saja terhalang, tidak ada yang terhapus.
+ * <p>Tiga perubahan ditolak di sini, bukan di database: admin TERAKHIR tidak
+ * boleh dihapus (aplikasi bisa terkunci untuk selamanya) maupun diturunkan
+ * menjadi pengguna biasa (alasannya sama: tanpa satu pun admin, halaman
+ * Pengguna tertutup untuk selamanya), dan akun yang sedang dipakai juga
+ * tidak boleh dihapus — penggunanya akan tetap masuk padahal akunnya sudah
+ * tiada. Seperti penghapusan massal di halaman transaksi, seluruh baris
+ * terpilih diperiksa dulu: selama satu saja terhalang, tidak ada yang terhapus.
  */
 public class PanelPengguna extends JPanel {
 
@@ -226,6 +228,23 @@ public class PanelPengguna extends JPanel {
         }
         int baris = tabel.getSelectedRow();
         try {
+            // Penurunan admin terakhir ditolak dengan alasan yang sama seperti
+            // penghapusannya di bawah: tanpa satu pun admin, halaman Pengguna
+            // tertutup untuk selamanya dan tidak ada yang bisa memperbaikinya
+            // dari dalam aplikasi.
+            List<Pengguna> semua = dao.list();
+            Pengguna target = cariPengguna(semua, idPerBaris.get(baris));
+            int adminTersisa = 0;
+            for (Pengguna p : semua) {
+                if (p.admin()) {
+                    adminTersisa++;
+                }
+            }
+            if (target != null && target.admin()
+                    && Pengguna.USER.equals(peranTerpilih()) && adminTersisa == 1) {
+                setStatus("Admin terakhir tidak bisa diturunkan menjadi pengguna biasa.");
+                return;
+            }
             dao.ubah(idPerBaris.get(baris), nama, peranTerpilih(), sandi.isEmpty() ? null : sandi);
             muat();
             setStatus("Perubahan pengguna \"" + nama + "\" disimpan.");

@@ -45,23 +45,41 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   entries must match. A failed login shows ONE Indonesian message, `"Nama atau sandi
   salah."`, which deliberately does not reveal whether the name exists; the typed name is
   left in place so only the password needs retyping.
+  The screen's look (redesigned; every message and behaviour unchanged): an identity block
+  (`Icons.BRAND` + "Kaspe"), a heading ("Masuk" / "Buat Admin Pertama"), a one-line
+  Indonesian subtitle, one 280px column with a straight left edge, the primary button
+  stretched to the column width, and a status line that always occupies its place so nothing
+  shifts when a message appears (332x368 first-run, 332x309 normal). The panel's outer
+  column must NOT be a `GridLayout`: `GridLayout` equalises every row to the tallest, which
+  once stretched the dialog to 740px with gaps between its rows; `TestUi` pins
+  `DialogLogin.getPreferredSize().height` under 450px.
 - **Roles.** `Pengguna.ADMIN` / `Pengguna.USER`. ADMIN sees and owns the Pengguna page
   (`PanelPengguna`) — add accounts, rename, change role or password, delete. USER does
   everything else (record deliveries, reports, data master) and never sees that page.
   `MainFrame` receives the logged-in account and `NavBar`/`PagePanel` read it through
   `page.pengguna()`.
+- **Logout.** A `Keluar` button sits in the sidebar footer for every role (unlike the
+  admin-only Pengguna entry). `NavBar.setKeluar(Runnable)` wires it; `MainFrame` hooks it
+  from its existing `cariNavBar(...)` call site. With unsaved transaction work it confirms
+  first, using the same Indonesian message as the window-close path, then disposes the
+  frame and returns to `DialogLogin`; cancelling that login exits the app. The window's X
+  still exits the app entirely.
 - **Password storage is `kaspe.Sandi`, stdlib only — no new dependency.** PBKDF2WithHmacSHA256,
   100_000 iterations, 256-bit key, a fresh random 16-byte salt per account (Base64 in
   `sandi_salt`), so two accounts with the same password store different hashes. Verification
   goes through `MessageDigest.isEqual` (constant-time), never `String.equals`, which leaks
   how close a guess was. `UserDao` never selects `sandi_hash` for list/cari reads.
-- **`PanelPengguna` invariants:** the last remaining ADMIN cannot be deleted, and neither can
-  the account currently logged in ("Akun yang sedang dipakai tidak bisa dihapus." /
-  "Admin terakhir tidak bisa dihapus."). Without both, the ledger could lock itself out.
-- **Deliberate omissions — do not "fix" these without asking:** there is no logout (closing
-  the window ends the session), and if the only ADMIN forgets the password there is no
-  in-app recovery: the account must be repaired directly in the database (the hash is
-  PBKDF2, so a new one can be minted with `Sandi.hash`), there is no reset path in the UI.
+- **`PanelPengguna` invariants:** three refusals. The last remaining ADMIN cannot be
+  deleted, the account currently logged in cannot be deleted, and the last remaining ADMIN
+  cannot be demoted to USER ("Admin terakhir tidak bisa dihapus." / "Akun yang sedang
+  dipakai tidak bisa dihapus." / "Admin terakhir tidak bisa diturunkan menjadi pengguna
+  biasa."). Demotion used to be reachable in two clicks and left zero admins, and with no
+  admin the Pengguna page is unreachable from inside the app, so the lockout was permanent.
+  Without all three, the ledger could lock itself out.
+- **Deliberate omissions — do not "fix" these without asking:** if the only ADMIN forgets
+  the password there is no in-app recovery: the account must be repaired directly in the
+  database (the hash is PBKDF2, so a new one can be minted with `Sandi.hash`), there is no
+  reset path in the UI.
 - Table column widths in `PanelReport` are calibrated against the default 1320×760 window
   *with* the sidebar; `TestUi` has a guard that measures the widest text per column and fails
   if any column is too narrow. The report table is the printed artifact, so a clipped column
@@ -524,7 +542,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 78 — **369 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 84 — **375 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

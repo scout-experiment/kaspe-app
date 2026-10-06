@@ -294,8 +294,10 @@ cukup nyalakan server MySQL-nya.
   tanpa melihat halaman itu — bilah sisinya pun tidak memuat entri Pengguna. Sandi tidak
   disimpan apa adanya, melainkan sebagai hasil penyandian PBKDF2 dengan garam sendiri per
   akun. Gagal masuk selalu memunculkan satu pesan yang sama ("Nama atau sandi salah.") supaya
-  tidak ketahuan nama mana yang tercatat. Admin terakhir dan akun yang sedang dipakai tidak
-  bisa dihapus, supaya buku catatan tidak mengunci dirinya sendiri.
+  tidak ketahuan nama mana yang tercatat. Admin terakhir tidak bisa dihapus, begitu pula
+  akun yang sedang dipakai, dan admin terakhir tidak bisa diturunkan menjadi pengguna
+  biasa — tanpa penolakan itu bisa habis adminnya, halaman Pengguna tak bisa dibuka lagi
+  dari dalam aplikasi, dan buku catatan mengunci dirinya sendiri.
 - **Halaman pembuka** — empat kartu ringkasan: jumlah pengiriman, total uang (beserta uang
   bulan berjalan), total berat bersih, dan truk terdaftar.
 - **Satu pengiriman, satu catatan** — mengisi form lalu menekan Simpan langsung menulis ke
@@ -368,8 +370,10 @@ cukup nyalakan server MySQL-nya.
 > [!IMPORTANT]
 > Sandi tidak bisa dipulihkan dari dalam aplikasi. Kalau satu-satunya admin lupa sandinya,
 > tidak ada jalan masuk yang bisa dibuka lewat aplikasi — akun itu harus dibereskan langsung
-> di database-nya. Karena itu catat sandi admin di tempat yang aman. Tidak ada juga tombol
-> keluar (logout); menutup jendela aplikasi mengakhiri sesi.
+> di database-nya. Karena itu catat sandi admin di tempat yang aman. Untuk berganti akun,
+> tombol **Keluar** di kaki bilah samping mengakhiri sesi dan kembali ke layar masuk; kalau
+> ada isian transaksi yang belum disimpan, ditanya dulu. Menutup jendela aplikasi (X)
+> mengakhiri aplikasi seluruhnya.
 
 ---
 
@@ -648,9 +652,9 @@ pemasangan apa pun.
 | `TestCalculator` | rumus berat bersih, jumlah uang, susut, satuan bobot/refraksi, validasi | 8 lulus |
 | `TestDatabase` | pembuatan tabel otomatis (termasuk tabel pengguna), skema, view, foreign key, pembersihan kolom lama (nomor nota, view lama ikut diuji), perapian database lama jadi satu catatan per pengiriman (jumlah dan total uang tidak berubah, waktu pencatatan asli ikut pindah, aman diulang) | 57 lulus |
 | `TestDao` | master, plat diketik langsung (termasuk ejaan lama), ganti pemilik truk, tambah rental tidak menimpa rental lama, nama/plat kembar ditolak, simpan transaksi, rollback, laporan, rekap, hapus, ubah pengiriman, hapus sekaligus yang tuntas, daftar pengiriman terbaru dulu, saringan tanggal/rental/plat (rental dicocok persis dan tanpa beda huruf besar-kecil, plat sebagian termasuk ejaan lama berspasi berlebih, hasilnya sama dengan jumlah di database), penghapusan truk/rental yang beriwayat ditolak dan riwayatnya tetap utuh, cadangan database ditolak di luar H2 dengan pesan yang jelas, cadangan sungguhan pada H2 berbasis berkas (zip terisi, tidak menimpa), akun pengguna (masuk dengan sandi benar/salah, garam berbeda menghasilkan hasil sandi berbeda, ubah nama/peran/sandi, ganti sandi tanpa menimpa yang lama, hapus) | 111 lulus |
-| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping (menu Pengguna tampil untuk admin dan tidak tampil untuk pengguna biasa), pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik, layar masuk (pembuatan admin pertama, pesan gagal masuk yang selalu sama), dan penolakan hapus admin terakhir | 78 lulus |
+| `TestUi` | panel tampilan tergambar, bilah halaman, huruf, pratinjau cetak, lebar kolom tabel, tinggi daftar pengiriman tersimpan, jumlah baris laporan ikut terisi, kaki cetak menyebut saringan rental/plat, tombol rentang cepat memasang rentangnya, nilai susut di berkas CSV, tombol tidak terpotong wadahnya, kolom tabel utuh dan halaman muat tanpa digulir pada ukuran jendela minimum, perataan judul kolom mengikuti isinya, tombol Simpan sejajar dengan angka hasil, berkas CSV siap dijumlahkan, panah penanda urut tergambar, kolom uang terurut menurut nilainya, judul bilah atas ikut pindah halaman, baris menu bilah samping (menu Pengguna tampil untuk admin dan tidak tampil untuk pengguna biasa), pemilihan baris data master, truk tanpa pemilik ditolak, pindah pemilik truk, angka bulan berjalan di beranda, kesesuaian rental dengan plat, dan nama rental yang diketik, layar masuk (pembuatan admin pertama, pesan gagal masuk yang selalu sama), dan penolakan hapus admin terakhir | 84 lulus |
 | `TestAlur` | satu Simpan jadi satu catatan, truk dan tanggal sama tetap dua catatan, form dikosongkan setelah simpan (tanggal tetap), simpan kedua tidak menggandakan, ubah menulis tanpa menambah, Batal tidak mengubah apa pun, hapus yang dipilih, pilihan menentukan tombol, id baris dibaca dari model, saringan daftar (rental baru langsung muncul; batas di luar jangkauan data dirapikan; jangkauan yang gagal dibaca tidak menggeser batas), catatan tersembunyi oleh saringan diberitahu, rental wajib diisi, pemilik berbeda ditolak, tanggal tidak valid ditolak, belum lunas tersimpan, isian tidak hilang saat pindah halaman | 115 lulus |
-| **Total** | | **369 lulus, 0 gagal** |
+| **Total** | | **375 lulus, 0 gagal** |
 
 ---
 

@@ -367,6 +367,26 @@ public class TestUi {
         check("sandi salah: satu pesan Indonesia, nama tetap tertulis", sandiSalahSatuPesan());
         check("hapus admin terakhir ditolak", hapusAdminTerakhirDitolak());
         check("hapus akun yang sedang dipakai ditolak", hapusAkunSendiriDitolak());
+        // Tombol Keluar di kaki bilah samping: untuk SEMUA peran, berbeda dari
+        // menu Pengguna. Tanpa tombol ini, keluar akun hanya bisa lewat X —
+        // yang menghentikan aplikasinya sekalian.
+        check("tombol Keluar tampil untuk admin", tombolKeluar(true));
+        check("tombol Keluar tampil untuk pengguna biasa", tombolKeluar(false));
+        // Tombolnya bukan sekadar tampil: aksi yang dipasang benar-benar
+        // berjalan saat diklik, dan diam tanpa aksi — bilah ini dipakai juga
+        // pembuat gambar pratinjau yang tidak memasang aksinya.
+        check("tombol Keluar menjalankan aksinya", tombolKeluarMenjalankanAksi());
+        // Admin terakhir tidak boleh bisa diturunkan menjadi pengguna biasa:
+        // tanpa satu pun admin, halaman Pengguna tertutup untuk selamanya.
+        check("turunkan admin terakhir ditolak", ubahAdminTerakhirDitolak());
+        // Kendali pembandingnya: selama admin lain masih tersisa, menurunkan
+        // admin harus tetap boleh — kalau tidak, penolakan di atas bisa jadi
+        // sekadar menolak semua perubahan dan tetap terlihat hijau.
+        check("admin bisa diturunkan selama admin lain tersisa", ubahAdminBolehSaatLainTersisa());
+        // Layar masuk pernah 740px tinggi dengan celah menganga di antara barisnya, dan
+        // tak satu pun pemeriksaan lain menyala: yang rusak bukan isinya, melainkan
+        // tinggi barisnya. Diperiksa di sini karena hanya mengukur - tanpa layar.
+        check("layar masuk tidak setinggi isinya", tinggiLayarMasukWajar());
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
         System.out.println("Gambar ada di: " + out.toAbsolutePath());
@@ -4186,6 +4206,26 @@ public class TestUi {
     }
 
     /**
+     * Tinggi layar masuk wajar: dekat dengan tinggi isinya, bukan berkali-kali lipatnya.
+     *
+     * <p>Layar ini pernah 740px tinggi dengan celah menganga di antara barisnya, karena
+     * kolomnya memakai {@code GridLayout} — yang menyamakan tinggi SEMUA barisnya dengan
+     * baris TERTINGGI, sehingga judul, tombol, dan baris status masing-masing ikut setinggi
+     * blok kotak isiannya. Batas di bawah jauh di atas ukuran wajarnya (332x368 pada
+     * pembuat admin pertama, 332x309 pada layar masuk biasa) dan jauh di bawah ukuran
+     * rusak itu, jadi hanya kerusakan sebesar itu yang membuatnya menyala.
+     */
+    private static boolean tinggiLayarMasukWajar() throws Exception {
+        int tinggi = new DialogLogin().getPreferredSize().height;
+        if (tinggi > 450) {
+            System.out.println("        layar masuk meminta tinggi " + tinggi
+                    + "px - jauh lebih tinggi daripada isinya");
+            return false;
+        }
+        return true;
+    }
+
+    /**
      * Sandi salah harus memunculkan SATU pesan Indonesia yang tidak membedakan
      * nama tak dikenal dari sandi keliru, dan nama yang sudah diketik dibiarkan
      * tertulis supaya tingkat sandinya saja yang diperbaiki.
@@ -4268,6 +4308,105 @@ public class TestUi {
             System.out.println("        pesannya: \"" + pesan + "\"");
         }
         return ditolak && tetapAda;
+    }
+
+    /**
+     * Tombol Keluar di kaki bilah samping harus ada untuk SEMUA peran —
+     * keluar akun bukan urusan admin saja, berbeda dari baris menu Pengguna.
+     */
+    private static boolean tombolKeluar(boolean untukAdmin) {
+        PagePanel halaman = new PagePanel(untukAdmin ? admin() : penggunaBiasa());
+        return cariTombolTeks(PagePanel.shell(halaman), "Keluar") != null;
+    }
+
+    /**
+     * Tombol Keluar benar-benar menjalankan aksi yang dipasang lewat
+     * setKeluar, dan diam saja sebelum aksinya dipasang.
+     */
+    private static boolean tombolKeluarMenjalankanAksi() {
+        PagePanel halaman = new PagePanel(admin());
+        JPanel layar = PagePanel.shell(halaman);
+        NavBar nav = cariBilahSamping(layar);
+        AbstractButton tombol = cariTombolTeks(layar, "Keluar");
+        if (nav == null || tombol == null) {
+            return false;
+        }
+        tombol.doClick();
+        final boolean[] jalan = new boolean[1];
+        nav.setKeluar(() -> jalan[0] = true);
+        tombol.doClick();
+        return jalan[0];
+    }
+
+    /** Bilah samping dari susunan jendela, atau null. */
+    private static NavBar cariBilahSamping(Container c) {
+        for (Component anak : c.getComponents()) {
+            if (anak instanceof NavBar) {
+                return (NavBar) anak;
+            }
+            if (anak instanceof Container) {
+                NavBar hasil = cariBilahSamping((Container) anak);
+                if (hasil != null) {
+                    return hasil;
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Admin terakhir tidak boleh bisa diturunkan menjadi pengguna biasa —
+     * penolakan yang sama dengan penghapusan di atas: tanpa satu pun admin,
+     * halaman Pengguna tertutup untuk selamanya dan tidak ada yang bisa
+     * memperbaikinya dari dalam aplikasi. Dua hal yang diperiksa: pesannya,
+     * dan perannya di database memang masih ADMIN setelah ditolak.
+     */
+    private static boolean ubahAdminTerakhirDitolak() throws Exception {
+        UserDao dao = new UserDao();
+        PanelPengguna p = new PanelPengguna(penggunaUjiAdmin());
+        JTable t = (JTable) field(p, "tabel");
+        int baris = barisNama(t, "admin");
+        if (baris < 0) {
+            return false;
+        }
+        t.setRowSelectionInterval(baris, baris);
+        ((JTextField) field(p, "fNama")).setText("admin");
+        ((JComboBox<?>) field(p, "cmbPeran")).setSelectedIndex(1);
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("ubah");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        String pesan = ((JLabel) field(p, "lblStatus")).getText();
+        boolean ditolak = pesan.toLowerCase().contains("admin terakhir");
+        boolean tetapAdmin = dao.cari("admin") != null && dao.cari("admin").admin();
+        System.out.println("        pesannya: \"" + pesan + "\"");
+        return ditolak && tetapAdmin;
+    }
+
+    /**
+     * Kendali pembanding untuk penolakan di atas: selama admin lain masih
+     * tersisa, menurunkan admin harus tetap boleh. Tanpa pemeriksaan ini,
+     * penjaga yang menolak SEMUA perubahan pun terlihat hijau.
+     */
+    private static boolean ubahAdminBolehSaatLainTersisa() throws Exception {
+        UserDao dao = new UserDao();
+        dao.simpan("admin2", "sandikedua", Pengguna.ADMIN);
+        PanelPengguna p = new PanelPengguna(penggunaUjiAdmin());
+        JTable t = (JTable) field(p, "tabel");
+        int baris = barisNama(t, "admin");
+        if (baris < 0) {
+            return false;
+        }
+        t.setRowSelectionInterval(baris, baris);
+        ((JTextField) field(p, "fNama")).setText("admin");
+        ((JComboBox<?>) field(p, "cmbPeran")).setSelectedIndex(1);
+        java.lang.reflect.Method aksi = p.getClass().getDeclaredMethod("ubah");
+        aksi.setAccessible(true);
+        aksi.invoke(p);
+        String pesan = ((JLabel) field(p, "lblStatus")).getText();
+        boolean tersimpan = pesan.toLowerCase().contains("disimpan");
+        boolean jadiBiasa = dao.cari("admin") != null && !dao.cari("admin").admin();
+        System.out.println("        pesannya: \"" + pesan + "\"");
+        return tersimpan && jadiBiasa;
     }
 
     private static void createSchema() throws Exception {

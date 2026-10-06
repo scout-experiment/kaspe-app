@@ -44,7 +44,8 @@ GALERI = [
     ("08-pengguna.png", "Pengguna",
      "Hanya dilihat admin: daftar akun beserta perannya, menambah akun, mengubah nama, "
      "peran, atau sandi, dan menghapus - admin terakhir serta akun yang sedang dipakai "
-     "tidak boleh dihapus."),
+     "tidak boleh dihapus, dan admin terakhir tidak boleh diturunkan menjadi pengguna "
+     "biasa, supaya halaman ini selalu ada yang bisa membukanya."),
 ]
 
 def semat(path: pathlib.Path) -> str:
@@ -330,7 +331,7 @@ footer {
     <dl class="fakta">
       <div>
         <dt>Uji otomatis</dt>
-        <dd>369 lulus <span>0 gagal</span></dd>
+        <dd>375 lulus <span>0 gagal</span></dd>
       </div>
       <div>
         <dt>Bytecode</dt>
