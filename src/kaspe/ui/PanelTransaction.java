@@ -1206,7 +1206,7 @@ public class PanelTransaction extends JPanel {
         try {
             netWeight = Calculator.netWeight(factoryWeight, refraction);
         } catch (RuntimeException e) {
-            lblNetWeight.setText("cek isian");
+            lblNetWeight.setText("Cek isian");
             lblNetWeight.setForeground(Theme.DANGER);
             setValue(lblTotalAmount, EMPTY);
             return;

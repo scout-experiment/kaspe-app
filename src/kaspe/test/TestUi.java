@@ -820,12 +820,12 @@ public class TestUi {
         String tertulis = null;
         for (javax.swing.JLabel label : semuaLabel(panel)) {
             String teks = label.getText();
-            if (teks != null && teks.startsWith("bulan ini ")) {
-                tertulis = teks.substring("bulan ini ".length()).trim();
+            if (teks != null && teks.startsWith("Bulan ini ")) {
+                tertulis = teks.substring("Bulan ini ".length()).trim();
             }
         }
         if (tertulis == null) {
-            System.out.println("        keterangan 'bulan ini' tidak ada di kartu beranda");
+            System.out.println("        keterangan 'Bulan ini' tidak ada di kartu beranda");
             return false;
         }
 
@@ -3369,15 +3369,15 @@ public class TestUi {
 
         String[][] harap = new String[][]{
                 {"Pengiriman tercatat", String.valueOf(trx.listReport(awal, akhir).size()),
-                        awal == null ? "belum ada data" : "sejak " + kaspe.util.Dates.format(awal)},
+                        awal == null ? "Belum ada data" : "Sejak " + kaspe.util.Dates.format(awal)},
                 {"Total uang", "Rp " + kaspe.Calculator.formatNumber(trx.totalAmount(awal, akhir)),
-                        "bulan ini Rp " + kaspe.Calculator.formatNumber(
+                        "Bulan ini Rp " + kaspe.Calculator.formatNumber(
                                 trx.totalAmount(akhir.withDayOfMonth(1), akhir))},
                 {"Total berat bersih", kaspe.Calculator.formatKg(trx.totalNetWeight(awal, akhir)),
-                        "setelah dipotong refraksi"},
+                        "Setelah dipotong refraksi"},
                 {"Truk terdaftar", String.valueOf(truk.size()),
-                        tanpaPemilik == 0 ? "semua punya pemilik" : tanpaPemilik + " tanpa pemilik"},
-                {"Rental", String.valueOf(master.listRental().size()), "pemilik truk"},
+                        tanpaPemilik == 0 ? "Semua punya pemilik" : tanpaPemilik + " tanpa pemilik"},
+                {"Rental", String.valueOf(master.listRental().size()), "Pemilik truk"},
                 {"Pengguna", String.valueOf(akun.size()), admin + " admin"},
         };
 

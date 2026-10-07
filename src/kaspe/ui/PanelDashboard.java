@@ -138,20 +138,25 @@ public class PanelDashboard extends JPanel {
         JPanel p = new JPanel(new GridLayout(2, 3, 14, 14));
         p.setOpaque(false);
         p.add(statCard(Icons.NOTE, "Pengiriman tercatat", String.valueOf(pengiriman),
-                earliest == null ? "belum ada data" : "sejak " + Dates.format(earliest), false));
+                earliest == null ? "Belum ada data" : "Sejak " + Dates.format(earliest), false));
         // Angka besarnya tetap total sepanjang masa — mengubah arti angka besar tanpa
         // mengubah judulnya justru bikin salah baca. Yang bergerak ditaruh di keterangan
         // kecilnya, di baris yang memang sudah ada.
         p.add(statCard(Icons.CHART, "Total uang", "Rp " + Calculator.formatNumber(amount),
-                "bulan ini Rp " + Calculator.formatNumber(monthAmount), true));
+                "Bulan ini Rp " + Calculator.formatNumber(monthAmount), true));
         p.add(statCard(Icons.HOME, "Total berat bersih", Calculator.formatKg(weight),
-                "setelah dipotong refraksi", false));
+                "Setelah dipotong refraksi", false));
+        // Keterangannya diawali huruf kapital seperti judulnya. Keterangan yang diawali
+        // angka ("7 tanpa pemilik", "1 admin") memang tidak punya huruf untuk dikapitalkan
+        // - itu tetap ditulis apa adanya; yang dihindari adalah keterangan yang huruf
+        // pertamanya kecil, karena di sebelah judulnya yang berkapital ia terbaca seperti
+        // potongan kalimat yang terputus, bukan baris keterangan.
         p.add(statCard(Icons.TRUCK, "Truk terdaftar", String.valueOf(trucks),
-                tanpaPemilik == 0 ? "semua punya pemilik" : tanpaPemilik + " tanpa pemilik", false));
+                tanpaPemilik == 0 ? "Semua punya pemilik" : tanpaPemilik + " tanpa pemilik", false));
         // "Pemilik" disebut di sini karena di data master pun begitu: rental adalah
         // pemilik truknya, bukan tempat truk itu diparkir.
         p.add(statCard(Icons.BUILDING, "Rental", String.valueOf(rentals),
-                "pemilik truk", false));
+                "Pemilik truk", false));
         p.add(statCard(Icons.USER, "Pengguna", String.valueOf(pengguna),
                 admin + " admin", false));
         return p;
