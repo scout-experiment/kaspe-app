@@ -318,12 +318,12 @@ public class PanelReport extends JPanel {
                         b.getPlate(), b.getRentalName(),
                         Calculator.formatKg(b.getFieldWeight()), Calculator.formatKg(b.getFactoryWeight()),
                         Calculator.formatPercent(b.getRefractionPercent()), Calculator.formatKg(b.getNetWeight()),
-                        Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
-                        "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
+                        Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatNumber(b.getPrice()),
+                        "Rp " + Calculator.formatNumber(b.getTotalAmount())});
                 totalAmount = totalAmount.add(b.getTotalAmount() == null ? BigDecimal.ZERO : b.getTotalAmount());
                 totalWeight = totalWeight.add(b.getNetWeight() == null ? BigDecimal.ZERO : b.getNetWeight());
             }
-            lblTotalAmount.setText("Rp " + Calculator.formatCurrency(totalAmount));
+            lblTotalAmount.setText("Rp " + Calculator.formatNumber(totalAmount));
             lblTotalWeight.setText(Calculator.formatKg(totalWeight));
             // Jumlah baris yang sedang tampil. Sempat hilang tanpa ketahuan: barisnya
             // tertimpa blok lain, jadi labelnya terus menulis "0 baris" walaupun
@@ -577,7 +577,7 @@ public class PanelReport extends JPanel {
         for (Object[] g : rekapPerRental()) {
             m.addRow(new Object[]{g[0], g[1],
                     Calculator.formatKg((BigDecimal) g[2]),
-                    "Rp " + Calculator.formatCurrency((BigDecimal) g[3])});
+                    "Rp " + Calculator.formatNumber((BigDecimal) g[3])});
         }
         Theme.Table t = new Theme.Table(m, "");
         Theme.styleTable(t);

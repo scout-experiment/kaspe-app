@@ -304,7 +304,7 @@ public class TestAlur {
                 + "JOIN truk t ON t.id_truk = d.id_truk WHERE t.plat = 'ZZ 7400 ZZ'");
         record(bersihDb != null && bersihDb.compareTo(bersih) == 0
                         && uangDb != null && uangDb.compareTo(uang) == 0,
-                "berat bersih dan jumlah uang dihitung Calculator (" + Calculator.formatCurrency(uang) + ")");
+                "berat bersih dan jumlah uang dihitung Calculator (" + Calculator.formatNumber(uang) + ")");
         DefaultTableModel riwayat = (DefaultTableModel) field(p, "riwayatModel");
         record(jumlahRiwayat(riwayat, "ZZ 7400 ZZ") == 1,
                 "daftar Transaksi Tersimpan menampilkan satu baris untuk plat itu");
@@ -459,7 +459,7 @@ public class TestAlur {
         int barisBaru = barisRiwayat(riwayat, "ZZ 7600 ZZ");
         record(barisBaru >= 0
                         && Dates.format(LocalDate.of(2026, 10, 10)).equals(String.valueOf(riwayat.getValueAt(barisBaru, 1)))
-                        && ("Rp " + Calculator.formatCurrency(uang)).equals(String.valueOf(riwayat.getValueAt(barisBaru, 10))),
+                        && ("Rp " + Calculator.formatNumber(uang)).equals(String.valueOf(riwayat.getValueAt(barisBaru, 10))),
                 "riwayat menampilkan tanggal dan jumlah uang yang baru");
         record(textPlat(p).isEmpty() && "Catat Pengiriman".equals(((JLabel) field(p, "judulKartu")).getText()),
                 "kembali ke keadaan menambah setelah simpan perubahan");

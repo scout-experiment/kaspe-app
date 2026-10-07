@@ -642,8 +642,8 @@ public class PanelTransaction extends JPanel {
                     b.getPlate(), b.getRentalName(),
                     Calculator.formatKg(b.getFieldWeight()), Calculator.formatKg(b.getFactoryWeight()),
                     Calculator.formatPercent(b.getRefractionPercent()), Calculator.formatKg(b.getNetWeight()),
-                    Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatCurrency(b.getPrice()),
-                    "Rp " + Calculator.formatCurrency(b.getTotalAmount())});
+                    Dates.format(b.getPaymentDate()), "Rp " + Calculator.formatNumber(b.getPrice()),
+                    "Rp " + Calculator.formatNumber(b.getTotalAmount())});
         }
         boolean tersaring = saringanAktif(dari, sampai, rental, plat);
         // Dua keadaan kosong yang berbeda butuh penjelasan berbeda: belum punya data
@@ -954,7 +954,7 @@ public class PanelTransaction extends JPanel {
         try {
             int jwb = JOptionPane.showConfirmDialog(this,
                     "Hapus " + ids.size() + " catatan pengiriman\n"
-                            + "(total Rp " + Calculator.formatCurrency(total) + ")?",
+                            + "(total Rp " + Calculator.formatNumber(total) + ")?",
                     "Hapus Transaksi", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
             if (jwb != JOptionPane.YES_OPTION) {
                 return;
@@ -1213,7 +1213,7 @@ public class PanelTransaction extends JPanel {
         }
         setValue(lblNetWeight, Calculator.formatKg(netWeight));
         setValue(lblTotalAmount, price == null ? EMPTY
-                : "Rp " + Calculator.formatCurrency(Calculator.totalAmount(netWeight, price)));
+                : "Rp " + Calculator.formatNumber(Calculator.totalAmount(netWeight, price)));
     }
 
     /**
@@ -1434,7 +1434,7 @@ public class PanelTransaction extends JPanel {
             }
             JOptionPane.showMessageDialog(this,
                     "Pengiriman " + plat + " tanggal " + Dates.format(tanggal)
-                            + " tersimpan.\nRp " + Calculator.formatCurrency(amount)
+                            + " tersimpan.\nRp " + Calculator.formatNumber(amount)
                             + (tampil ? "" : "\n\n" + peringatanSaringan),
                     "Tersimpan", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {

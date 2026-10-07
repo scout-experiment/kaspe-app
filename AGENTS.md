@@ -206,7 +206,7 @@ inspect an empty file and print "no damage". It prints the URL it reads. Section
 normal, and telling the operator to delete one would be dangerous advice. Without
 `mysql-connector-j` in `lib/` it can only inspect H2.
 
-`preview/index.html` and `preview/*.png` are generated — do not hand-edit them. `docs/data-contoh.sql`
+`preview/*.png` and `preview/index.html` are generated — do not hand-edit them (the page is not tracked). `docs/data-contoh.sql`
 starts with `DELETE`, so it wipes the target database.
 
 ## Code Conventions & Common Patterns
@@ -234,7 +234,11 @@ starts with `DELETE`, so it wipes the target database.
   matches the money columns, which already write "Rp" in each cell. `TestUi`'s worst-case map must
   therefore hold the cell text *with* its unit, or it measures a shorter string than what is drawn.
 - **Money and weights are always `BigDecimal`**, never `double`; columns are `DECIMAL`.
-  Display money with `Calculator.formatCurrency` (`6888500` → `"6.888.500"`).
+  Display them with `Calculator.formatNumber` (`6888500` → `"6.888.500"`), which `formatKg` and
+  `formatPercent` also use, so money, weights and percent cannot disagree about how a number is
+  written. It keeps each value's OWN decimals — a refraction of 12,5 is stored as 12.50 and MUST
+  print as "12,5%", not "13%" — and pins `Locale.GERMANY` (dot groups, comma decimals) so the
+  output does not follow the machine's locale.
 - **Dates**: `LocalDate` in code, `java.sql.Date` only at the JDBC boundary, `util.Dates.format/parse`
   for UI (`Dates.parse` returns `null` instead of throwing).
 - **Error handling**: DAO methods declare `throws SQLException`. Validation throws
@@ -559,7 +563,10 @@ starts with `DELETE`, so it wipes the target database.
   dependencies** — the project deliberately uses built-in Java printing instead of JasperReports and
   an embedded DB instead of an installed one.
 - `python3` (stdlib only) is used by `preview/build-preview.py`.
-- No NetBeans or JDK is needed to view `preview/index.html`; it is a static, self-contained page.
+- `preview/*.png` is tracked; `preview/index.html` is **not** (see `.gitignore`). The page embeds
+  every PNG as base64, so tracking it added ~18 MB of regenerable blobs to history - one fresh
+  copy per visual change. A fresh clone has the PNGs but no page: run `python3 preview/build-preview.py`
+  to build it, or serve the PNGs directly. No NetBeans or JDK is needed for either.
 
 ## Testing & QA
 
@@ -578,8 +585,8 @@ CP="build:lib/*"
 "$JAVA_HOME/bin/java" -Djava.awt.headless=true -cp "$CP" kaspe.test.TestUi
 ```
 
-`set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 8,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 86 — **377 lulus, 0 gagal**.
+`set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 12,
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 86 — **381 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

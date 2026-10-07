@@ -27,11 +27,20 @@ public class TestCalculator {
         System.out.println("\n--- uji tambahan ---");
         checkShrinkage(7200, 7050, 150);
         checkCurrency(new BigDecimal("6888500"), "6.888.500");
+        // Angka berdesimal. Isian menerima koma sebagai pemisah desimal, dan kolomnya
+        // menyimpan dua angka desimal - jadi nilai-nilai ini memang bisa tersimpan.
+        // Dulu ketiganya dibulatkan menjadi angka bulat di layar: refraksi 12,5 tercetak
+        // "13%", bobot 7200,5 tercetak "7.201 kg", dan harga 1250,5 tercetak "Rp 1.251" -
+        // laporan yang diserahkan berbeda dari yang tersimpan, tanpa satu pun galat.
+        checkCurrency(new BigDecimal("1250.50"), "1.250,5");
+        checkCurrency(new BigDecimal("7050.00"), "7.050");
+        checkCurrency(new BigDecimal("1250.25"), "1.250,25");
         // Satuan ditulis di dalam sel tabel, bukan di judul kolomnya: judul kolom yang
         // menentukan lebar kolom, jadi menaruh "(kg)" di judul melebarkan tiga kolom
         // sekaligus. Diperiksa di sini supaya kedua halaman yang memakainya - transaksi
         // dan laporan - tidak bisa menampilkan satuan yang berbeda.
         checkSatuan(new BigDecimal("7530"), "7.530 kg", new BigDecimal("15"), "15%");
+        checkSatuan(new BigDecimal("7200.5"), "7.200,5 kg", new BigDecimal("12.5"), "12,5%");
         checkRefractionError();
 
         System.out.println("\n=== HASIL: " + passed + " lulus, " + failed + " gagal ===");
@@ -50,7 +59,7 @@ public class TestCalculator {
 
         System.out.printf("%-22s lapak=%d pabrik=%d ref=%d%% harga=%d%n", label, fieldWeight, factoryWeight, refraction, price);
         System.out.printf("   berat bersih : hitung=%s  buku=%d  %s%n", netWeight.toPlainString(), expectedNetWeight, netWeightOk ? "OK" : "SALAH");
-        System.out.printf("   jumlah uang : hitung=%s  buku=%d  %s%n", Calculator.formatCurrency(amount), expectedAmount, amountOk ? "OK" : "SALAH");
+        System.out.printf("   jumlah uang : hitung=%s  buku=%d  %s%n", Calculator.formatNumber(amount), expectedAmount, amountOk ? "OK" : "SALAH");
         record(ok, "baris " + label);
     }
 
@@ -63,7 +72,7 @@ public class TestCalculator {
     }
 
     private static void checkCurrency(BigDecimal v, String expected) {
-        String s = Calculator.formatCurrency(v);
+        String s = Calculator.formatNumber(v);
         boolean ok = s.equals(expected);
         System.out.printf("format rupiah %s -> %s (harap %s) %s%n", v.toPlainString(), s, expected, ok ? "OK" : "SALAH");
         record(ok, "format rupiah");

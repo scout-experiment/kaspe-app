@@ -819,7 +819,7 @@ public class TestUi {
         java.time.LocalDate hariIni = java.time.LocalDate.now();
         java.math.BigDecimal bulanIni = new kaspe.dao.TransactionDao()
                 .totalAmount(hariIni.withDayOfMonth(1), hariIni);
-        String seharusnya = "Rp " + kaspe.Calculator.formatCurrency(bulanIni);
+        String seharusnya = "Rp " + kaspe.Calculator.formatNumber(bulanIni);
         if (!seharusnya.equals(tertulis)) {
             System.out.println("        tertulis '" + tertulis + "', seharusnya '" + seharusnya + "'");
             return false;

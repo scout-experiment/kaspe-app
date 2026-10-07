@@ -109,8 +109,8 @@ public class PanelDashboard extends JPanel {
         // Angka besarnya tetap total sepanjang masa — mengubah arti angka besar tanpa
         // mengubah judulnya justru bikin salah baca. Yang bergerak ditaruh di keterangan
         // kecilnya, di baris yang memang sudah ada.
-        p.add(statCard(Icons.CHART, "Total uang", "Rp " + Calculator.formatCurrency(amount),
-                "bulan ini Rp " + Calculator.formatCurrency(monthAmount), true));
+        p.add(statCard(Icons.CHART, "Total uang", "Rp " + Calculator.formatNumber(amount),
+                "bulan ini Rp " + Calculator.formatNumber(monthAmount), true));
         p.add(statCard(Icons.HOME, "Total berat bersih", Calculator.formatKg(weight),
                 "setelah dipotong refraksi", false));
         p.add(statCard(Icons.TRUCK, "Truk terdaftar", String.valueOf(trucks),

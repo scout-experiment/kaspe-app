@@ -266,7 +266,7 @@ public class TestDao {
             System.out.printf("   %s %-12s lapak=%s pabrik=%s ref=%s%% bb=%s harga=%s uang=%s%n",
                     b.getDate(), b.getPlate(), plain(b.getFieldWeight()), plain(b.getFactoryWeight()),
                     plain(b.getRefractionPercent()), plain(b.getNetWeight()), plain(b.getPrice()),
-                    Calculator.formatCurrency(b.getTotalAmount()));
+                    Calculator.formatNumber(b.getTotalAmount()));
         }
         record(report.size() == 3, "laporan berisi 3 baris");
 
@@ -275,7 +275,7 @@ public class TestDao {
                 .add(new BigDecimal("6008750"));
         BigDecimal total = transactionDao.totalAmount(null, null);
         record(total.compareTo(expectedTotal) == 0, "total uang = " + expectedTotal.toPlainString());
-        System.out.println("   total uang   = " + Calculator.formatCurrency(total) + " (harap " + Calculator.formatCurrency(expectedTotal) + ")");
+        System.out.println("   total uang   = " + Calculator.formatNumber(total) + " (harap " + Calculator.formatNumber(expectedTotal) + ")");
 
         BigDecimal expectedTotalNetWeight = new BigDecimal("5990").add(new BigDecimal("5070")).add(new BigDecimal("5225"));
         BigDecimal totalNetWeight = transactionDao.totalNetWeight(null, null);
@@ -286,7 +286,7 @@ public class TestDao {
         System.out.println("4. Rekap per rental ...");
         Map<String, BigDecimal> summary = transactionDao.summaryPerRental(null, null);
         for (Map.Entry<String, BigDecimal> e : summary.entrySet()) {
-            System.out.println("   " + e.getKey() + " = Rp " + Calculator.formatCurrency(e.getValue()));
+            System.out.println("   " + e.getKey() + " = Rp " + Calculator.formatNumber(e.getValue()));
         }
         record(summary.size() == 1, "rekap 1 rental");
         System.out.println();

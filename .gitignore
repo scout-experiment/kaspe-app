@@ -7,6 +7,12 @@ sources.txt
 # Connector/J (GPLv2) tidak ikut dipublikasikan — lihat README bagian "Memakai MySQL".
 lib/mysql-connector-j-9.1.0.jar
 
+# Halaman pratinjau — dibuat ulang oleh preview/build-preview.py dari berkas PNG di
+# sebelahnya, dan menyimpan gambarnya sebagai teks di dalamnya sehingga setiap
+# perubahan tampilan menambah ratusan kilobyte permanen. Gambar PNG-nya tetap ikut:
+# itu bukti tampilannya, dan tidak bisa dibuat tanpa menjalankan aplikasinya.
+preview/index.html
+
 # Database pengguna — jangan sampai ikut ter-commit.
 db_kaspe*.mv.db
 db_kaspe*.trace.db

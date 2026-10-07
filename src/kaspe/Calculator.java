@@ -74,16 +74,34 @@ public final class Calculator {
         return fieldWeight.subtract(factoryWeight);
     }
 
-    /** Format rupiah sederhana: 6888500 -&gt; "6.888.500" */
-    public static String formatCurrency(BigDecimal value) {
+    /**
+     * Angka dengan pemisah ribuan titik, dan koma untuk desimalnya bila ada.
+     *
+     * <p>Dipakai bersama oleh uang, bobot, dan persen, supaya ketiganya tidak mungkin
+     * menuliskan angka dengan cara yang berbeda.
+     *
+     * <p>Angka yang tersimpan berdesimal tetap ditulis berdesimal. Isian menerima koma
+     * sebagai pemisah desimal ("12,5"), dan kolomnya menyimpan dua angka desimal, jadi
+     * refraksi 12,5 tersimpan sebagai 12,50 dan bobot 7200,5 sebagai 7200,50.
+     * Membulatkannya menjadi angka bulat di layar membuat laporan yang tercetak berbeda
+     * dari yang tersimpan dan dari isian yang dimuat ulang: 12,5% tercetak "13%" dan
+     * 7200,5 kg tercetak "7.201 kg" - angkanya berubah di atas kertas.
+     *
+     * <p>Locale.GERMANY dipaku, bukan Locale bawaan mesin: pemisahnya persis kebalikan
+     * Locale.US (ribuan titik, desimal koma), jadi angkanya langsung terbaca dengan
+     * kebiasaan Indonesia tanpa penggantian tanda yang bisa meleset. Di mesin berbahasa
+     * Prancis pemisah ribuan bawaan adalah spasi tak-terpisah, dan angkanya tercetak
+     * salah tanpa satu pun galat.
+     */
+    public static String formatNumber(BigDecimal value) {
         if (value == null) {
             return "0";
         }
-        // Locale.US dipaku, bukan Locale bawaan mesin: pemisah ribuan bawaan bisa berupa
-        // spasi tak-terpisah (Prancis) atau tanda petik (Swiss), dan penggantian ',' di
-        // bawah ini tidak menyentuhnya - angkanya tercetak salah di kertas tanpa satu pun
-        // galat. Yang dipakai cuma pemisahnya; angkanya tetap dibulatkan ke rupiah penuh.
-        return String.format(Locale.US, "%,.0f", value).replace(',', '.');
+        BigDecimal rapi = value.stripTrailingZeros();
+        // Nol di ekor dibuang supaya 7050 -yang tersimpan sebagai 7050,00- terbaca 7.050,
+        // bukan 7.050,00. Dua angka di paling banyak: itu batas yang dipakai kolomnya.
+        int desimal = Math.max(0, Math.min(2, rapi.scale()));
+        return String.format(Locale.GERMANY, "%,." + desimal + "f", rapi);
     }
 
     /**
@@ -95,11 +113,11 @@ public final class Calculator {
      * terpanjang. Ini juga sejalan dengan kolom uang, yang sudah menulis "Rp" di selnya.
      */
     public static String formatKg(BigDecimal value) {
-        return formatCurrency(value) + " kg";
+        return formatNumber(value) + " kg";
     }
 
     /** Angka refraksi beserta tanda persennya, mis. {@code 15%}. */
     public static String formatPercent(BigDecimal value) {
-        return formatCurrency(value) + "%";
+        return formatNumber(value) + "%";
     }
 }
