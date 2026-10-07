@@ -38,6 +38,18 @@ Main → kaspe.ui.* → kaspe.dao.* → kaspe.Db → H2 file DB (or MySQL/MariaD
   standalone builders — `NavBar.build(page)` — so `tools/BuatPratinjau.java` and `TestUi`
   can rebuild the real shell headlessly. Never inline them into `MainFrame`: preview PNGs
   would silently stop representing the app.
+- **The sidebar is white (`Theme.CARD`) and the menu rows are plain text.** A bare `JPanel`
+  has no background of its own, so it inherits `Panel.background`, which `Theme` pins to
+  `CANVAS` — the sidebar then shared one flat area with the page, separated only by a 1px
+  border. Giving it the card white makes it read as its own surface. The consequence is
+  deliberate: the rows lose their white pill (that colour is in the entry's own style
+  string), so the list reads as plain text and a row's edge appears only on hover. The
+  ACTIVE row stands out MORE against white than it did against the canvas — its pale green
+  differs from white by 18/11/16 and from the canvas by only 6/1/8 — and that marker is
+  load-bearing: `NavBar`'s class comment records that this app looked dated precisely
+  because it was rows of words with no marker for the open page.
+  Footer order: the `Keluar` button sits ABOVE the version label, because the button is the
+  part that gets used and the version number is only a caption.
 - **Login gate.** The app opens on `DialogLogin`, never straight to Beranda. When the
   `pengguna` table is empty (fresh database), the SAME screen switches to first-run mode
   "Buat Admin Pertama" (nama + sandi + ulangi sandi) and creates the ADMIN — there is no
@@ -597,7 +609,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 12,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 88 — **383 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 90 — **385 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real

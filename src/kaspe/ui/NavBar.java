@@ -57,6 +57,19 @@ public class NavBar extends JPanel {
         super(new BorderLayout());
         this.page = page;
         setPreferredSize(new Dimension(WIDTH, 100));
+        // Bilah samping berlatar putih, bukan mengikuti latar halaman. Tanpa warna sendiri,
+        // JPanel mewarisi "Panel.background" yang dipaku Theme ke warna kanvas - sehingga
+        // bilah dan isi halaman tampak satu bidang, dan yang memisahkan keduanya hanya
+        // garis 1px. Putihnya sama dengan putih kartu, jadi bilah ini terbaca sebagai
+        // bidang tersendiri di sebelah kiri.
+        //
+        // Akibatnya disengaja: baris menu yang tidak aktif kehilangan pil putihnya (warna
+        // pil itu dipaku di gayanya), jadi daftarnya terbaca sebagai teks polos - batasnya
+        // baru muncul saat disorot. Sorotan halaman yang sedang dibuka justru jadi LEBIH
+        // jelas: hijau muda baris aktif berbeda 18/11/16 dari putih, sedangkan dari latar
+        // kanvas hanya 6/1/8. Penanda halaman aktif itu penting - aplikasi ini dulu
+        // terlihat kuno justru karena deretan kata tanpa penanda halaman aktif.
+        setBackground(Theme.CARD);
         setBorder(BorderFactory.createMatteBorder(0, 0, 0, 1, Theme.LINE));
 
         add(brand(), BorderLayout.NORTH);
@@ -205,12 +218,14 @@ public class NavBar extends JPanel {
         return item;
     }
 
-    /** Nomor versi di kaki bilah. */
+    /** Nomor versi di kaki bilah, di bawah tombol keluar. */
     private static JLabel version() {
         JLabel l = new JLabel("Versi 1.0.1");
         l.setFont(Theme.semibold(11f));
         l.setForeground(Theme.INK_SOFT);
-        l.setBorder(BorderFactory.createEmptyBorder(10, 21, 16, 16));
+        // Jarak bawah 16 menahan tulisan ini dari tepi bawah jendela. Jarak atasnya kecil
+        // saja: tombol keluar di atasnya sudah membawa pemisahnya sendiri.
+        l.setBorder(BorderFactory.createEmptyBorder(2, 21, 16, 16));
         return l;
     }
 
@@ -225,17 +240,21 @@ public class NavBar extends JPanel {
         JPanel kaki = new JPanel();
         kaki.setLayout(new BoxLayout(kaki, BoxLayout.Y_AXIS));
         kaki.setOpaque(false);
-        // Sejajar dengan tulisan versi di atasnya, bukan dengan ikon menu:
-        // keduanya bagian kaki, bukan baris menu.
+        // Tepi kiri 21 supaya tombol dan tulisan versinya segaris dengan lambang merek dan
+        // ikon menu di atasnya. Jarak bawah 8 hanya pemisah ke tulisan versi di bawahnya;
+        // jarak ke tepi bawah jendela ada di tulisan versi itu, karena dialah yang sekarang
+        // duduk paling bawah.
         btnKeluar.setAlignmentX(Component.LEFT_ALIGNMENT);
-        btnKeluar.setBorder(BorderFactory.createEmptyBorder(0, 21, 16, 16));
+        btnKeluar.setBorder(BorderFactory.createEmptyBorder(0, 21, 8, 16));
         btnKeluar.addActionListener(e -> {
             if (aksiKeluar != null) {
                 aksiKeluar.run();
             }
         });
-        kaki.add(version());
+        // Tombol keluar di ATAS nomor versi: tombolnya yang dipakai, jadi ia yang paling
+        // dekat dengan isi halaman; nomor versi cuma keterangan, jadi ia yang paling bawah.
         kaki.add(btnKeluar);
+        kaki.add(version());
         return kaki;
     }
 

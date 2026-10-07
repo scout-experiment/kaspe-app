@@ -390,6 +390,11 @@ public class TestUi {
         // berjalan saat diklik, dan diam tanpa aksi — bilah ini dipakai juga
         // pembuat gambar pratinjau yang tidak memasang aksinya.
         check("tombol Keluar menjalankan aksinya", tombolKeluarMenjalankanAksi());
+        // Rupa bilah sampingnya sendiri. Keduanya tidak berbunyi kalau salah - bilahnya
+        // tetap terlihat wajar, hanya kembali menyatu dengan latar halaman atau kakinya
+        // kembali terbalik - jadi keduanya dikunci di sini.
+        check("bilah samping berlatar putih kartu", bilahSampingPutih());
+        check("tombol Keluar di atas nomor versi di kaki bilah", keluarDiAtasVersi());
         // Admin terakhir tidak boleh bisa diturunkan menjadi pengguna biasa:
         // tanpa satu pun admin, halaman Pengguna tertutup untuk selamanya.
         check("turunkan admin terakhir ditolak", ubahAdminTerakhirDitolak());
@@ -4646,6 +4651,69 @@ public class TestUi {
         nav.setKeluar(() -> jalan[0] = true);
         tombol.doClick();
         return jalan[0];
+    }
+
+    /**
+     * Bilah samping berlatar putih kartu, bukan latar halaman.
+     *
+     * <p>JPanel tanpa warna sendiri mewarisi "Panel.background" yang dipaku Theme ke warna
+     * kanvas. Kalau itu terjadi lagi, bilahnya menyatu dengan isi halaman dan yang
+     * memisahkan keduanya hanya garis 1px - tidak ada galat, tidak ada tes lain yang gagal.
+     */
+    private static boolean bilahSampingPutih() throws Exception {
+        PagePanel halaman = new PagePanel(admin());
+        JPanel layar = PagePanel.shell(halaman);
+        layar.setSize(1320, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+        NavBar nav = cariBilahSamping(layar);
+        if (nav == null) {
+            System.out.println("        bilah samping tidak ditemukan");
+            return false;
+        }
+        if (!Theme.CARD.equals(nav.getBackground())) {
+            System.out.println("        bilah samping berlatar " + nav.getBackground()
+                    + ", seharusnya putih kartu " + Theme.CARD);
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Tombol Keluar berdiri di ATAS nomor versi di kaki bilah.
+     *
+     * <p>Urutannya gampang terbalik lagi tanpa ada yang menyadarinya: keduanya tetap
+     * tampil, dan yang berubah hanya mana yang lebih dekat ke isi halaman.
+     */
+    private static boolean keluarDiAtasVersi() throws Exception {
+        PagePanel halaman = new PagePanel(admin());
+        JPanel layar = PagePanel.shell(halaman);
+        layar.setSize(1320, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+        AbstractButton keluar = cariTombolTeks(layar, "Keluar");
+        JLabel versi = null;
+        for (JLabel l : semuaLabel(layar)) {
+            if (l.getText() != null && l.getText().startsWith("Versi ")) {
+                versi = l;
+            }
+        }
+        if (keluar == null || versi == null) {
+            System.out.println("        tombol Keluar atau nomor versi tidak ditemukan di kaki bilah");
+            return false;
+        }
+        int atasKeluar = atasAbsolut(keluar);
+        int atasVersi = atasAbsolut(versi);
+        if (atasKeluar >= atasVersi) {
+            System.out.println("        tombol Keluar di y=" + atasKeluar
+                    + ", nomor versi di y=" + atasVersi + " - versinya yang di atas");
+            return false;
+        }
+        return true;
     }
 
     /** Bilah samping dari susunan jendela, atau null. */
