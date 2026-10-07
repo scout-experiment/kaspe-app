@@ -12,7 +12,16 @@
 
 ## Tampilan aplikasi
 
-![Beranda dengan enam kartu ringkasan: pengiriman, uang, berat bersih, truk, rental, dan pengguna](preview/01-dashboard.png)
+| **Beranda** | **Catat pengiriman** |
+|:---:|:---:|
+| [<img src="preview/01-dashboard.png" alt="Beranda: enam kartu ringkasan" width="100%">](preview/01-dashboard.png) | [<img src="preview/02-transaction-input.png" alt="Halaman transaksi: isian pengiriman" width="100%">](preview/02-transaction-input.png) |
+
+| **Laporan** | **Pengguna** |
+|:---:|:---:|
+| [<img src="preview/05-report.png" alt="Halaman laporan: rekap penjualan per periode" width="100%">](preview/05-report.png) | [<img src="preview/08-pengguna.png" alt="Halaman pengguna: kelola akun dan perannya" width="100%">](preview/08-pengguna.png) |
+
+Empat gambar di atas adalah halaman yang paling sering dipakai. **Klik gambarnya** untuk melihat
+ukuran penuh — di dalam grid ini tulisannya terlalu kecil untuk dibaca.
 
 Semua gambar di folder [`preview/`](preview/) diambil dari aplikasi yang benar-benar dijalankan
 berikut datanya. Untuk melihat semuanya sekaligus, lihat bagian
