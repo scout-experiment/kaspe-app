@@ -169,6 +169,19 @@ public class TestUi {
         // tanda. Diperiksa dengan membandingkan angka yang benar-benar tertulis di kartu
         // dengan hitungan query yang sama memakai batas awal bulan.
         check("angka bulan berjalan di beranda", angkaBulanBerjalan());
+        // Tiap kartu beranda harus menampilkan angka yang benar untuk JUDULNYA. Kartu
+        // truk, rental, dan pengguna berisi angka-angka yang berdekatan di kode, jadi
+        // tertukarnya dua angka di situ tidak kelihatan salah: kartunya tetap rapi dan
+        // angkanya tetap masuk akal - hanya milik orang lain. Catatan di bawah angkanya
+        // ikut diperiksa, karena "3 tanpa pemilik" yang salah baca sama saja menyesatkan.
+        check("angka kartu beranda mengikuti isi database", angkaKartuBerandaBenar());
+        // Enam kartu dibagi tiga kolom, jadi tiap kartu lebih sempit daripada waktu
+        // keempatnya berbagi dua kolom. Angka besar yang tidak muat dipotong diam-diam
+        // oleh JLabel - tidak ada galat, tidak ada elipsis, hanya angka yang hilang di
+        // ujungnya. Diukur pada lebar jendela minimum, lebar yang paling sempit yang
+        // boleh dipakai aplikasi.
+        check("angka kartu beranda tidak terpotong pada lebar jendela minimum",
+                kartuBerandaTidakTerpotong());
         // Huruf bawaan harus benar-benar terpasang. Kalau berkas huruf gagal dimuat,
         // FlatLaf diam-diam memakai huruf lain dan seluruh uji gambar tetap lolos.
         check("huruf " + Theme.fontFamily() + " terpasang",
@@ -3325,6 +3338,146 @@ public class TestUi {
     /** Angka dari tulisan di layar: buang "Rp", titik ribuan, dan satuannya. */
     private static java.math.BigDecimal angkaLayar(String teks) {
         return new java.math.BigDecimal(teks.replaceAll("[^0-9]", ""));
+    }
+
+    /**
+     * Tiap kartu beranda menampilkan angka yang cocok dengan judulnya.
+     *
+     * <p>Angkanya dihitung dari query yang sama seperti halaman itu sendiri memakainya,
+     * lalu dibandingkan dengan tulisan yang benar-benar terpasang di kartunya.
+     */
+    private static boolean angkaKartuBerandaBenar() throws Exception {
+        PanelDashboard panel = new PanelDashboard();
+        kaspe.dao.TransactionDao trx = new kaspe.dao.TransactionDao();
+        java.time.LocalDate awal = trx.earliestDate();
+        java.time.LocalDate akhir = java.time.LocalDate.now();
+        kaspe.dao.MasterDao master = new kaspe.dao.MasterDao();
+        java.util.List<kaspe.model.Truck> truk = master.listTrucks();
+        int tanpaPemilik = 0;
+        for (kaspe.model.Truck t : truk) {
+            if (t.getRentalId() == null) {
+                tanpaPemilik++;
+            }
+        }
+        int admin = 0;
+        java.util.List<kaspe.model.Pengguna> akun = new kaspe.dao.UserDao().list();
+        for (kaspe.model.Pengguna a : akun) {
+            if (a.admin()) {
+                admin++;
+            }
+        }
+
+        String[][] harap = new String[][]{
+                {"Pengiriman tercatat", String.valueOf(trx.listReport(awal, akhir).size()),
+                        awal == null ? "belum ada data" : "sejak " + kaspe.util.Dates.format(awal)},
+                {"Total uang", "Rp " + kaspe.Calculator.formatNumber(trx.totalAmount(awal, akhir)),
+                        "bulan ini Rp " + kaspe.Calculator.formatNumber(
+                                trx.totalAmount(akhir.withDayOfMonth(1), akhir))},
+                {"Total berat bersih", kaspe.Calculator.formatKg(trx.totalNetWeight(awal, akhir)),
+                        "setelah dipotong refraksi"},
+                {"Truk terdaftar", String.valueOf(truk.size()),
+                        tanpaPemilik == 0 ? "semua punya pemilik" : tanpaPemilik + " tanpa pemilik"},
+                {"Rental", String.valueOf(master.listRental().size()), "pemilik truk"},
+                {"Pengguna", String.valueOf(akun.size()), admin + " admin"},
+        };
+
+        java.util.List<JPanel> kartu = kartuBeranda(panel);
+        if (kartu.size() != harap.length) {
+            System.out.println("        kartu beranda ada " + kartu.size()
+                    + ", seharusnya " + harap.length);
+            return false;
+        }
+        boolean ok = true;
+        for (int i = 0; i < harap.length; i++) {
+            java.util.List<JLabel> isi = semuaLabel(kartu.get(i));
+            JLabel angka = labelAngka(isi);
+            if (angka == null) {
+                System.out.println("        kartu \"" + harap[i][0] + "\" tidak punya label angka");
+                ok = false;
+                continue;
+            }
+            if (!harap[i][1].equals(angka.getText())) {
+                System.out.println("        kartu \"" + harap[i][0] + "\" menampilkan \""
+                        + angka.getText() + "\", seharusnya \"" + harap[i][1] + "\"");
+                ok = false;
+            }
+            // Catatannya adalah label yang paling akhir, sesudah angka besarnya.
+            String catatan = null;
+            for (JLabel l : isi) {
+                if (l != angka && l.getText() != null && !l.getText().isEmpty()
+                        && l.getFont() != null && l.getFont().getSize() < 20) {
+                    catatan = l.getText();
+                }
+            }
+            if (!harap[i][2].equals(catatan)) {
+                System.out.println("        catatan kartu \"" + harap[i][0] + "\" berbunyi \""
+                        + catatan + "\", seharusnya \"" + harap[i][2] + "\"");
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
+    /**
+     * Angka besar di tiap kartu beranda masih muat pada lebar jendela minimum.
+     *
+     * <p>Dibandingkan lebar label dengan lebar yang benar-benar diberikannya: JLabel yang
+     * kehabisan ruang menyusut (diperiksa dengan menaikkan hurufnya sampai 60pt - labelnya
+     * menyusut dari 534px menjadi 266px), jadi "lebar yang ada lebih kecil daripada yang
+     * dibutuhkan" berarti angkanya terpotong di layar.
+     */
+    private static boolean kartuBerandaTidakTerpotong() throws Exception {
+        PanelDashboard panel = new PanelDashboard();
+        PagePanel halaman = new PagePanel(admin());
+        JPanel layar = PagePanel.shell(halaman);
+        halaman.showPanel(panel, "Beranda", "Ringkasan pengiriman.");
+        layar.setSize(kaspe.ui.MainFrame.LEBAR_MINIMUM, 760);
+        for (int i = 0; i < 3; i++) {
+            layar.doLayout();
+            layoutDeep(layar);
+        }
+
+        boolean ok = true;
+        for (JPanel kartu : kartuBeranda(panel)) {
+            JLabel angka = labelAngka(semuaLabel(kartu));
+            if (angka == null) {
+                continue;
+            }
+            int perlu = angka.getPreferredSize().width;
+            int ada = angka.getWidth();
+            if (ada < perlu) {
+                System.out.println("        angka \"" + angka.getText() + "\" butuh " + perlu
+                        + "px tetapi hanya dapat " + ada + "px - terpotong "
+                        + (perlu - ada) + "px pada lebar " + kaspe.ui.MainFrame.LEBAR_MINIMUM);
+                ok = false;
+            }
+        }
+        return ok;
+    }
+
+    /** Isi kisi kartu beranda, urut kiri ke kanan lalu baris berikutnya. */
+    private static java.util.List<JPanel> kartuBeranda(PanelDashboard panel) {
+        java.util.List<JPanel> hasil = new java.util.ArrayList<>();
+        Component kisi = ((java.awt.BorderLayout) panel.getLayout())
+                .getLayoutComponent(java.awt.BorderLayout.NORTH);
+        if (kisi instanceof Container) {
+            for (Component anak : ((Container) kisi).getComponents()) {
+                if (anak instanceof JPanel) {
+                    hasil.add((JPanel) anak);
+                }
+            }
+        }
+        return hasil;
+    }
+
+    /** Label angka besar di dalam satu kartu; kartu beranda hanya punya satu. */
+    private static JLabel labelAngka(java.util.List<JLabel> isi) {
+        for (JLabel l : isi) {
+            if (l.getFont() != null && l.getFont().getSize() >= 20) {
+                return l;
+            }
+        }
+        return null;
     }
 
     /**

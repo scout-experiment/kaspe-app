@@ -3,7 +3,10 @@ package kaspe.ui;
 import kaspe.Calculator;
 import kaspe.dao.MasterDao;
 import kaspe.dao.TransactionDao;
+import kaspe.dao.UserDao;
+import kaspe.model.Pengguna;
 import kaspe.model.ReportRow;
+import kaspe.model.Truck;
 import kaspe.util.Dates;
 
 import javax.swing.*;
@@ -49,9 +52,31 @@ public class PanelDashboard extends JPanel {
 
             MasterDao master = new MasterDao();
             int rentals = master.listRental().size();
-            int trucks = master.listTrucks().size();
+            List<Truck> daftarTruk = master.listTrucks();
+            int trucks = daftarTruk.size();
+            // Truk yang belum punya pemilik. Bukan sekadar angka pelengkap: pengiriman
+            // truk itu ikut tercatat, tetapi namanya tidak muncul di rekap per rental -
+            // jadi kalau ada, pemiliknya memang perlu diisi lewat data master.
+            int tanpaPemilik = 0;
+            for (Truck t : daftarTruk) {
+                if (t.getRentalId() == null) {
+                    tanpaPemilik++;
+                }
+            }
 
-            // Angka bulan berjalan. Keempat kartu lainnya berisi angka sepanjang masa yang
+            // Jumlah akun, dan berapa di antaranya admin. Adminnya disebut karena
+            // aplikasi ini menolak menghapus atau menurunkan admin terakhir - jadi jumlah
+            // itulah yang menentukan masih ada yang bisa mengelola pemilik truk atau tidak.
+            List<Pengguna> daftarPengguna = new UserDao().list();
+            int pengguna = daftarPengguna.size();
+            int admin = 0;
+            for (Pengguna a : daftarPengguna) {
+                if (a.admin()) {
+                    admin++;
+                }
+            }
+
+            // Angka bulan berjalan. Kelima kartu lainnya berisi angka sepanjang masa yang
             // hampir tidak berubah dari hari ke hari, sehingga halaman ini terasa beku;
             // angka bulan berjalan itulah yang menjawab "sudah kucatat belum pengiriman
             // hari ini". Batasnya awal bulan, bukan 30 hari terakhir, supaya cocok dengan
@@ -63,8 +88,8 @@ public class PanelDashboard extends JPanel {
             // menyisakan lajur kosong di atas kartu, yang kedua membuat kartunya melar
             // jadi tinggi sekali sehingga lambang di dalamnya ikut tertarik jadi lajur
             // panjang seperti garis.
-            add(buildStats(from, pengiriman, amount, weight, rentals, trucks, monthAmount),
-                    BorderLayout.NORTH);
+            add(buildStats(from, pengiriman, amount, weight, rentals, trucks, tanpaPemilik,
+                    pengguna, admin, monthAmount), BorderLayout.NORTH);
 
 
         } catch (Exception e) {
@@ -93,16 +118,24 @@ public class PanelDashboard extends JPanel {
     }
 
     /**
-     * Empat kartu angka, tersusun dua baris dua kolom.
+     * Enam kartu angka, tersusun dua baris tiga kolom.
      *
-     * <p>Dua baris membuat tiap kartu lebih lebar dan angkanya muat dibuat lebih besar.
-     * Isinya tetap tersusun menurun - lambang, keterangan, angka, catatan - jadi kartu
+     * <p>Tiga kolom muat untuk enam kartu, dan tiap kartu masih cukup lebar untuk angka
+     * besar yang tidak terpotong pada lebar jendela minimum - diukur, bukan dikira; lihat
+     * pemeriksaan "angka kartu beranda tidak terpotong pada lebar jendela minimum".
+     *
+     * <p>Truk dan rental berdiri sendiri-sendiri: keduanya memang dua daftar yang berbeda
+     * di data master (satu pemilik punya banyak truk), jadi menggabungkannya dalam satu
+     * kartu menyembunyikan angka yang justru dicari saat ada pemilik yang baru didaftarkan.
+     *
+     * <p>Isinya tetap tersusun menurun - lambang, keterangan, angka, catatan - jadi kartu
      * selebar ini menyisakan ruang kosong di sebelah kanan. Itu disengaja: menaruh
      * catatannya di samping angka akan membuatnya terbaca sebagai angka kedua.
      */
     private JPanel buildStats(LocalDate earliest, int pengiriman, BigDecimal amount,
-                              BigDecimal weight, int rentals, int trucks, BigDecimal monthAmount) {
-        JPanel p = new JPanel(new GridLayout(2, 2, 14, 14));
+                              BigDecimal weight, int rentals, int trucks, int tanpaPemilik,
+                              int pengguna, int admin, BigDecimal monthAmount) {
+        JPanel p = new JPanel(new GridLayout(2, 3, 14, 14));
         p.setOpaque(false);
         p.add(statCard(Icons.NOTE, "Pengiriman tercatat", String.valueOf(pengiriman),
                 earliest == null ? "belum ada data" : "sejak " + Dates.format(earliest), false));
@@ -114,7 +147,13 @@ public class PanelDashboard extends JPanel {
         p.add(statCard(Icons.HOME, "Total berat bersih", Calculator.formatKg(weight),
                 "setelah dipotong refraksi", false));
         p.add(statCard(Icons.TRUCK, "Truk terdaftar", String.valueOf(trucks),
-                "dari " + rentals + " rental", false));
+                tanpaPemilik == 0 ? "semua punya pemilik" : tanpaPemilik + " tanpa pemilik", false));
+        // "Pemilik" disebut di sini karena di data master pun begitu: rental adalah
+        // pemilik truknya, bukan tempat truk itu diparkir.
+        p.add(statCard(Icons.BUILDING, "Rental", String.valueOf(rentals),
+                "pemilik truk", false));
+        p.add(statCard(Icons.USER, "Pengguna", String.valueOf(pengguna),
+                admin + " admin", false));
         return p;
     }
 

@@ -311,10 +311,21 @@ starts with `DELETE`, so it wipes the target database.
 - **`Theme.fixedWidth` any short table column.** An unpinned column absorbs its share of the leftover
   window width, so in the 720px dialog the "Plat" column — ten characters of content — rendered 279px
   wide because both columns were stretched equally. Let the column holding long text absorb the slack.
-- **Dashboard is four stat cards, two rows of two, pinned to the top**: the big number keeps
+- **Dashboard is six stat cards, two rows of three, pinned to the top**: the big number keeps
   its all-time meaning and the month-to-date figure (`totalAmount(withDayOfMonth(1), now)`)
   goes in the caption — do not move the month figure into the headline, since changing a
   number's meaning without changing its title is what causes misreads.
+  **Truk and Rental are separate cards**: they are two different lists in the master data (one
+  owner has many trucks), and merging them hid the number an operator looks for right after
+  registering a new owner. Each count card's caption carries the fact worth knowing that is
+  free to compute: trucks without an owner, how many accounts are admins. The Pengguna card is
+  drawn for **every role** — it is a count, not the accounts page, which stays admin-only; it
+  discloses nothing an operator can act on.
+  Three columns narrowed each card, so the 24pt figure is now sized against the card width:
+  `TestUi.kartuBerandaTidakTerpotong` measures the value label against the width it actually
+  gets at `LEBAR_MINIMUM`, and `angkaKartuBerandaBenar` pins every card's number and caption to
+  the query that produces it (truck/rental/user counts sit next to each other in the code, so
+  two of them swapping reads perfectly plausible on screen).
   `TestUi.angkaBulanBerjalan` pins the month boundary. Two things were tried and rejected:
   a per-owner recap (`summaryPerRental`, still used by `TestDao` only) because a two-column
   table stretched across the page left the name and its amount at opposite ends of a
@@ -586,7 +597,7 @@ CP="build:lib/*"
 ```
 
 `set -e` means the first failing class aborts the run. Expected baseline: `TestCalculator` 12,
-`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 86 — **381 lulus, 0 gagal**.
+`TestDatabase` 57, `TestDao` 111, `TestAlur` 115, `TestUi` 88 — **383 lulus, 0 gagal**.
 
 - Tests use in-memory H2 only (`mem:kaspe`, `mem:daotest`, `mem:uitest`) and configure it via the
   test hook `Db.setConfiguration(driver, url, user, pass)`; they never touch the user's real
