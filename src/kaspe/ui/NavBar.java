@@ -220,7 +220,7 @@ public class NavBar extends JPanel {
 
     /** Nomor versi di kaki bilah, di bawah tombol keluar. */
     private static JLabel version() {
-        JLabel l = new JLabel("Versi 1.0.1");
+        JLabel l = new JLabel("Versi 1.1.0");
         l.setFont(Theme.semibold(11f));
         l.setForeground(Theme.INK_SOFT);
         // Jarak bawah 16 menahan tulisan ini dari tepi bawah jendela. Jarak atasnya kecil
