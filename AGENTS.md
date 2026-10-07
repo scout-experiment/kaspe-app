@@ -135,7 +135,7 @@ Never re-implement these inline in UI or DAO code; call `Calculator` so UI, repo
 |------|---------|
 | `src/kaspe/` | Core: `Main`, `Db` (connection/config), `Schema` (auto table creation), `Calculator`, `Sandi` (password hashing) |
 | `src/kaspe/model/` | Plain beans: `Rental`, `Truck`, `Transaction`, `TransactionDetail`, `ReportRow`, `Pengguna` |
-| `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals), `UserDao` (accounts, login) |
+| `src/kaspe/dao/` | `MasterDao` (rental, truck), `TransactionDao` (transactions, reports, totals), `UserDao` (accounts, login), `BackupDao` (dated H2 backup) |
 | `src/kaspe/ui/` | `MainFrame`, `NavBar`, `PagePanel`, `HeaderBar`, `Icons`, `DialogLogin`, `PanelDashboard`, `PanelTransaction`, `DialogDataMaster`, `DialogPemilik`, `PanelReport`, `PanelPengguna`, `PrintPreview`, `Theme` |
 | `src/kaspe/util/` | `Dates` (display `dd-MM-yyyy`, lenient parse) |
 | `src/kaspe/test/` | Hand-rolled test harness (no JUnit) |
@@ -551,7 +551,7 @@ starts with `DELETE`, so it wipes the target database.
 ## Runtime/Tooling Preferences
 
 - JDK 8 (Temurin 8u504 verified) is the supported target and what `JAVA_HOME` should point at.
-  Newer JDKs also compile and run it (JDK 21 verified green on all 4 suites) but are untested;
+  Newer JDKs also compile and run it (JDK 21 verified green on all 5 suites) but are untested;
   the scripts pin `-source/-target 1.8` so the output stays runnable on JDK 8 either way.
 - Build is plain `javac` + `java` via the shell scripts, or Ant/NetBeans. No Maven, no Gradle,
   no CI config in the repo.

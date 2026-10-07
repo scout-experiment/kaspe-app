@@ -670,11 +670,12 @@ kaspe-app/
     Sandi.java             penyandi sandi (PBKDF2 + garam per akun)
     model/                 kelas data (Rental, Truck, Transaction,
                            TransactionDetail, ReportRow, Pengguna)
-    dao/                   akses database (MasterDao, TransactionDao, UserDao)
+    dao/                   akses database (MasterDao, TransactionDao, UserDao,
+                           BackupDao)
     ui/                    tampilan (MainFrame, NavBar, PagePanel, HeaderBar, Icons,
                            DialogLogin, PanelDashboard, PanelTransaction,
                            DialogDataMaster, DialogPemilik, PanelReport,
-                           PanelPengguna, Theme)
+                           PanelPengguna, PrintPreview, Theme)
     util/                  bantu (Dates)
     test/                  uji otomatis
   src/kaspe.properties     pengaturan database (bawaan: H2, tanpa install)
@@ -698,6 +699,7 @@ Isi `tools/` — bukan bagian dari aplikasi, hanya untuk keperluan demo:
 |---|---|
 | `BuatDataContoh.java` | membuat `docs/data-contoh.sql` (64 pengiriman, satu catatan per pengiriman) memakai `Calculator` |
 | `PeriksaDataContoh.java` | menghitung ulang data contoh dan membandingkannya dengan rumus aplikasi |
+| `PeriksaData.java` | memeriksa kerusakan data di database pengguna sendiri (baca-saja) |
 | `BuatPratinjau.java` | menjalankan aplikasi lalu menggambar jendelanya ke `preview/*.png` |
 
 Cara menjalankan ketiganya ada di [Data contoh](#data-contoh) dan
