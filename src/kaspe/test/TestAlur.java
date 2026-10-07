@@ -18,8 +18,6 @@ import kaspe.util.Dates;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
-import java.awt.event.MouseEvent;
-import java.awt.event.MouseListener;
 import java.math.BigDecimal;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -494,8 +492,10 @@ public class TestAlur {
             return;
         }
         ((JTable) field(p, "riwayatTable")).setRowSelectionInterval(baris, baris);
-        record(klikDuaKali(p) && "Simpan Perubahan".equals(((AbstractButton) field(p, "btnSimpan")).getText()),
-                "klik dua kali baris daftar juga masuk mode ubah");
+        klik(p, "ubahPengiriman");
+        record("Ubah Pengiriman".equals(((JLabel) field(p, "judulKartu")).getText())
+                        && "Simpan Perubahan".equals(((AbstractButton) field(p, "btnSimpan")).getText()),
+                "pilih satu baris lalu tekan Ubah: masuk mode ubah");
 
         isiAngka(p, "9000", "8800", "1150");
         klik(p, "kembaliKeTambah");   // tombol Batal
@@ -938,19 +938,6 @@ public class TestAlur {
             record(sebab instanceof HeadlessException,
                     "satu-satunya kegagalan yang boleh terjadi adalah dialog tanpa layar: " + sebab);
         }
-    }
-
-    /** Kirim klik dua kali ke daftar riwayat, seperti operator mengekliknya. */
-    private static boolean klikDuaKali(PanelTransaction p) throws Exception {
-        JTable tabel = (JTable) field(p, "riwayatTable");
-        for (MouseListener l : tabel.getMouseListeners()) {
-            if (l.getClass().getName().startsWith("kaspe.ui.PanelTransaction$")) {
-                l.mouseClicked(new MouseEvent(tabel, MouseEvent.MOUSE_CLICKED,
-                        System.currentTimeMillis(), 0, 5, 5, 2, false));
-                return true;
-            }
-        }
-        return false;
     }
 
     /** Satu baris detail siap simpan lewat DAO, dihitung dengan Calculator. */

@@ -389,6 +389,20 @@ starts with `DELETE`, so it wipes the target database.
   wide action button there; Batal is hidden outside edit mode. Do not add a button to a row that can
   overflow — a `FlowLayout` row that runs out of width wraps its last button to a second line that
   the card then clips, and `TestUi`'s "tombol tidak terpotong" check exists to catch exactly that.
+- **The Transaksi plate/owner lists are reloaded AFTER a successful save, before the form is reset.**
+  The guard that refuses a known plate typed with a different owner reads the in-memory `trukPerPlat`,
+  and a truck born from that very save is not in it — so the next delivery was accepted,
+  `pastikanTruk` returned the truck that already existed, and the record landed under the OLD owner
+  while the operator had typed the new one, with no message at all; the per-owner money summary is
+  what this app exists to produce, so the money simply went to the wrong owner. The order matters:
+  `muatDaftarMaster()` makes the first plate select itself the moment the list is refilled, so it MUST
+  run before `kembaliKeTambah()` — reset first and the first plate is left sitting in the box, which
+  the next delivery then inherits. Same trap as the owner combo in `DialogDataMaster`'s add mode.
+- **Editing and deleting a saved delivery is button-only — never a double click on the row.** Ubah and
+  Hapus are enabled by the selection, and that selection is unambiguous because the operator made it
+  deliberately. A double click is easy to produce by accident (a slow click arrives as two), and on
+  the page that holds the money a hesitant input must not run an action. `TestAlur` enters edit mode
+  by pressing Ubah, as the specification's "pilih satu baris, tekan Ubah" requires.
 - **`MainFrame.LEBAR_MINIMUM` is load-bearing and measured, not guessed.** The floor is set by the
   two fixed-width tables — the saved-deliveries list and the Laporan table — because a `JTable` with
   default auto-resize *squeezes* its columns rather than scrolling, and on Laporan that squeeze

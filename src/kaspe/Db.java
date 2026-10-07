@@ -201,7 +201,21 @@ public final class Db {
             }
         }
         if (!url.equals(preparedUrl)) {
-            Schema.ensure(c);
+            try {
+                Schema.ensure(c);
+            } catch (SQLException | RuntimeException e) {
+                // Koneksi ini belum pernah diserahkan ke pemanggil, jadi blok
+                // try-with-resources miliknya tidak akan pernah menutupnya. Tanpa ditutup
+                // di sini, preparedUrl juga tidak jadi dipasang - sehingga setiap
+                // percobaan berikutnya membuka koneksi baru yang ikut bocor, dan di
+                // server MySQL slot sambungannya habis hanya dengan beberapa kali coba.
+                try {
+                    c.close();
+                } catch (SQLException ce) {
+                    e.addSuppressed(ce);
+                }
+                throw e;
+            }
             preparedUrl = url;
         }
         return c;

@@ -2,6 +2,7 @@ package kaspe;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.util.Locale;
 
 /**
  * Mesin hitung transaksi singkong.
@@ -78,7 +79,11 @@ public final class Calculator {
         if (value == null) {
             return "0";
         }
-        return String.format("%,.0f", value).replace(',', '.');
+        // Locale.US dipaku, bukan Locale bawaan mesin: pemisah ribuan bawaan bisa berupa
+        // spasi tak-terpisah (Prancis) atau tanda petik (Swiss), dan penggantian ',' di
+        // bawah ini tidak menyentuhnya - angkanya tercetak salah di kertas tanpa satu pun
+        // galat. Yang dipakai cuma pemisahnya; angkanya tetap dibulatkan ke rupiah penuh.
+        return String.format(Locale.US, "%,.0f", value).replace(',', '.');
     }
 
     /**

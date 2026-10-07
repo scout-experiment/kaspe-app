@@ -374,6 +374,12 @@ public class PanelPengguna extends JPanel {
                 }
             }
         }
+        // Bilah status hanya boleh menyebut jumlah akun kalau penghapusannya memang
+        // selesai. Tiap penghapusan meng-commit sendiri, jadi kegagalan di tengah jalan
+        // meninggalkan sebagian akun sudah terhapus - menuliskan "N akun pengguna
+        // dihapus" di situ membuat operator membaca jumlah penuh padahal sebagian
+        // masih ada, dan hanya dialog galat yang menyebutkan sebaliknya.
+        boolean terhapusSemua = false;
         try {
             int jwb = JOptionPane.showConfirmDialog(this,
                     "Hapus " + baris.length + " akun pengguna?",
@@ -384,12 +390,15 @@ public class PanelPengguna extends JPanel {
             for (int b : baris) {
                 dao.hapus(idPerBaris.get(b));
             }
+            terhapusSemua = true;
         } catch (Exception e) {
             Theme.showError(this, e);
         }
         tabel.clearSelection();
         muat();
-        setStatus(baris.length + " akun pengguna dihapus.");
+        if (terhapusSemua) {
+            setStatus(baris.length + " akun pengguna dihapus.");
+        }
     }
 
     private static Pengguna cariPengguna(List<Pengguna> semua, int id) {

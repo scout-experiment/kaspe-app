@@ -13,8 +13,6 @@ import javax.swing.event.DocumentListener;
 import javax.swing.table.DefaultTableModel;
 import javax.swing.table.TableColumn;
 import java.awt.*;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.File;
 import java.math.BigDecimal;
 import java.sql.SQLException;
@@ -157,15 +155,11 @@ public class PanelTransaction extends JPanel {
         btnFilterSemua.addActionListener(e -> bersihkanSaringan());
         // Kedua tombol mengikuti pilihan di daftar: Ubah hanya kalau tepat satu baris
         // (kalau dua, tidak jelas mana yang mau diubah), Hapus boleh satu atau lebih.
+        // Mengubah dan menghapus catatan HANYA lewat tombolnya, tidak lewat klik ganda di
+        // barisnya: klik ganda adalah masukan yang mudah tidak disengaja (klik yang
+        // terasa lambat terkirim sebagai dua klik), dan di halaman yang memegang angka
+        // uang, satu masukan ragu-ragu tidak boleh sampai menjalankan aksi.
         riwayatTable.getSelectionModel().addListSelectionListener(e -> perbaruiTombolRiwayat());
-        riwayatTable.addMouseListener(new MouseAdapter() {
-            @Override
-            public void mouseClicked(MouseEvent e) {
-                if (e.getClickCount() == 2) {
-                    ubahPengiriman();
-                }
-            }
-        });
         loadMaster();
         setupAutoCalculate();
         // Form dibuka dalam keadaan menambah: tanggal hari ini, dan dianggap sudah
@@ -1392,6 +1386,21 @@ public class PanelTransaction extends JPanel {
             // (klik kedua menemukan form kosong dan ditolak di atas), dan bendera
             // sedangProses tetap terpasang sampai dialognya ditutup (klik kedua yang
             // terkirim oleh putaran kejadian dialog ditolak di paling atas).
+            // Daftar plat dan rental dimuat ulang SESUDAH menyimpan, bukan hanya saat
+            // halaman dibuka. Truk yang baru saja lahir dari penyimpanan ini belum ada
+            // di peta truk layar, dan penjaga "plat dikenal tidak boleh berganti pemilik"
+            // membaca peta itu: tanpa pemuatan ulang, plat yang baru dibuat masih
+            // dianggap belum dikenal, penjaganya tidak menyala, dan pengiriman
+            // berikutnya dicatat milik pemilik yang LAMA sementara operator mengetik
+            // pemilik yang baru. Uangnya masuk ke rekap pemilik yang salah tanpa satu
+            // pun pesan.
+            //
+            // Urutannya penting: pemuatan ulang LEBIH DULU, pengosongan form SESUDAH.
+            // Memuat ulang daftar membuat pilihan pertama terpasang sendiri di kotak
+            // plat (item pertama dipilih begitu daftarnya terisi), jadi mengosongkan
+            // form sebelum memuat ulang akan menyisakan plat pertama tertulis di kotak -
+            // dan pengiriman berikutnya diam-diam mewarisi plat itu.
+            muatDaftarMaster();
             kembaliKeTambah();
             // Rental yang baru lahir dari form ini harus langsung bisa dipilih di
             // kotak saringan. Tanpa ini, daftar rental di saringan baru menyusul saat

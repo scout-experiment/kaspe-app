@@ -2367,6 +2367,50 @@ public class TestUi {
             return false;
         }
 
+        // (3b) Truk yang BARU SAJA lahir di atas harus langsung dikenal layar.
+        //
+        // Peta truk di layar dimuat ulang saat halaman dibuka dan sesudah menyimpan. Kalau
+        // sesudah menyimpan tidak ikut dimuat ulang, plat yang baru dibuat masih dianggap
+        // belum dikenal: penjaga di bawah tidak menyala, dan pengirimannya dicatat milik
+        // pemilik LAMA sementara operator mengetik pemilik yang baru. Uangnya masuk ke
+        // rekap pemilik yang salah, tanpa satu pun pesan - dan pencatatan pengiriman
+        // memang gunanya menghitung uang yang harus dibayar per pemilik.
+        //
+        // Truk yang lahir dari penyimpanan di atas persis kasus itu, sedangkan pemeriksaan
+        // (4) di bawah memakai plat yang sudah ada sejak halaman dibuka - peta sudah
+        // memuatnya, jadi pemeriksaan itu TIDAK bisa menemukan staleness ini.
+        plat.getEditor().setItem("ZZ 9999 ZZ");
+        plat.actionPerformed(new java.awt.event.ActionEvent(plat, 0, ""));
+        pilihRentalLain(rental, dipilih.getRentalId());
+        int riwayatSebelumTolak = jumlahRiwayat(p);
+        isi(p, "txtFieldWeight", "7200");
+        isi(p, "txtFactoryWeight", "7050");
+        isi(p, "txtRefraction", "15");
+        isi(p, "txtPrice", "1150");
+        if (!simpanPanel(p)) {
+            return false;
+        }
+        if (jumlahRiwayat(p) != riwayatSebelumTolak) {
+            System.out.println("        plat yang baru dibuat di halaman ini, diketik ulang dengan "
+                    + "rental pemilik lain, malah tersimpan");
+            return false;
+        }
+        String statusBaru = String.valueOf(((javax.swing.JLabel) field(p, "lblStatus")).getText());
+        if (!statusBaru.contains(String.valueOf(dipilih.getRentalName()))
+                || !statusBaru.contains("Pindah Pemilik")) {
+            System.out.println("        penjaga tidak menyala untuk plat yang baru saja dibuat, "
+                    + "bilah statusnya: \"" + statusBaru + "\"");
+            return false;
+        }
+        for (kaspe.model.ReportRow b : new kaspe.dao.TransactionDao().listDeliveries(null, null)) {
+            if ("ZZ 9999 ZZ".equals(b.getPlate())
+                    && !dipilih.getRentalName().equals(b.getRentalName())) {
+                System.out.println("        catatan plat baru tercatat milik '" + b.getRentalName()
+                        + "', seharusnya '" + dipilih.getRentalName() + "'");
+                return false;
+            }
+        }
+
         // (4) Plat yang sudah dikenal + rental yang sengaja disetel ke rental LAIN:
         // harus DITOLAK dengan pesan yang menunjuk pemilik tersimpan, tidak ada catatan
         // baru, dan pemilik yang tersimpan tidak boleh berubah diam-diam.

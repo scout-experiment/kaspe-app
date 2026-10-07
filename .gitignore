@@ -10,6 +10,11 @@ lib/mysql-connector-j-9.1.0.jar
 # Database pengguna — jangan sampai ikut ter-commit.
 db_kaspe*.mv.db
 db_kaspe*.trace.db
+db_kaspe*.lock.db
+
+# Sisa sistem operasi; muncul begitu folder ini dibuka dari Windows/macOS.
+.DS_Store
+Thumbs.db
 
 # Setelan lokal NetBeans; berisi jalur absolut komputer masing-masing.
 nbproject/private/
